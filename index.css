@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+.custom-scrollbar-heavy::-webkit-scrollbar {
+  width: 12px;
+}
+.custom-scrollbar-heavy::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+.custom-scrollbar-heavy::-webkit-scrollbar-thumb {
+  background: #6366f1;
+  border-radius: 10px;
+}
+.custom-scrollbar-heavy::-webkit-scrollbar-thumb:hover {
+  background: #4f46e5;
+}
+
+.quill-content .ql-align-center {
+  text-align: center;
+}
+.quill-content .ql-align-right {
+  text-align: right;
+}
+.quill-content .ql-align-justify {
+  text-align: justify;
+}
+.quill-content .ql-size-small {
+  font-size: 0.875rem;
+}
+.quill-content .ql-size-large {
+  font-size: 1.25rem;
+}
+.quill-content .ql-size-huge {
+  font-size: 2rem;
+}
+.quill-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 1rem;
+  margin: 1rem 0;
+  display: block;
+}
+.quill-content ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+}
+.quill-content ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+}
+.quill-content blockquote {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 1rem;
+  font-style: italic;
+  color: #6b7280;
+}

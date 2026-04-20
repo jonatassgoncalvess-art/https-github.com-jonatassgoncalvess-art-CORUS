@@ -2,12 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 // @ts-ignore
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-ignore
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 const DraggableAny = Draggable as any;
+
+// Contexto Global para Navegação (Perfil e Sair)
+const NavigationContext = React.createContext<{ onLogout: () => void, onProfileClick: () => void } | null>(null);
 
 const SUPABASE_URL = 'https://phjjccakzfwbytcbqvnh.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_8zEtiqLSMRF_gtsXLnpdLw_0_sPqE-t';
@@ -48,7 +53,13 @@ type UserAccount = {
   canEditProfiles?: boolean;
   canResetPasswords?: boolean;
   canManageLocations?: boolean;
-  canViewGlobalReports?: boolean;
+  canEditCRR?: boolean;
+  canReadOnlyMode?: boolean;
+  canEnableDisableUsers?: boolean;
+  canManageMessages?: boolean;
+  canSendBulletins?: boolean;
+  canChat?: boolean;
+  canExportBackups?: boolean;
   managedUserEmails?: string[];
 };
 
@@ -148,6 +159,23 @@ type MasterHymn = {
   number: string;
   title: string;
   owner_email?: string;
+};
+
+type BulletinMessage = {
+  id: string;
+  title: string;
+  content: string; // HTML
+  created_at: string;
+  created_by: string; // email
+};
+
+type BulletinUserStatus = {
+  id: string;
+  message_id: string;
+  user_id: string; // email
+  status: 'pending' | 'read';
+  show_again: boolean;
+  viewed_at?: string;
 };
 
 type HymnListType = 'Normal130' | 'Normal200' | 'Oracao' | 'Especial200' | 'Festiva200' | 'Comunhao200' | 'NatalAnoNovo' | 'Outra';
@@ -380,55 +408,61 @@ const formatSecondsToDurationString = (totalSeconds: number): string => {
 
 // --- Componentes de Interface ---
 
-const Layout = ({ children, title, onBack, onLogout, isReadOnly, onProfileClick, onExitImpersonation, widthClass = "max-w-5xl" }: { children?: React.ReactNode, title: string, onBack?: () => void, onLogout?: () => void, isReadOnly?: boolean, onProfileClick?: () => void, onExitImpersonation?: () => void, widthClass?: string }) => (
-  <div className="min-h-screen bg-gray-50 flex flex-col">
-    {onExitImpersonation && (
-      <div className="bg-amber-600 text-white p-2 text-center no-print shadow-inner animate-fade-in">
-        <div className={`mx-auto flex items-center justify-center gap-4 text-[10px] sm:text-xs font-black uppercase tracking-widest ${widthClass}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-          Ambiente de Visualização (Modo Leitura)
-          <button 
-            onClick={onExitImpersonation}
-            className="bg-white text-amber-700 px-4 py-1.5 rounded-full font-black hover:bg-amber-50 transition-all shadow-md active:scale-95"
-          >
-            Sair e Voltar ao Admin
-          </button>
-        </div>
-      </div>
-    )}
-    <header className="bg-indigo-700 text-white p-4 shadow-md no-print">
-      <div className={`mx-auto flex items-center justify-between ${widthClass}`}>
-        <div className="flex items-center gap-3">
-          {onBack && (
-            <button onClick={onBack} className="p-1 hover:bg-indigo-600 rounded">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+const Layout = ({ children, title, onBack, onLogout: propLogout, isReadOnly, onProfileClick: propProfile, onExitImpersonation, widthClass = "max-w-5xl" }: { children?: React.ReactNode, title: string, onBack?: () => void, onLogout?: () => void, isReadOnly?: boolean, onProfileClick?: () => void, onExitImpersonation?: () => void, widthClass?: string }) => {
+  const nav = React.useContext(NavigationContext);
+  const onLogout = propLogout || nav?.onLogout;
+  const onProfileClick = propProfile || nav?.onProfileClick;
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {onExitImpersonation && (
+        <div className="bg-amber-600 text-white p-2 text-center no-print shadow-inner animate-fade-in">
+          <div className={`mx-auto flex items-center justify-center gap-4 text-[10px] sm:text-xs font-black uppercase tracking-widest ${widthClass}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            Ambiente de Visualização (Modo Leitura)
+            <button 
+              onClick={onExitImpersonation}
+              className="bg-white text-amber-700 px-4 py-1.5 rounded-full font-black hover:bg-amber-50 transition-all shadow-md active:scale-95"
+            >
+              Sair e Voltar ao Admin
             </button>
-          )}
-          <h1 className="text-xl font-bold">{title}</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          {isReadOnly && <span className="bg-yellow-400 text-indigo-900 text-[10px] font-black px-2 py-0.5 rounded uppercase">Somente Leitura</span>}
-          <div className="text-sm opacity-80 hidden sm:block">CORUS - Gestor de Corais Apostólicos</div>
-          <div className="flex items-center gap-2">
-            {onProfileClick && (
-              <button onClick={onProfileClick} className="p-1 hover:bg-indigo-600 rounded" title="Meu Perfil">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              </button>
-            )}
-            {onLogout && (
-              <button onClick={onLogout} className="p-1 hover:bg-red-600 rounded" title="Sair">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-              </button>
-            )}
           </div>
         </div>
-      </div>
-    </header>
-    <main className={`flex-1 mx-auto w-full p-4 ${widthClass}`}>
-      {children}
-    </main>
-  </div>
-);
+      )}
+      <header className="bg-indigo-700 text-white p-4 shadow-md no-print">
+        <div className={`mx-auto flex items-center justify-between ${widthClass}`}>
+          <div className="flex items-center gap-3">
+            {onBack && (
+              <button onClick={onBack} className="p-1 hover:bg-indigo-600 rounded">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+            )}
+            <h1 className="text-xl font-bold">{title}</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            {isReadOnly && <span className="bg-yellow-400 text-indigo-900 text-[10px] font-black px-2 py-0.5 rounded uppercase">Somente Leitura</span>}
+            <div className="text-sm opacity-80 hidden sm:block">CORUS - Gestor de Corais Apostólicos</div>
+            <div className="flex items-center gap-2">
+              {onProfileClick && (
+                <button onClick={onProfileClick} className="p-1 hover:bg-indigo-600 rounded" title="Meu Perfil">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </button>
+              )}
+              {onLogout && (
+                <button onClick={onLogout} className="p-1 hover:bg-red-600 rounded" title="Sair">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+      <main className={`flex-1 mx-auto w-full p-4 ${widthClass}`}>
+        {children}
+      </main>
+    </div>
+  );
+};
 
 const MenuCard = ({ title, desc, icon, onClick }: any) => (
   <button onClick={onClick} className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100 flex flex-col items-center text-center gap-4 w-full h-full">
@@ -466,6 +500,7 @@ const HomeScreen = ({ navigate, onLogout, isReadOnly, isAdmin, onProfileClick, o
       <MenuCard title="Presença" desc="Chamadas e Histórico" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>} onClick={() => navigate('attendance')} />
       <MenuCard title="Biblioteca de Hinos" desc="Cadastro por Caderno" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>} onClick={() => navigate('hymns_library')} />
       <MenuCard title="Programações" desc="Geração de Listas" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>} onClick={() => navigate('programs')} />
+      <MenuCard title="Meus Avisos" desc="Histórico de Avisos" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>} onClick={() => navigate('bulletin_history')} />
       <MenuCard title="Dados e Backup" desc="Exportar/Importar CSV e JSON" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>} onClick={() => navigate('data_management')} />
     </div>
   </Layout>
@@ -631,29 +666,29 @@ const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
         </div>
       </div>
       <div id="instruments-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Relatório de Instrumentos</h2>
-          <div className="mt-4 text-[10px] font-black uppercase tracking-widest text-gray-500 border-indigo-900 border-t pt-2 italic text-center">Relação Geral de Instrumentos Cadastrados • Total: {instruments.length}</div>
+        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Instrumentos</h2>
+          <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic text-center">Relação Geral de Instrumentos Cadastrados • Total: {instruments.length}</div>
         </div>
         <table className="w-full border-collapse">
             <thead>
-                <tr className="bg-indigo-900 text-white text-left uppercase font-black text-[9px]">
-                    <th className="px-3 py-2 border border-indigo-800">#</th>
-                    <th className="px-3 py-2 border border-indigo-800">Instrumento</th>
-                    <th className="px-3 py-2 border border-indigo-800">Modalidade</th>
-                    <th className="px-3 py-2 border border-indigo-800 text-center">Clave</th>
-                    <th className="px-3 py-2 border border-indigo-800 text-right">Afinação</th>
+                <tr className="bg-black text-white text-left uppercase font-black text-[9px]">
+                    <th className="px-3 py-2 border border-gray-800">#</th>
+                    <th className="px-3 py-2 border border-gray-800">Instrumento</th>
+                    <th className="px-3 py-2 border border-gray-800">Modalidade</th>
+                    <th className="px-3 py-2 border border-gray-800 text-center">Clave</th>
+                    <th className="px-3 py-2 border border-gray-800 text-right">Afinação</th>
                 </tr>
             </thead>
             <tbody>
                 {sorted.map((i, idx) => (
-                    <tr key={i.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-indigo-50/30'}>
-                        <td className="px-3 py-2.5 text-[10px] text-gray-400 border border-gray-100">{idx + 1}</td>
-                        <td className="px-3 py-2.5 font-bold text-[10px] border border-gray-100 uppercase text-gray-800">{i.name}</td>
-                        <td className="px-3 py-2.5 text-[10px] text-gray-600 border border-gray-100 uppercase font-medium">{i.modality}</td>
-                        <td className="px-3 py-2.5 text-center text-[10px] text-indigo-600 border border-gray-100 uppercase font-bold">{i.timbre}</td>
-                        <td className="px-3 py-2.5 text-right font-black text-[10px] border border-gray-100 text-indigo-900 uppercase">
+                    <tr key={i.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-3 py-2.5 text-[10px] text-black border border-gray-100">{idx + 1}</td>
+                        <td className="px-3 py-2.5 font-bold text-[10px] border border-gray-100 uppercase text-black">{i.name}</td>
+                        <td className="px-3 py-2.5 text-[10px] text-black border border-gray-100 uppercase font-medium">{i.modality}</td>
+                        <td className="px-3 py-2.5 text-center text-[10px] text-black border border-gray-100 uppercase font-bold">{i.timbre}</td>
+                        <td className="px-3 py-2.5 text-right font-black text-[10px] border border-gray-100 text-black uppercase">
                             {i.tuning}
                         </td>
                     </tr>
@@ -662,7 +697,7 @@ const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
         </table>
         
         {instruments.length === 0 && (
-            <p className="text-center text-gray-400 py-12 italic uppercase font-bold text-xs tracking-widest">Nenhum instrumento cadastrado.</p>
+            <p className="text-center text-black py-12 italic uppercase font-bold text-xs tracking-widest">Nenhum instrumento cadastrado.</p>
         )}
       </div>
     </div>
@@ -684,23 +719,23 @@ const MusiciansReportScreen = ({ goBack, ownerEmail }: any) => {
         </div>
       </div>
       <div id="musician-report-alpha" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Relação de Integrantes</h2>
-          <div className="mt-4 text-xs font-bold uppercase italic text-gray-500 border-indigo-900 border-t pt-2">Ordem Alfabética • Total: {musicians.length} Integrantes</div>
+        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relação de Integrantes</h2>
+          <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic">Ordem Alfabética • Total: {musicians.length} Integrantes</div>
         </div>
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bg-indigo-900 text-white text-left uppercase font-black text-[10px]">
-              <th className="px-4 py-2 border border-indigo-800">Nome do Componente</th>
-              <th className="px-4 py-2 border border-indigo-800">Voz(es) / Instrumentos</th>
+            <tr className="bg-black text-white text-left uppercase font-black text-[10px]">
+              <th className="px-4 py-2 border border-gray-800">Nome do Componente</th>
+              <th className="px-4 py-2 border border-gray-800">Voz(es) / Instrumentos</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((m, idx) => (
-              <tr key={m.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-indigo-50/30'}>
-                <td className="px-4 py-3 font-black text-gray-800 uppercase text-xs border border-gray-100">{m.name}</td>
-                <td className="px-4 py-3 text-[10px] font-bold text-gray-600 uppercase border border-gray-100 italic">
+              <tr key={m.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                <td className="px-4 py-3 font-black text-black uppercase text-xs border border-gray-100">{m.name}</td>
+                <td className="px-4 py-3 text-[10px] font-bold text-black uppercase border border-gray-100 italic">
                   {m.voices.join(', ')}
                 </td>
               </tr>
@@ -727,10 +762,10 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
         </div>
       </div>
       <div id="musician-report-voice" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Integrantes por Voz</h2>
-          <div className="mt-4 text-xs font-bold uppercase italic text-gray-500 border-indigo-900 border-t pt-2">Total: {musicians.length} Integrantes</div>
+        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Voz</h2>
+          <div className="mt-2 text-xs font-bold uppercase italic text-black border-black border-t pt-2">Total: {musicians.length} Integrantes</div>
         </div>
         
         <div style={{ columns: '2', columnGap: '30px' }}>
@@ -739,10 +774,10 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
             if (members.length === 0) return null;
             return (
               <div key={voice} className="mb-6 break-inside-avoid">
-                <h3 className="bg-indigo-900 text-white px-3 py-1 font-black uppercase text-[10px] mb-2 rounded-sm">{voice} ({members.length})</h3>
+                <h3 className="bg-black text-white px-3 py-1 font-black uppercase text-[10px] mb-2 rounded-sm">{voice} ({members.length})</h3>
                 <div className="space-y-1">
                   {members.map(m => (
-                    <div key={m.id} className="text-[10px] font-bold text-gray-700 border-b border-gray-100 py-1 uppercase truncate">{m.name}</div>
+                    <div key={m.id} className="text-[10px] font-bold text-black border-b border-gray-100 py-1 uppercase truncate">{m.name}</div>
                   ))}
                 </div>
               </div>
@@ -839,10 +874,10 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
         </div>
       </div>
       <div id="attendance-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[297mm] min-h-[210mm]">
-        <div className="text-center border-b-4 border-double border-indigo-900 pb-4 mb-6">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-1 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Relatório de Presença</h2>
-          <div className="mt-3 text-[10px] font-bold uppercase italic text-gray-500 border-indigo-900 border-t pt-2 flex justify-between">
+        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Presença</h2>
+          <div className="mt-2 text-[10px] font-bold uppercase italic text-black border-black border-t pt-2 flex justify-between">
             <span>Período: {new Date(reportData.s + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(reportData.e + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
             <span>Grupo: {reportData.g || 'Geral'}</span>
             <span>Filtro: {reportData.t}</span>
@@ -850,7 +885,7 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
         </div>
 
         {records.length === 0 ? (
-          <p className="text-center text-gray-400 py-12 italic uppercase font-bold text-xs tracking-widest">Nenhum registro encontrado neste período.</p>
+          <p className="text-center text-black py-12 italic uppercase font-bold text-xs tracking-widest">Nenhum registro encontrado neste período.</p>
         ) : (
           <div className="space-y-8">
             {records.map(r => {
@@ -871,16 +906,16 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
 
               return (
                 <div key={r.id} className="break-inside-avoid">
-                  <h3 className="bg-indigo-900 text-white px-4 py-1 font-black uppercase text-[10px] mb-2 inline-block rounded-sm tracking-widest">
+                  <h3 className="bg-black text-white px-4 py-1 font-black uppercase text-[10px] mb-2 inline-block rounded-sm tracking-widest leading-none">
                     {new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                   </h3>
                   
                   <table className="w-full border-collapse">
                     <thead>
-                      <tr className="bg-indigo-900 text-white text-[9px] font-black uppercase tracking-widest text-left">
-                        <th className="px-3 py-1.5 border border-indigo-800 w-1/3">Nome do Componente</th>
-                        <th className="px-3 py-1.5 border border-indigo-800 w-32 text-center">Status</th>
-                        <th className="px-3 py-1.5 border border-indigo-800">Justificativa</th>
+                      <tr className="bg-black text-white text-[9px] font-black uppercase tracking-widest text-left">
+                        <th className="px-3 py-1.5 border border-gray-800 w-1/3">Nome do Componente</th>
+                        <th className="px-3 py-1.5 border border-gray-800 w-32 text-center">Status</th>
+                        <th className="px-3 py-1.5 border border-gray-800">Justificativa</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -888,18 +923,16 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
                         const isPresent = presentIds.has(m.id);
                         const isJustified = justifiedIds.has(m.id);
                         const statusText = isPresent ? 'Presente' : isJustified ? 'Justificado' : 'Ausente';
-                        const statusColor = isPresent ? 'text-green-600' : isJustified ? 'text-amber-600' : 'text-red-600';
-                        const statusBg = isPresent ? 'bg-green-50' : isJustified ? 'bg-amber-50' : 'bg-red-50';
-                        const statusBorder = isPresent ? 'border-green-200' : isJustified ? 'border-amber-200' : 'border-red-200';
+                        const statusColor = isPresent ? 'text-black' : isJustified ? 'text-black' : 'text-black';
                         const justificationText = isJustified ? justifiedMap[m.id] : '-';
 
                         return (
-                          <tr key={m.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-indigo-50/30'}>
-                             <td className="px-3 py-2 border border-gray-100 font-bold text-gray-800 text-[10px] uppercase">{m.name}</td>
+                          <tr key={m.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                             <td className="px-3 py-2 border border-gray-100 font-bold text-black text-[10px] uppercase">{m.name}</td>
                              <td className="px-3 py-2 border border-gray-100 text-center">
-                               <span className={`text-[9px] font-black uppercase border ${statusBorder} px-2 py-0.5 rounded-full ${statusBg} ${statusColor}`}>{statusText}</span>
+                               <span className={`text-[9px] font-black uppercase ${statusColor}`}>{statusText}</span>
                              </td>
-                             <td className="px-3 py-2 border border-gray-100 text-[10px] text-gray-500 italic">
+                             <td className="px-3 py-2 border border-gray-100 text-[10px] text-black italic">
                                {justificationText}
                              </td>
                           </tr>
@@ -907,7 +940,7 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
                       })}
                       {filteredList.length === 0 && (
                         <tr>
-                          <td colSpan={3} className="px-4 py-8 text-center text-gray-400 italic text-sm">Nenhum músico encontrado para este filtro nesta data.</td>
+                          <td colSpan={3} className="px-4 py-8 text-center text-black italic text-sm">Nenhum músico encontrado para este filtro nesta data.</td>
                         </tr>
                       )}
                     </tbody>
@@ -1055,10 +1088,10 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
         </div>
       </div>
       <div id="hymn-notebook-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Biblioteca de Hinos</h2>
-          <div className="mt-4 text-xs font-bold uppercase italic text-gray-500 border-indigo-900 border-t pt-2">
+        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Biblioteca de Hinos</h2>
+          <div className="mt-2 text-[10px] font-bold uppercase italic text-black border-black border-t pt-2">
             Caderno: {notebook.code} - {notebook.name} • Total: {hymns.length} Hinos
           </div>
         </div>
@@ -1066,8 +1099,8 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
         <div style={{ columns: '3', columnGap: '20px' }}>
           {sorted.map(h => (
             <div key={h.id} className="flex gap-2 items-center mb-1.5 break-inside-avoid border-b border-gray-100 pb-1 leading-none">
-              <span className="font-black text-indigo-700 w-8 text-sm">{h.number}</span>
-              <span className="font-bold text-gray-800 uppercase text-[9px] flex-1 line-clamp-1">{h.title}</span>
+              <span className="font-black text-black w-8 text-sm">{h.number}</span>
+              <span className="font-bold text-black uppercase text-[9px] flex-1 line-clamp-1">{h.title}</span>
             </div>
           ))}
         </div>
@@ -1088,22 +1121,22 @@ const AdminMasterReportView = ({ id, title, columns, data, goBack }: any) => (
       </div>
     </div>
     <div id={id} className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-      <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
-        <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
-        <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">{title}</h2>
-        <div className="mt-4 text-[10px] font-black uppercase tracking-widest text-gray-500 border-indigo-900 border-t pt-2 italic">Sistema de Gestão Admin Master</div>
+      <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+        <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+        <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">{title}</h2>
+        <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic">Sistema de Gestão Admin Master</div>
       </div>
       <table className="w-full border-collapse">
         <thead>
-          <tr className="bg-indigo-900 text-white text-left uppercase font-black text-[10px]">
-            {columns.map((col: any) => <th key={col.key} className="px-3 py-2 border border-indigo-800">{col.label}</th>)}
+          <tr className="bg-black text-white text-left uppercase font-black text-[10px]">
+            {columns.map((col: any) => <th key={col.key} className="px-3 py-2 border border-gray-800">{col.label}</th>)}
           </tr>
         </thead>
         <tbody>
           {data.map((item: any, idx: number) => (
-            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-indigo-50/30'}>
+            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
               {columns.map((col: any) => (
-                <td key={col.key} className="px-3 py-2.5 text-[10px] font-bold text-gray-700 border border-gray-100 uppercase">
+                <td key={col.key} className="px-3 py-2.5 text-[10px] font-bold text-black border border-gray-100 uppercase">
                   {item[col.key] || '-'}
                 </td>
               ))}
@@ -1557,19 +1590,6 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
 };
 
 const AdminRegistrationsSummaryScreen = ({ navigate, goBack, currentUser }: any) => {
-  const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
-  const canViewReports = isMaster || currentUser.canViewGlobalReports;
-
-  const handleReport = async (type: string) => {
-    let table = '', local = '';
-    if (type === 'countries') { table = 'countries'; local = 'gca_countries'; }
-    if (type === 'states') { table = 'states'; local = 'gca_states'; }
-    if (type === 'congregations') { table = 'congregations_admin'; local = 'gca_congregations_admin'; }
-
-    const data = await fetchData(table, local);
-    navigate(`admin_${type}_report`, data);
-  };
-
   return (
     <Layout title="Módulo de Cadastros" onBack={goBack}>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
@@ -1593,35 +1613,6 @@ const AdminRegistrationsSummaryScreen = ({ navigate, goBack, currentUser }: any)
         />
       </div>
 
-      {canViewReports && (
-        <div className="mt-12 bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-           <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-6 border-b pb-2">Ambiente de Relatórios Globais</h3>
-           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <button 
-                onClick={() => handleReport('countries')}
-                className="bg-indigo-50 text-indigo-700 p-4 rounded-2xl font-bold uppercase text-[10px] hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-3"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
-                Países
-              </button>
-              <button 
-                onClick={() => handleReport('states')}
-                className="bg-indigo-50 text-indigo-700 p-4 rounded-2xl font-bold uppercase text-[10px] hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-3"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
-                Estados
-              </button>
-              <button 
-                onClick={() => handleReport('congregations')}
-                className="bg-indigo-50 text-indigo-700 p-4 rounded-2xl font-bold uppercase text-[10px] hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-3"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
-                Congregações
-              </button>
-           </div>
-        </div>
-      )}
-
       <div className="mt-12 flex justify-center">
         <button onClick={goBack} className="border-2 border-gray-200 text-gray-500 px-12 py-2 rounded-full font-bold hover:bg-gray-100 transition-colors uppercase text-xs">Voltar ao Painel</button>
       </div>
@@ -1638,8 +1629,7 @@ const AdminConductorCertificatesScreen = ({ navigate, goBack, currentUser }: any
 
   const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
   const canRegister = isMaster || currentUser.canRegister;
-  const canManage = isMaster || currentUser.canApprove || currentUser.canRegister;
-  const canViewReports = isMaster || currentUser.canViewGlobalReports;
+  const canEdit = isMaster || currentUser.canEditCRR;
 
   useEffect(() => { 
     fetchData('conductors', 'gca_conductors').then(setConductors);
@@ -1667,20 +1657,6 @@ const AdminConductorCertificatesScreen = ({ navigate, goBack, currentUser }: any
       <div className="flex justify-between items-center mb-6">
         <h2 className="font-bold text-gray-700 uppercase">Lista de Regentes</h2>
         <div className="flex gap-2">
-          {canViewReports && (
-            <button 
-              onClick={() => {
-                const dataForReport = conductors.map(c => ({
-                  ...c,
-                  congregation_name: congregations.find(con => con.id === c.congregation_id)?.name || 'N/A'
-                }));
-                navigate('admin_conductors_report', dataForReport);
-              }} 
-              className="bg-gray-100 text-indigo-600 px-4 py-2 rounded font-bold border border-indigo-200"
-            >
-              Relatório
-            </button>
-          )}
           {canRegister && (
             <button onClick={() => navigate('admin_new_conductor')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold shadow-md">Novo Registro</button>
           )}
@@ -1712,7 +1688,7 @@ const AdminConductorCertificatesScreen = ({ navigate, goBack, currentUser }: any
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
               <button onClick={() => navigate('admin_crr_card', c)} className="flex-1 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded text-[10px] font-black uppercase border border-indigo-100">Emitir CRR</button>
-              {canManage && (
+              {canEdit && (
                 <button onClick={() => navigate('admin_edit_conductor', c)} className="flex-1 bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-black uppercase shadow-sm">Editar</button>
               )}
               {canRegister && (
@@ -2664,14 +2640,15 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
   const confirmSave = async () => {
     if (isReadOnly) return;
     const all = await fetchData('attendance', 'gca_attendance', ownerEmail);
-    const exists = all.some((r: AttendanceRecord) => r.date === date && r.id !== editData?.id);
-    if (exists) { setSaveError("Já Existe Uma Chama Nesta Data"); return; }
+    const currentGroup = editData?.group || (filterGroup as any);
+    const exists = all.some((r: AttendanceRecord) => r.date === date && r.group === currentGroup && r.id !== editData?.id);
+    if (exists) { setSaveError(`Já Existe Uma Chamada de ${currentGroup} Nesta Data`); return; }
     const record: AttendanceRecord = { 
         id: editData?.id || generateId(), 
         date, 
         presentMusicianIds: Array.from(selected), 
         justifications,
-        group: editData?.group || (filterGroup as any),
+        group: currentGroup,
         owner_email: ownerEmail 
     };
     const updatedList = editData ? all.map((r: any) => r.id === editData.id ? record : r) : [...all, record];
@@ -3001,11 +2978,13 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
   const [editingId, setEditingId] = useState<string | null>(null);
   const [hymnToDelete, setHymnToDelete] = useState<MasterHymn | null>(null);
   const [validationError, setValidationError] = useState(false);
+  const [startZeroError, setStartZeroError] = useState(false);
 
   useEffect(() => { fetchData('hymns_library', 'gca_hymns_library', ownerEmail).then(all => { setHymns(all.filter((h: any) => h.notebook === notebook.code)); }); }, [notebook.code, ownerEmail]);
 
   const saveHymn = async (e: React.FormEvent) => {
     e.preventDefault(); if (isReadOnly) return;
+    if (formData.number.startsWith('0')) { setStartZeroError(true); return; }
     const isDuplicate = hymns.some(h => (h.number === formData.number || h.title.toLowerCase() === formData.title.toLowerCase()) && h.id !== editingId);
     if (isDuplicate) { setValidationError(true); return; }
     const hymnToSave: MasterHymn = { id: editingId || generateId(), notebook: notebook.code, owner_email: ownerEmail, ...formData };
@@ -3040,8 +3019,9 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
         <div className="bg-white p-6 rounded shadow mb-6 animate-fade-in">
           <h3 className="font-bold mb-4">{editingId ? 'Editar Hino' : 'Adicionar Hino'}</h3>
           {validationError && <div className="mb-4 bg-red-50 border-l-4 border-red-500 text-red-700 font-bold text-sm">Número ou Título Já Cadastrado</div>}
+          {startZeroError && <div className="mb-4 bg-red-50 border-l-4 border-red-500 text-red-700 font-bold text-sm px-3 py-2">O número do hino não pode começar com zero</div>}
           <form onSubmit={saveHymn} className="flex flex-col sm:flex-row gap-4">
-            <input required placeholder="Nº" className={`w-full sm:w-24 border rounded p-2 transition-colors ${validationError ? 'border-red-500 bg-red-50' : ''}`} value={formData.number} onChange={e => { setFormData({...formData, number: e.target.value}); setValidationError(false); }} />
+            <input required placeholder="Nº" className={`w-full sm:w-24 border rounded p-2 transition-colors ${validationError || startZeroError ? 'border-red-500 bg-red-50' : ''}`} value={formData.number} onChange={e => { setFormData({...formData, number: e.target.value}); setValidationError(false); setStartZeroError(false); }} />
             <input required placeholder="Título" className={`flex-1 border rounded p-2 transition-colors ${validationError ? 'border-red-500 bg-red-50' : ''}`} value={formData.title} onChange={e => { setFormData({...formData, title: e.target.value}); setValidationError(false); }} />
             <div className="flex gap-2"><button type="submit" className="flex-1 bg-indigo-600 text-white px-6 py-2 rounded font-bold">{editingId ? 'Atualizar' : 'Salvar'}</button><button type="button" onClick={() => { setShowForm(false); setEditingId(null); setValidationError(false); }} className="px-4 py-2 border rounded">Cancelar</button></div>
           </form>
@@ -3687,10 +3667,10 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
         </div>
       </div>
       <div id="program-print" className={`bg-white shadow-2xl mx-auto ${(list.isDetailed || list.type === 'NatalAnoNovo') ? 'max-w-[297mm]' : 'max-w-[210mm]'} min-h-[297mm] ${list.type === 'NatalAnoNovo' ? 'p-6' : 'p-12'}`}>
-        <div className={`text-center border-b-4 border-double border-black pb-6 ${list.type === 'NatalAnoNovo' ? 'mb-4' : 'mb-8'}`} style={{ fontSize: '14px' }}>
+        <div className={`text-center border-b-2 border-double border-black pb-2 ${list.type === 'NatalAnoNovo' ? 'mb-2' : 'mb-4'}`} style={{ fontSize: '14px' }}>
           <h1 className="font-black uppercase tracking-tighter">Igreja Apostólica</h1>
-          <h2 className="font-bold mt-2 border border-black inline-block px-4 py-1 uppercase">{MEETING_TYPES[list.type]}</h2>
-          <div className={`${list.type === 'NatalAnoNovo' ? 'mt-4' : 'mt-8'} flex justify-between px-2 font-bold uppercase italic border-black border-t-2 pt-2`}>
+          <h2 className="font-bold mt-1 border border-black inline-block px-4 py-0.5 uppercase">{MEETING_TYPES[list.type]}</h2>
+          <div className={`${list.type === 'NatalAnoNovo' ? 'mt-2' : 'mt-4'} flex justify-between px-2 font-bold uppercase italic border-black border-t-2 pt-2 text-black`}>
             <span>Data: {new Date(list.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
             {list.type === 'NatalAnoNovo' && <span>Início: {list.startTime || '19:00:00'}</span>}
             <span>Congregação: {list.congregation}</span>
@@ -3737,7 +3717,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
                 <React.Fragment key={sec}>
                   {list.type === 'Oracao' && sec === 'afterIndividualPrayer' && (
                     <tr className="bg-white">
-                      <td colSpan={colSpanValue} className="px-2 py-4 text-center font-black uppercase text-indigo-900 italic tracking-widest border-y border-indigo-50" style={{ fontSize: '13px' }}>
+                      <td colSpan={colSpanValue} className="px-2 py-4 text-center font-black uppercase text-black italic tracking-widest border-y border-gray-100" style={{ fontSize: '13px' }}>
                         Oração Individual
                       </td>
                     </tr>
@@ -3745,7 +3725,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
                   <tr className="bg-gray-50">
                     <td 
                       colSpan={colSpanValue} 
-                      className={`px-2 py-1 font-black uppercase text-indigo-900 border-b border-gray-300 text-center`}
+                      className={`px-2 py-1 font-black uppercase text-black border-b border-gray-300 text-center`}
                       style={{ fontSize: '14px' }}
                     >
                       {sectionLabel}
@@ -3758,18 +3738,18 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
                     
                     return (
                       <tr key={sec + i} className="border-b border-gray-200" style={{ fontSize: isNatal ? '10px' : '12px' }}>
-                        <td className={`${cellPadding} font-bold text-gray-400`}>{e.notebook}</td>
-                        <td className={`${cellPadding} font-black text-indigo-700`}>{e.number}</td>
-                        <td className={`${cellPadding} font-bold text-gray-800 uppercase`}>{e.title}</td>
+                        <td className={`${cellPadding} font-bold text-black`}>{e.notebook}</td>
+                        <td className={`${cellPadding} font-black text-black`}>{e.number}</td>
+                        <td className={`${cellPadding} font-bold text-black uppercase`}>{e.title}</td>
                         {list.isDetailed && (
                           <>
-                            <td className={`${cellPadding} text-[11px] italic`}>{isDetailedRow ? (e.conductor || '-') : ''}</td>
-                            <td className={`${cellPadding} text-[11px] italic`}>{isDetailedRow ? (e.soloist || '-') : ''}</td>
-                            <td className={`${cellPadding} text-[11px] italic`}>{isDetailedRow ? (e.keyboardist || '-') : ''}</td>
-                            <td className={`${cellPadding} text-[11px] italic`}>{isDetailedRow ? (e.guitarist || '-') : ''}</td>
+                            <td className={`${cellPadding} text-[11px] italic text-black`}>{isDetailedRow ? (e.conductor || '-') : ''}</td>
+                            <td className={`${cellPadding} text-[11px] italic text-black`}>{isDetailedRow ? (e.soloist || '-') : ''}</td>
+                            <td className={`${cellPadding} text-[11px] italic text-black`}>{isDetailedRow ? (e.keyboardist || '-') : ''}</td>
+                            <td className={`${cellPadding} text-[11px] italic text-black`}>{isDetailedRow ? (e.guitarist || '-') : ''}</td>
                           </>
                         )}
-                        <td className={`${cellPadding} text-gray-500 italic`}>{!hideExecution ? (e.execution || '-') : ''}</td>
+                        <td className={`${cellPadding} text-black italic`}>{!hideExecution ? (e.execution || '-') : ''}</td>
                         {isNatal && (
                           <td className={`${cellPadding} text-black font-black text-center font-mono`} style={{ fontSize: '13px' }}>{formatSecondsToClockTime(runningSeconds)}</td>
                         )}
@@ -3785,13 +3765,13 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
         {list.type === 'NatalAnoNovo' && (
           <div className="mt-4 pt-2 border-t-2 border-black flex justify-between items-start">
             <div className="flex gap-4">
-              <div className="flex flex-col">
-                <span className="text-[8px] font-black uppercase text-gray-500">Tempo Total</span>
+              <div className="flex flex-col text-black">
+                <span className="text-[8px] font-black uppercase">Tempo Total</span>
                 <span className="text-sm font-black">{formatSecondsToDurationString(totalPresentationSeconds)}</span>
               </div>
             </div>
-            <div className="text-right flex flex-col">
-              <span className="text-[8px] font-black uppercase text-gray-500">Encerramento Previsto</span>
+            <div className="text-right flex flex-col text-black">
+              <span className="text-[8px] font-black uppercase">Encerramento Previsto</span>
               <span className="text-lg font-black">{formatSecondsToClockTime(runningSeconds)}</span>
             </div>
           </div>
@@ -3906,10 +3886,10 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
         </div>
       </div>
       <div id="hymn-usage-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-4 border-double border-indigo-900 pb-4 mb-6">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-1 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Frequência de Uso de Hinos</h2>
-          <div className="mt-3 text-[9px] font-bold uppercase italic border-indigo-900 border-t pt-2 flex justify-between text-gray-500">
+        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Frequência de Uso de Hinos</h2>
+          <div className="mt-2 text-[9px] font-bold uppercase italic border-black border-t pt-2 flex justify-between text-black">
             <span>Período: {new Date(start + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(end + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
             <span>Ordem: {sortOrder === 'numerical' ? 'Numérica' : sortOrder === 'most_presented' ? 'MAIS USADOS' : 'MENOS USADOS'}</span>
           </div>
@@ -3917,16 +3897,16 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
 
         {notebookCodes.map(code => (
           <div key={code} className="mb-6 last:mb-0 break-inside-avoid">
-            <h3 className="bg-indigo-900 text-white px-3 py-1 font-black uppercase text-[10px] mb-2 rounded-sm tracking-widest">{code} - {NOTEBOOKS[code]}</h3>
+            <h3 className="bg-black text-white px-3 py-1 font-black uppercase text-[10px] mb-2 rounded-sm tracking-widest">{code} - {NOTEBOOKS[code]}</h3>
             
             <div style={{ columns: '2', columnGap: '20px' }}>
               {grouped[code].map((h: any) => (
                 <div key={h.id} className="flex justify-between items-center px-1 py-1 border-b border-gray-100 text-[10px] break-inside-avoid leading-none">
                   <div className="flex gap-2 min-w-0 overflow-hidden items-center">
-                    <span className="font-black text-indigo-700 w-6 flex-shrink-0">{h.number}</span>
-                    <span className="font-bold text-gray-800 uppercase truncate text-[9px]">{h.title}</span>
+                    <span className="font-black text-black w-6 flex-shrink-0">{h.number}</span>
+                    <span className="font-bold text-black uppercase truncate text-[9px]">{h.title}</span>
                   </div>
-                  <span className={`font-black ml-2 ${h.count > 0 ? 'text-indigo-900' : 'text-gray-300'}`}>{h.count}</span>
+                  <span className={`font-black ml-2 ${h.count > 0 ? 'text-black' : 'text-gray-300'}`}>{h.count}</span>
                 </div>
               ))}
             </div>
@@ -3934,7 +3914,7 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
         ))}
 
         {report.length === 0 && (
-          <p className="text-center text-gray-400 py-12 italic uppercase font-bold text-xs tracking-widest">Nenhum hino encontrado ou registrado no período.</p>
+          <p className="text-center text-black py-12 italic uppercase font-bold text-xs tracking-widest">Nenhum hino encontrado ou registrado no período.</p>
         )}
       </div>
     </div>
@@ -3946,7 +3926,7 @@ const AdminMenuScreen = ({ navigate, goBack, currentUser }: any) => {
   return (
     <Layout title="Painel Administrativo" onBack={goBack}>
       <div className="max-w-md mx-auto mt-8 grid gap-6">
-        {(isMaster || currentUser.canApprove || currentUser.canDeleteUser || currentUser.canResetPasswords || (currentUser.canRegister && currentUser.canApprove)) && (
+        {(isMaster || currentUser.canApprove || currentUser.canDeleteUser || currentUser.canResetPasswords || currentUser.canEnableDisableUsers) && (
           <MenuCard 
             title="Acessos" 
             desc="Gerir usuários (autorizar, desabilitar ou excluir)" 
@@ -3964,7 +3944,7 @@ const AdminMenuScreen = ({ navigate, goBack, currentUser }: any) => {
           />
         )}
 
-        {(isMaster || currentUser.canApprove || currentUser.canRegister) && (
+        {(isMaster || currentUser.canApprove || currentUser.canRegister || currentUser.canEditCRR) && (
           <MenuCard 
             title="Certificado de Registro de Regentes" 
             desc="Geração de certificados oficiais" 
@@ -3973,12 +3953,21 @@ const AdminMenuScreen = ({ navigate, goBack, currentUser }: any) => {
           />
         )}
 
-        {isMaster && (
+        {(isMaster || currentUser.canManageMessages) && (
           <MenuCard 
             title="Mensagens" 
             desc="Histórico e gestão de conversas do Chat" 
-            icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2-2z"/></svg>} 
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>} 
             onClick={() => navigate('admin_messages')} 
+          />
+        )}
+
+        {(isMaster || currentUser.canSendBulletins) && (
+          <MenuCard 
+            title="Avisos Oficiais" 
+            desc="Quadro de avisos do sistema" 
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>} 
+            onClick={() => navigate('admin_bulletins')} 
           />
         )}
       </div>
@@ -3990,6 +3979,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [permissionModalUser, setPermissionModalUser] = useState<UserAccount | null>(null);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<UserAccount | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
   const [statusConfirmUser, setStatusConfirmUser] = useState<{user: UserAccount, target: any} | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [passwordConfirmUser, setPasswordConfirmUser] = useState<UserAccount | null>(null);
@@ -3997,7 +3987,13 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
   const [loading, setLoading] = useState(false);
   const [showScopeSelector, setShowScopeSelector] = useState(false);
   const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
-  const filteredUsersForAdmin = isMaster ? users : users.filter(u => (currentUser.managedUserEmails || []).includes(u.email));
+  const hasGeneralAccess = isMaster || currentUser.canApprove || currentUser.canRegister || currentUser.canManageLocations;
+  
+  const filteredUsersForAdmin = users.filter(u => {
+    if (u.email === 'Admin') return false;
+    if (hasGeneralAccess) return true;
+    return (currentUser.managedUserEmails || []).includes(u.email);
+  });
 
   useEscapeKey(() => {
     if (showScopeSelector) {
@@ -4012,6 +4008,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
       setPermissionError(null);
     } else if (deleteConfirmUser) {
       setDeleteConfirmUser(null);
+      setDeletePassword('');
     } else if (statusConfirmUser) {
       setStatusConfirmUser(null);
     } else {
@@ -4055,10 +4052,32 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
         permissionModalUser.canEditProfiles ||
         permissionModalUser.canResetPasswords ||
         permissionModalUser.canManageLocations ||
-        permissionModalUser.canViewGlobalReports;
+        permissionModalUser.canEditCRR ||
+        permissionModalUser.canReadOnlyMode ||
+        permissionModalUser.canEnableDisableUsers ||
+        permissionModalUser.canManageMessages ||
+        permissionModalUser.canSendBulletins ||
+        permissionModalUser.canChat;
 
       if (!hasAnyPermission) {
         setPermissionError("Favor habilitar usuário a realizar pelo menos uma das ações");
+        return;
+      }
+
+      // Validação de Escopo: Apenas se houver permissões ALÉM das gerais (Base)
+      const hasSpecificPermissions = 
+        permissionModalUser.canDeleteUser ||
+        permissionModalUser.canResetPasswords ||
+        permissionModalUser.canEnableDisableUsers ||
+        permissionModalUser.canEditCRR ||
+        permissionModalUser.canReadOnlyMode ||
+        permissionModalUser.canManageMessages ||
+        permissionModalUser.canSendBulletins ||
+        permissionModalUser.canChat ||
+        permissionModalUser.canViewOthers;
+
+      if (hasSpecificPermissions && (!permissionModalUser.managedUserEmails || permissionModalUser.managedUserEmails.length === 0)) {
+        setPermissionError("Para conceder permissões de Gestão/Comunicação, selecione pelo menos um usuário no Escopo de Controle");
         return;
       }
     }
@@ -4069,25 +4088,29 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
       canRegister: permissionModalUser.canRegister,
       canApprove: permissionModalUser.canApprove,
       canDeleteUser: permissionModalUser.canDeleteUser,
-      canEditProfiles: permissionModalUser.canApprove, // Syncing with canApprove as requested
+      canEditProfiles: permissionModalUser.canEditProfiles || permissionModalUser.canApprove,
       canResetPasswords: permissionModalUser.canResetPasswords,
       canManageLocations: permissionModalUser.canManageLocations,
-      canViewGlobalReports: permissionModalUser.canViewGlobalReports,
+      canEditCRR: permissionModalUser.canEditCRR,
+      canReadOnlyMode: permissionModalUser.canReadOnlyMode,
+      canEnableDisableUsers: permissionModalUser.canEnableDisableUsers,
+      canManageMessages: permissionModalUser.canManageMessages,
+      canSendBulletins: permissionModalUser.canSendBulletins,
+      canChat: permissionModalUser.canChat,
       managedUserEmails: permissionModalUser.managedUserEmails || [],
-      // Reset removed flags just in case
-      canManageHymns: false,
-      canManageInstruments: false,
-      canExportBackups: false,
-      canEditOthers: false
     }).eq('id', permissionModalUser.id);
+
     if (!error) {
       setUsers(users.map(u => u.id === permissionModalUser.id ? permissionModalUser : u));
       setPermissionModalUser(null);
+    } else {
+      console.error("Erro ao salvar permissões:", error);
+      setPermissionError(`Erro ao salvar no banco de dados: ${error.message}`);
     }
   };
 
   const handleImpersonate = (u: UserAccount) => {
-    if (isMaster || currentUser.canViewOthers) {
+    if (isMaster || currentUser.canViewOthers || currentUser.canReadOnlyMode) {
       onImpersonate(u);
     } else {
       setPermissionError('Você não tem permissão para visualizar outros ambientes.');
@@ -4096,9 +4119,13 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
 
   const handleDeleteUser = async () => {
     if (!deleteConfirmUser) return;
+    if (deletePassword !== currentUser.password) {
+      alert('Senha de administrador incorreta! A exclusão foi cancelada.');
+      return;
+    }
     setLoading(true);
     try {
-      const tables = ['gca_instruments', 'gca_musicians', 'gca_attendance', 'gca_hymns_library', 'gca_hymn_lists'];
+      const tables = ['gca_instruments', 'gca_musicians', 'gca_attendance', 'gca_hymns_library', 'gca_hymn_lists', 'conductors'];
       await Promise.all(tables.map(table => supabase.from(table).delete().eq('owner_email', deleteConfirmUser.email)));
       const { error } = await supabase.from('users').delete().eq('id', deleteConfirmUser.id);
       if (!error) {
@@ -4145,7 +4172,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
                 </div>
               </div>
               <div className="flex gap-1.5 ml-4">
-                {u.status === 'authorized' && (isMaster || currentUser.canViewOthers) && (
+                {u.status === 'authorized' && (isMaster || currentUser.canViewOthers || currentUser.canReadOnlyMode) && (
                   <button onClick={() => handleImpersonate(u)} className="bg-indigo-50 text-indigo-600 p-2 rounded-lg hover:bg-indigo-600 hover:text-white transition-all transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   </button>
@@ -4158,17 +4185,17 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                   </button>
                 )}
-                {u.status !== 'pending' && (isMaster || currentUser.canResetPasswords) && (
+                {u.status !== 'pending' && (isMaster || (currentUser.canResetPasswords && (currentUser.managedUserEmails || []).includes(u.email))) && (
                   <button onClick={() => setPasswordConfirmUser(u)} title="Alterar Senha" className="bg-blue-50 text-blue-600 p-2 rounded-lg hover:bg-blue-600 hover:text-white transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                   </button>
                 )}
-                {u.status !== 'pending' && (isMaster || currentUser.canApprove || currentUser.canEditProfiles) && (
+                {u.status !== 'pending' && (isMaster || ((currentUser.canApprove || currentUser.canEditProfiles || currentUser.canEnableDisableUsers) && (currentUser.managedUserEmails || []).includes(u.email))) && (
                   <button onClick={() => setStatusConfirmUser({user: u, target: u.status === 'disabled' ? 'authorized' : 'disabled'})} className={`${u.status === 'disabled' ? 'bg-amber-50 text-amber-600' : 'bg-orange-50 text-orange-600'} px-3 py-2 rounded-lg text-[10px] font-black uppercase`}>
                     {u.status === 'disabled' ? 'Reabilitar' : 'Desabilitar'}
                   </button>
                 )}
-                {(isMaster || currentUser.canDeleteUser) && (
+                {(isMaster || (currentUser.canDeleteUser && (currentUser.managedUserEmails || []).includes(u.email))) && (
                   <button onClick={() => setDeleteConfirmUser(u)} className="bg-red-50 text-red-600 p-2 rounded-lg">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                   </button>
@@ -4181,9 +4208,9 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
     );
   };
 
-  const pending = filteredUsersForAdmin.filter(u => u.status === 'pending' && u.email !== 'Admin');
-  const authorized = filteredUsersForAdmin.filter(u => u.status === 'authorized' && u.email !== 'Admin');
-  const disabled = filteredUsersForAdmin.filter(u => u.status !== 'pending' && u.status !== 'authorized' && u.email !== 'Admin');
+  const pending = filteredUsersForAdmin.filter(u => u.status === 'pending');
+  const authorized = filteredUsersForAdmin.filter(u => u.status === 'authorized');
+  const disabled = filteredUsersForAdmin.filter(u => u.status !== 'pending' && u.status !== 'authorized');
 
   return (
     <Layout title="Acessos" onBack={goBack}>
@@ -4242,14 +4269,25 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
                   <li>Cadastro de Instrumentos</li>
                   <li>Histórico de Chamadas</li>
                   <li>Programas de Hinos</li>
+                  <li>Certificado de Regente (CRR)</li>
                 </ul>
+              </div>
+              <div className="mt-4">
+                <p className="text-[10px] text-gray-400 font-bold uppercase mb-2 text-left">Confirme sua senha de Admin para excluir:</p>
+                <input 
+                  type="password" 
+                  value={deletePassword} 
+                  onChange={e => setDeletePassword(e.target.value)}
+                  placeholder="Digite sua senha"
+                  className="w-full border-2 border-red-100 rounded-xl p-3 text-center font-bold focus:border-red-500 outline-none transition-all"
+                />
               </div>
             </div>
             <div className="flex gap-3">
               <button 
                 onClick={handleDeleteUser}
-                disabled={loading}
-                className="flex-1 bg-red-600 text-white py-3 rounded-xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all outline-none"
+                disabled={loading || !deletePassword}
+                className="flex-1 bg-red-600 text-white py-3 rounded-xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all outline-none disabled:opacity-50"
               >
                 {loading ? 'Excluindo...' : 'Confirmar'}
               </button>
@@ -4261,107 +4299,124 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
 
       {permissionModalUser && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] animate-fade-in backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl space-y-6">
-            <h3 className="text-xl font-black text-indigo-900 uppercase border-b pb-4">Níveis de Acesso: {permissionModalUser.name}</h3>
-            
-            {permissionError && (
-              <div className="bg-red-50 text-red-600 p-3 rounded-lg text-[10px] font-black uppercase border-l-4 border-red-500 animate-pulse">
-                {permissionError}
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-xl">
-                <span className="font-bold text-indigo-900 text-sm uppercase">Tornar Administrador</span>
-                <button 
-                  onClick={() => {
-                    setPermissionError(null);
-                    setPermissionModalUser({...permissionModalUser, isAdminUser: !permissionModalUser.isAdminUser});
-                  }}
-                  className={`w-12 h-6 rounded-full transition-colors relative ${permissionModalUser.isAdminUser ? 'bg-indigo-600' : 'bg-gray-300'}`}
-                >
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${permissionModalUser.isAdminUser ? 'left-7' : 'left-1'}`} />
-                </button>
-              </div>
-
-              {permissionModalUser.isAdminUser && (
-                <div className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-100 animate-slide-down">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-amber-900 text-sm uppercase">Tornar Admin Master</span>
-                    <span className="text-[8px] text-amber-600 font-bold uppercase tracking-tight">Poderes totais (Chat e Deleção Global)</span>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setPermissionError(null);
-                      setPermissionModalUser({...permissionModalUser, isMasterAdmin: !permissionModalUser.isMasterAdmin});
-                    }}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${permissionModalUser.isMasterAdmin ? 'bg-amber-600' : 'bg-gray-300'}`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${permissionModalUser.isMasterAdmin ? 'left-7' : 'left-1'}`} />
-                  </button>
-                </div>
-              )}
-
-              {permissionModalUser.isAdminUser && !permissionModalUser.isMasterAdmin && (
-                <div className="pl-4 space-y-6 animate-slide-down max-h-[500px] overflow-y-auto pr-2 scrollbar-thin">
-                  {[
-                    { 
-                      group: 'Gestão de Pessoas', 
-                      opts: [
-                        { label: 'Aprovar Solicitações e Editar Perfis', key: 'canApprove' },
-                        { label: 'Cadastrar Novos Usuários', key: 'canRegister' },
-                        { label: 'Excluir Usuários', key: 'canDeleteUser' },
-                        { label: 'Reset de Senhas', key: 'canResetPasswords' },
-                      ]
-                    },
-                    {
-                      group: 'Dados e Visão Global',
-                      opts: [
-                        { label: 'Gerir Localidades (Países/Estados)', key: 'canManageLocations' },
-                        { label: 'Visualizador de Ambientes', key: 'canViewOthers' },
-                        { label: 'Gerador de Relatórios Globais', key: 'canViewGlobalReports' },
-                      ]
-                    }
-                  ].map(category => (
-                    <div key={category.group} className="space-y-2">
-                      <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-50 pb-1">{category.group}</h4>
-                      <div className="space-y-2">
-                        {category.opts.map(opt => (
-                          <label key={opt.key} className="flex items-center gap-3 cursor-pointer group">
-                            <input 
-                              type="checkbox" 
-                              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                              checked={(permissionModalUser as any)[opt.key]}
-                              onChange={(e) => {
-                                setPermissionError(null);
-                                setPermissionModalUser({...permissionModalUser, [opt.key]: e.target.checked});
-                              }}
-                            />
-                            <span className="text-xs font-semibold text-gray-700 group-hover:text-indigo-600 transition-colors uppercase">{opt.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-
-                  <div className="mt-8 pt-4 border-t border-indigo-50">
-                    <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Escopo de Controle</h4>
-                    <p className="text-[9px] text-gray-400 font-bold uppercase mb-3">Defina quais usuários este admin poderá gerenciar</p>
-                    <button 
-                      onClick={() => setShowScopeSelector(true)}
-                      className="w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-bold uppercase text-[10px] border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
-                      Configurar Usuários Gerenciados ({(permissionModalUser.managedUserEmails || []).length})
-                    </button>
-                  </div>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-8 border-b bg-white relative z-10">
+              <h3 className="text-xl font-black text-indigo-900 uppercase">Níveis de Acesso: {permissionModalUser.name}</h3>
+              {permissionError && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-[10px] font-black uppercase border-l-4 border-red-500 animate-pulse mt-4">
+                  {permissionError}
                 </div>
               )}
             </div>
+            
+            <div className="flex-1 overflow-y-auto p-8 pt-6 custom-scrollbar-heavy">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-xl">
+                  <span className="font-bold text-indigo-900 text-sm uppercase">Tornar Administrador</span>
+                  <button 
+                    onClick={() => {
+                      setPermissionError(null);
+                      setPermissionModalUser({...permissionModalUser, isAdminUser: !permissionModalUser.isAdminUser});
+                    }}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${permissionModalUser.isAdminUser ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${permissionModalUser.isAdminUser ? 'left-7' : 'left-1'}`} />
+                  </button>
+                </div>
 
-            <div className="flex gap-4 pt-4 border-t">
-              <button onClick={savePermissions} className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">Salvar</button>
-              <button onClick={() => setPermissionModalUser(null)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase hover:bg-gray-200 transition-all">Cancelar</button>
+                {permissionModalUser.isAdminUser && (
+                  <div className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-100 animate-slide-down">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-amber-900 text-sm uppercase">Tornar Admin Master</span>
+                      <span className="text-[8px] text-amber-600 font-bold uppercase tracking-tight">Poderes totais (Chat e Deleção Global)</span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setPermissionError(null);
+                        setPermissionModalUser({...permissionModalUser, isMasterAdmin: !permissionModalUser.isMasterAdmin});
+                      }}
+                      className={`w-12 h-6 rounded-full transition-colors relative ${permissionModalUser.isMasterAdmin ? 'bg-amber-600' : 'bg-gray-300'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${permissionModalUser.isMasterAdmin ? 'left-7' : 'left-1'}`} />
+                    </button>
+                  </div>
+                )}
+
+                {permissionModalUser.isAdminUser && !permissionModalUser.isMasterAdmin && (
+                  <div className="space-y-6 animate-slide-down">
+                    {[
+                      { 
+                        group: 'Nível Geral (Base)', 
+                        opts: [
+                          { label: 'Aceitar Usuários', key: 'canApprove' },
+                          { label: 'Cadastrar CRR / Novos Usuários', key: 'canRegister' },
+                          { label: 'Cadastrar e Editar Locais', key: 'canManageLocations' },
+                        ]
+                      },
+                      { 
+                        group: 'Gestão de Pessoas Selecionada', 
+                        opts: [
+                          { label: 'Excluir Usuários do Sistema', key: 'canDeleteUser' },
+                          { label: 'Reset de Senhas', key: 'canResetPasswords' },
+                          { label: 'Desabilitar e Reabilitar Usuários', key: 'canEnableDisableUsers' },
+                        ]
+                      },
+                      {
+                        group: 'Outros Dados',
+                        opts: [
+                          { label: 'Editar dados CRR', key: 'canEditCRR' },
+                          { label: 'Visualizar em Modo Leitura', key: 'canReadOnlyMode' },
+                        ]
+                      },
+                      {
+                        group: 'Comunicação',
+                        opts: [
+                          { label: 'Gestão de Mensagens do Sistema', key: 'canManageMessages' },
+                          { label: 'Enviar Avisos Oficiais', key: 'canSendBulletins' },
+                          { label: 'Chat (Enviar Mensagens)', key: 'canChat' },
+                        ]
+                      }
+                    ].map(category => (
+                      <div key={category.group} className="space-y-2">
+                        <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-50 pb-1">{category.group}</h4>
+                        <div className="space-y-2">
+                          {category.opts.map(opt => (
+                            <label key={opt.key} className="flex items-center gap-3 cursor-pointer group">
+                              <input 
+                                type="checkbox" 
+                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                                checked={(permissionModalUser as any)[opt.key]}
+                                onChange={(e) => {
+                                  setPermissionError(null);
+                                  setPermissionModalUser({...permissionModalUser, [opt.key]: e.target.checked});
+                                }}
+                              />
+                              <span className="text-xs font-semibold text-gray-700 group-hover:text-indigo-600 transition-colors uppercase">{opt.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="mt-8 pt-4 border-t border-indigo-50">
+                      <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Escopo de Controle</h4>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase mb-3 text-red-500 italic">Necessário para ações do grupo "Gestão de Pessoas Selecionada"</p>
+                      <button 
+                        onClick={() => setShowScopeSelector(true)}
+                        className="w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-bold uppercase text-[10px] border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+                        Configurar Usuários Gerenciados ({(permissionModalUser.managedUserEmails || []).length})
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-8 border-t bg-gray-50 flex gap-4">
+              <button onClick={savePermissions} className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all text-xs">Salvar Alterações</button>
+              <button onClick={() => setPermissionModalUser(null)} className="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-xl font-black uppercase hover:bg-gray-100 transition-all text-xs">Cancelar</button>
             </div>
           </div>
         </div>
@@ -4494,6 +4549,600 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
   );
 };
 
+const AdminBulletinsScreen = ({ goBack, navigate, currentUser }: any) => {
+  const [messages, setMessages] = useState<BulletinMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+
+  const fetchBulletins = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('bulletin_messages').select('*').order('created_at', { ascending: false });
+    setMessages(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchBulletins(); }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este aviso?')) return;
+    const { error } = await supabase.from('bulletin_messages').delete().eq('id', id);
+    if (!error) {
+      alert('Aviso excluído!');
+      fetchBulletins();
+    } else {
+      alert('Erro ao excluir: ' + error.message);
+    }
+  };
+
+  return (
+    <Layout title="Gestão de Avisos" onBack={goBack}>
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-2xl font-black text-indigo-900 uppercase tracking-tight">Quadro de Avisos</h2>
+            <p className="text-xs text-gray-400 font-bold uppercase">Gerencie os avisos oficiais do sistema</p>
+          </div>
+          <button 
+            onClick={() => navigate('admin_bulletin_form')}
+            className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Novo Aviso
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-20 animate-pulse">
+            <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <span className="text-xs font-black text-indigo-400 uppercase tracking-widest">Carregando Avisos...</span>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-100 italic font-bold text-gray-400 uppercase text-xs">
+            Nenhum aviso cadastrado.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {messages.map(msg => (
+              <div key={msg.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex justify-between items-center group hover:shadow-xl hover:shadow-indigo-50 transition-all duration-300">
+                <div className="flex-1 min-w-0 pr-4">
+                  <h3 className="font-black text-indigo-900 uppercase tracking-tight truncate">{(msg.title?.toUpperCase() === 'COMUNICADO CORUS' || !msg.title) ? 'AVISO' : msg.title}</h3>
+                  <div className="flex items-center gap-4 mt-1">
+                    <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">
+                      {new Date(msg.created_at).toLocaleDateString('pt-BR')}
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Por: {msg.created_by}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setSelectedMessageId(msg.id)}
+                    className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2"
+                    title="Ver Status de Leitura"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <span className="text-[10px] font-black uppercase hidden sm:block">Status</span>
+                  </button>
+                  <button 
+                    onClick={() => navigate('admin_bulletin_form', msg)}
+                    className="p-3 bg-gray-50 text-gray-400 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all"
+                    title="Editar"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(msg.id)}
+                    className="p-3 bg-gray-50 text-gray-400 rounded-2xl hover:bg-red-50 hover:text-red-600 transition-all"
+                    title="Excluir"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {selectedMessageId && (
+        <BulletinReadStatusModal 
+          messageId={selectedMessageId} 
+          onClose={() => setSelectedMessageId(null)} 
+        />
+      )}
+    </Layout>
+  );
+};
+
+const BulletinReadStatusModal = ({ messageId, onClose }: { messageId: string, onClose: () => void }) => {
+  const [loading, setLoading] = useState(true);
+  const [statuses, setStatuses] = useState<any[]>([]);
+  const [users, setUsers] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      
+      // Fetch users to map emails to names
+      const { data: userData } = await supabase.from('users').select('email, name');
+      const userMap: Record<string, string> = {};
+      if (userData) {
+        userData.forEach((u: any) => userMap[u.email] = u.name);
+      }
+      setUsers(userMap);
+
+      // Fetch status for this message
+      const { data: statusData } = await supabase.from('bulletin_user_status')
+        .select('*')
+        .eq('message_id', messageId);
+      
+      setStatuses(statusData || []);
+      setLoading(false);
+    };
+    fetchData();
+  }, [messageId]);
+
+  const readCount = statuses.filter(s => s.status === 'read').length;
+  const pendingCount = statuses.filter(s => s.status === 'pending').length;
+  const totalCount = statuses.length;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[500] animate-fade-in backdrop-blur-md">
+      <div className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+        <div className="p-8 border-b border-gray-100 flex justify-between items-center">
+          <div>
+            <h3 className="text-2xl font-black text-indigo-900 uppercase tracking-tight">Status de Leitura</h3>
+            <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Acompanhamento de engajamento do aviso</p>
+          </div>
+          <button onClick={onClose} className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:bg-red-50 hover:text-red-600 transition-all">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-20 animate-pulse">
+            <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <span className="text-xs font-black text-indigo-400 uppercase tracking-widest">Analisando dados...</span>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+            <div className="grid grid-cols-3 gap-4 mb-8">
+              <div className="bg-indigo-50 p-4 rounded-3xl text-center">
+                <span className="text-[9px] font-black text-indigo-400 uppercase block mb-1">Total</span>
+                <p className="text-2xl font-black text-indigo-900">{totalCount}</p>
+              </div>
+              <div className="bg-emerald-50 p-4 rounded-3xl text-center">
+                <span className="text-[9px] font-black text-emerald-400 uppercase block mb-1">Lidos</span>
+                <p className="text-2xl font-black text-emerald-600">{readCount}</p>
+              </div>
+              <div className="bg-amber-50 p-4 rounded-3xl text-center">
+                <span className="text-[9px] font-black text-amber-500 uppercase block mb-1">Pendentes</span>
+                <p className="text-2xl font-black text-amber-600">{pendingCount}</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  Já leram ({readCount})
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {statuses.filter(s => s.status === 'read').map(s => (
+                    <div key={s.id} className="bg-gray-50 p-3 rounded-2xl flex items-center justify-between">
+                      <span className="font-bold text-gray-700 text-xs truncate mr-2">{users[s.user_id] || s.user_id}</span>
+                      <span className="text-[10px] font-black text-emerald-600 uppercase shrink-0 bg-emerald-50 px-2 py-1 rounded-lg">
+                        {s.viewed_at ? new Date(s.viewed_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Lido'}
+                      </span>
+                    </div>
+                  ))}
+                  {readCount === 0 && (
+                    <p className="col-span-full py-4 text-center text-xs text-gray-400 italic">Ninguém confirmou a leitura ainda.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-gray-50">
+                <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                  Pendentes ({pendingCount})
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {statuses.filter(s => s.status === 'pending').map(s => (
+                    <div key={s.id} className="bg-gray-50 p-3 rounded-2xl">
+                      <span className="font-bold text-gray-700 text-xs truncate block">{users[s.user_id] || s.user_id}</span>
+                      <span className="text-[8px] font-black text-gray-400 uppercase">{s.user_id}</span>
+                    </div>
+                  ))}
+                  {pendingCount === 0 && (
+                    <p className="col-span-full py-4 text-center text-xs text-gray-400 italic">Todos os destinatários já leram.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) => {
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [content, setContent] = useState(initialData?.content || '');
+  const [users, setUsers] = useState<UserAccount[]>([]);
+  const [selectedUserEmails, setSelectedUserEmails] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showUserSelector, setShowUserSelector] = useState(false);
+
+  useEffect(() => {
+    const init = async () => {
+      const { data } = await supabase.from('users').select('*');
+      setUsers(data || []);
+      
+      if (initialData?.id) {
+        const { data: assocs } = await supabase.from('bulletin_user_status')
+          .select('user_id')
+          .eq('message_id', initialData.id);
+        if (assocs) {
+          setSelectedUserEmails(assocs.map((a: any) => a.user_id));
+        }
+      }
+    };
+    init();
+  }, [initialData]);
+
+  const quillModules = {
+    toolbar: [
+      [{ 'header': [1, 2, 3, false] }],
+      [{ 'size': ['small', false, 'large', 'huge'] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+      [{ 'align': [] }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  };
+
+  const handleSave = async () => {
+    if (!content || content === '<p><br></p>') { alert('O conteúdo do aviso é obrigatório.'); return; }
+    if (selectedUserEmails.length === 0) { setShowUserSelector(true); return; }
+
+    setLoading(true);
+    try {
+      const msgId = initialData?.id || (crypto.randomUUID ? crypto.randomUUID() : generateId());
+      const message: any = {
+        id: msgId,
+        title: title || 'Aviso',
+        content,
+        created_at: initialData?.created_at || getBrasiliaISO(),
+        created_by: currentUser?.email || 'Admin'
+      };
+
+      const { error: msgErr } = await supabase.from('bulletin_messages').upsert(message);
+      if (msgErr) throw msgErr;
+
+      // Associate with users
+      const associations = selectedUserEmails.map(email => ({
+        message_id: msgId,
+        user_id: email,
+        status: 'pending',
+        show_again: true
+      }));
+
+      if (initialData) {
+        await supabase.from('bulletin_user_status').delete().eq('message_id', initialData.id);
+      }
+      
+      const { error: assocErr } = await supabase.from('bulletin_user_status').insert(associations);
+      if (assocErr) throw assocErr;
+
+      alert('Aviso enviado com sucesso!');
+      if (typeof navigate === 'function') {
+        navigate('admin_bulletins');
+      } else {
+        goBack();
+      }
+    } catch (e: any) {
+      console.error('Erro ao enviar aviso:', e);
+      alert('Erro ao salvar: ' + (e.message || 'Erro desconhecido na tabela do banco de dados.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Layout title={initialData ? "Editar Aviso" : "Novo Aviso"} onBack={goBack}>
+      <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
+        <div className="bg-white p-8 rounded-[32px] shadow-2xl space-y-6 border-b-8 border-indigo-600">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block ml-1">Título do Aviso (Opcional)</label>
+            <input 
+              type="text" 
+              placeholder="Digite o título do aviso..."
+              className="w-full border-2 border-gray-100 rounded-2xl p-4 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 outline-none transition-all font-bold text-indigo-900" 
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block ml-1">Conteúdo do Aviso</label>
+            <div className="rounded-2xl overflow-hidden border-2 border-gray-100 min-h-[350px] bg-white">
+              {typeof window !== 'undefined' && ReactQuill ? (
+                <ReactQuill 
+                  theme="snow" 
+                  value={content} 
+                  onChange={v => setContent(v)} 
+                  modules={quillModules}
+                  className="min-h-[450px] sm:min-h-[600px]"
+                />
+              ) : (
+                <div className="p-8 text-center text-gray-400 font-bold italic animate-pulse">
+                  Carregando editor...
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 pt-4">
+            <button 
+              onClick={() => setShowUserSelector(true)}
+              className="flex-1 bg-indigo-50 text-indigo-700 py-4 rounded-2xl font-black uppercase text-xs hover:bg-indigo-600 hover:text-white transition-all shadow-lg shadow-indigo-100/50 flex items-center justify-center gap-2 border-2 border-indigo-100"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+              {selectedUserEmails.length > 0 ? `Compartilhar com (${selectedUserEmails.length})` : 'Compartilhar com...'}
+            </button>
+            <button 
+              onClick={handleSave}
+              disabled={loading}
+              className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-xs hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 active:scale-95 disabled:opacity-50"
+            >
+              {loading ? 'Processando...' : initialData ? 'Salvar Edição' : 'Confirmar e Enviar'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {showUserSelector && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[300] animate-fade-in backdrop-blur-md">
+          <div className="bg-white rounded-[40px] p-8 w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-start border-b border-gray-100 pb-6 mb-6">
+              <div>
+                <h3 className="text-2xl font-black text-indigo-900 uppercase tracking-tight">Destinatários</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Selecione quem verá este aviso</p>
+              </div>
+              <button onClick={() => setShowUserSelector(false)} className="bg-gray-100 p-2 rounded-xl text-gray-400 hover:text-red-500 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center bg-indigo-50/50 p-4 rounded-2xl mb-4">
+              <span className="text-[10px] font-black text-indigo-900 uppercase">Ações Rápidas:</span>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setSelectedUserEmails(users.filter(u => u.email !== 'Admin').map(u => u.email))}
+                  className="text-[10px] font-black text-indigo-600 uppercase hover:underline"
+                >
+                  Selecionar Todos
+                </button>
+                <button 
+                  onClick={() => setSelectedUserEmails([])}
+                  className="text-[10px] font-black text-red-500 uppercase hover:underline"
+                >
+                  Limpar Todos
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-4">
+                {users.filter(u => u.email !== 'Admin').map(usr => (
+                  <label key={usr.id} className={`flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 transition-all ${
+                    selectedUserEmails.includes(usr.email) 
+                    ? 'border-indigo-600 bg-indigo-50 shadow-sm' 
+                    : 'border-gray-100 hover:border-indigo-200'
+                  }`}>
+                    <input 
+                      type="checkbox"
+                      className="w-5 h-5 rounded-md text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer"
+                      checked={selectedUserEmails.includes(usr.email)}
+                      onChange={(e) => {
+                        const next = e.target.checked 
+                          ? [...selectedUserEmails, usr.email] 
+                          : selectedUserEmails.filter(email => email !== usr.email);
+                        setSelectedUserEmails(next);
+                      }}
+                    />
+                    <div className="flex flex-col min-w-0">
+                      <span className={`text-[12px] font-black uppercase truncate transition-all ${
+                        selectedUserEmails.includes(usr.email) ? 'text-indigo-900' : 'text-gray-700'
+                      }`}>{usr.name}</span>
+                      <span className="text-[9px] text-gray-400 font-bold truncate lowercase">{usr.email}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-gray-100 mt-6">
+              <button 
+                onClick={() => setShowUserSelector(false)}
+                className="w-full bg-indigo-600 text-white py-5 rounded-[24px] font-black uppercase shadow-xl shadow-indigo-100 active:scale-95 transition-all text-sm tracking-widest"
+              >
+                Confirmar Público ({selectedUserEmails.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Layout>
+  );
+};
+
+const BulletinDisplayModal = ({ unreadBulletins, onStatusUpdate, onDismiss }: { unreadBulletins: (BulletinMessage & { status_id: string })[], onStatusUpdate: () => void, onDismiss: () => void }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const current = unreadBulletins[currentIndex];
+
+  if (!current) return null;
+
+  const handleAction = async (status: 'read' | 'pending', showAgain: boolean) => {
+    // Se for "Lido", atualizamos no banco para não mostrar mais.
+    // Se for "Lembrar Depois", não precisamos atualizar o banco se já estiver como pending/true, 
+    // mas vamos atualizar para garantir e registrar que o usuário interagiu.
+    const { error } = await supabase.from('bulletin_user_status')
+      .update({ 
+        status, 
+        show_again: showAgain, 
+        viewed_at: status === 'read' ? getBrasiliaISO() : null 
+      })
+      .eq('id', current.status_id);
+    
+    if (!error) {
+      if (currentIndex < unreadBulletins.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        // Se for o último e o usuário escolheu "Lembrar Depois", 
+        // apenas limpamos a lista local para fechar o modal nesta sessão.
+        if (status === 'pending') {
+          // Usamos uma prop onDismiss ou similar para fechar sem refetch
+          onDismiss();
+        } else {
+          onStatusUpdate();
+        }
+      }
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-2 sm:p-4 z-[1000] animate-fade-in backdrop-blur-md">
+      <div className="bg-white rounded-[24px] sm:rounded-[40px] w-full max-w-4xl shadow-2xl overflow-hidden animate-zoom-in flex flex-col max-h-[95vh] border border-white/20">
+        
+        <div className="bg-indigo-950 p-4 sm:p-5 text-white relative flex-shrink-0">
+          <div className="absolute top-2 right-4 opacity-10">
+             <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div className="relative z-10">
+            <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 text-indigo-300">{currentIndex + 1} / {unreadBulletins.length}</p>
+            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight leading-none drop-shadow-sm">{(current.title?.toUpperCase() === 'COMUNICADO CORUS' || !current.title) ? 'AVISO' : current.title}</h2>
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 prose prose-indigo max-w-none quill-content bg-white">
+           <div className="bulletin-content-wrapper text-gray-800 leading-relaxed text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: current.content }} />
+           
+           <style>{`
+             .bulletin-content-wrapper img {
+               max-width: 100%;
+               height: auto;
+               border-radius: 12px;
+               margin: 1.5rem auto;
+               display: block;
+               box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+               transition: transform 0.3s ease;
+             }
+             .bulletin-content-wrapper p {
+               margin-bottom: 1.25rem;
+             }
+             .bulletin-content-wrapper iframe {
+               width: 100%;
+               aspect-ratio: 16/9;
+               border-radius: 12px;
+               margin: 1rem 0;
+             }
+           `}</style>
+        </div>
+
+        <div className="p-4 sm:p-5 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row gap-4 items-stretch flex-shrink-0">
+           <button 
+             onClick={() => handleAction('read', false)}
+             className="flex-1 bg-emerald-600 text-white py-3 sm:py-3.5 rounded-[20px] font-black uppercase text-xs shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 active:scale-95 group"
+           >
+              <div className="p-1 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              Marcar como Lido
+           </button>
+           <button 
+             onClick={() => handleAction('pending', true)}
+             className="flex-1 bg-white text-indigo-900 border-2 border-indigo-100 py-3 sm:py-3.5 rounded-[20px] font-black uppercase text-xs hover:bg-indigo-50 transition-all flex items-center justify-center gap-3 active:scale-95 hover:border-indigo-200"
+           >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Lembrar Depois
+           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BulletinHistoryScreen = ({ goBack, currentUser }: any) => {
+  const [history, setHistory] = useState<(BulletinMessage & { status: string, viewed_at: string })[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      setLoading(true);
+      const { data: statuses } = await supabase.from('bulletin_user_status')
+        .select(`*, bulletin_messages(*)`)
+        .eq('user_id', currentUser.email)
+        .order('viewed_at', { ascending: false });
+      
+      const formatted = (statuses || []).map((s: any) => ({
+        ...s.bulletin_messages,
+        status: s.status,
+        viewed_at: s.viewed_at,
+        status_id: s.id
+      }));
+      setHistory(formatted);
+      setLoading(false);
+    };
+    fetchHistory();
+  }, [currentUser.email]);
+
+  return (
+    <Layout title="Meus Avisos" onBack={goBack}>
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        {loading ? (
+           <div className="text-center py-20 animate-pulse">
+             <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+             <span className="text-xs font-black text-indigo-400 uppercase tracking-widest italic">Buscando histórico...</span>
+           </div>
+        ) : history.length === 0 ? (
+          <div className="bg-white rounded-3xl p-16 text-center shadow-sm border border-gray-100">
+             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-gray-200"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+             <p className="text-xs font-black text-gray-400 uppercase tracking-widest italic">Você ainda não recebeu nenhum aviso.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {history.map(msg => (
+              <details key={msg.status_id} className="group bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden transition-all hover:shadow-xl hover:shadow-indigo-50">
+                <summary className="p-6 cursor-pointer list-none flex justify-between items-center">
+                  <div className="flex-1 min-w-0 pr-4">
+                    <div className="flex items-center gap-3 mb-1">
+                       <span className={`w-2 h-2 rounded-full ${msg.status === 'read' ? 'bg-gray-300' : 'bg-indigo-600 animate-pulse'}`}></span>
+                       <h3 className="font-black text-indigo-900 uppercase tracking-tight truncate">{(msg.title?.toUpperCase() === 'COMUNICADO CORUS' || !msg.title) ? 'AVISO' : msg.title}</h3>
+                    </div>
+                    <div className="flex gap-4 items-center">
+                       <span className="text-[9px] font-black text-gray-400 uppercase">Enviado em: {new Date(msg.created_at).toLocaleDateString('pt-BR')}</span>
+                       {msg.status === 'read' && <span className="text-[9px] font-black text-green-600 uppercase">Lido em: {new Date(msg.viewed_at).toLocaleDateString('pt-BR')}</span>}
+                    </div>
+                  </div>
+                  <div className="text-indigo-400 group-open:rotate-180 transition-transform">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </div>
+                </summary>
+                <div className="px-8 pb-8 pt-2 prose prose-indigo max-w-none prose-sm quill-content border-t border-gray-50 bg-gray-50/30">
+                  <div dangerouslySetInnerHTML={{ __html: msg.content }} />
+                </div>
+              </details>
+            ))}
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+};
+
 const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [users, setUsers] = useState<UserAccount[]>([]);
@@ -4504,6 +5153,9 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
   const [showMultiDeleteModal, setShowMultiDeleteModal] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
+  const canManage = isMaster || currentUser.canManageMessages;
 
   const fetchAll = async () => {
     setLoading(true);
@@ -4657,13 +5309,15 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
                     <div>
                       <h4 className="font-black text-indigo-900 uppercase text-sm">{users.find(u => u.email.toLowerCase() === selectedUserEmail?.toLowerCase())?.name || selectedUserEmail}</h4>
                     </div>
-                    <button 
-                      onClick={() => setShowDeleteModal(true)}
-                      className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-xs font-black uppercase hover:bg-red-600 hover:text-white transition-all flex items-center gap-2"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                      Apagar Tudo
-                    </button>
+                    {canManage && (
+                      <button 
+                        onClick={() => setShowDeleteModal(true)}
+                        className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-xs font-black uppercase hover:bg-red-600 hover:text-white transition-all flex items-center gap-2"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        Apagar Tudo
+                      </button>
+                    )}
                  </div>
                  <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/30">
                     {messages.filter(m => m.sender_id === selectedUserEmail || m.receiver_id === selectedUserEmail)
@@ -4730,7 +5384,7 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
                       );
                     })}
                  </div>
-                 {selectedMsgIds.length > 0 && (
+                 {selectedMsgIds.length > 0 && canManage && (
                    <div className="p-3 border-t bg-white flex justify-center animate-slide-up sticky bottom-0 z-40 bg-white/80 backdrop-blur-sm">
                       <button 
                         onClick={() => setShowMultiDeleteModal(true)}
@@ -4823,7 +5477,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
-  const isAdmin = isAdminProp ?? (currentUser.email === 'Admin' || currentUser.isAdminUser);
+  const isAdmin = isAdminProp ?? (currentUser.email === 'Admin' || currentUser.isMasterAdmin || currentUser.canChat);
   const [activeAdminConvo, setActiveAdminConvo] = useState<string | null>(null);
   const [userList, setUserList] = useState<UserAccount[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -5618,7 +6272,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
 const AuthScreen = ({ onLogin }: any) => {
   const [mode, setMode] = useState<'login' | 'request' | 'forgot'>('login');
   const [showPassword, setShowPassword] = useState(false);
-  const [recoverySearch, setRecoverySearch] = useState({ email: '', phone: '' });
+  const [recoverySearch, setRecoverySearch] = useState({ email: '', birth_date: '' });
   const [foundRecoveryUser, setFoundRecoveryUser] = useState<any>(null);
   const [newPasswordData, setNewPasswordData] = useState({ password: '', confirm: '' });
   const [formData, setFormData] = useState({ name: '', email: '', congregation: '', phone: '', birth_date: '', role: '', password: '' });
@@ -5679,11 +6333,11 @@ const AuthScreen = ({ onLogin }: any) => {
       .from('users')
       .select('*')
       .eq('email', recoverySearch.email)
-      .eq('phone', recoverySearch.phone)
+      .eq('birth_date', recoverySearch.birth_date)
       .single();
     
     if (err || !data) {
-      setError('E-mail ou Telefone não conferem com os dados cadastrados.');
+      setError('E-mail ou Data de Nascimento não conferem com os dados cadastrados.');
       return;
     }
     setFoundRecoveryUser(data);
@@ -5708,7 +6362,7 @@ const AuthScreen = ({ onLogin }: any) => {
     alert('Senha alterada com sucesso! Faça login com a nova senha.');
     setMode('login');
     setFoundRecoveryUser(null);
-    setRecoverySearch({ email: '', phone: '' });
+    setRecoverySearch({ email: '', birth_date: '' });
     setNewPasswordData({ password: '', confirm: '' });
   };
 
@@ -5746,9 +6400,12 @@ const AuthScreen = ({ onLogin }: any) => {
             <h3 className="text-xl font-bold text-gray-900 text-center uppercase tracking-tight">Recuperar Senha</h3>
             {!foundRecoveryUser ? (
               <form onSubmit={handleRecoverySearch} className="space-y-4">
-                <p className="text-xs text-gray-700 text-center italic font-medium">Informe seu e-mail e telefone cadastrados para confirmar sua identidade.</p>
+                <p className="text-xs text-gray-700 text-center italic font-medium">Informe seu e-mail e sua data de nascimento cadastrados para confirmar sua identidade.</p>
                 <input required type="text" placeholder="Seu E-mail" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={recoverySearch.email} onChange={e => setRecoverySearch({...recoverySearch, email: e.target.value})} />
-                <input required type="text" placeholder="Seu Telefone (00) 00000-0000" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={recoverySearch.phone} onChange={e => setRecoverySearch({...recoverySearch, phone: e.target.value})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-gray-900 uppercase tracking-widest ml-1 block">Sua Data de Nascimento</label>
+                  <input required type="date" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={recoverySearch.birth_date} onChange={e => setRecoverySearch({...recoverySearch, birth_date: e.target.value})} />
+                </div>
                 <button type="submit" className="w-full bg-indigo-700 text-white py-4 rounded-xl font-black uppercase shadow-lg hover:bg-indigo-800 transition-all active:scale-95">Verificar Dados</button>
               </form>
             ) : (
@@ -5764,7 +6421,7 @@ const AuthScreen = ({ onLogin }: any) => {
                 <button type="submit" className="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase shadow-lg hover:bg-green-700 transition-all active:scale-95">Salvar Nova Senha</button>
               </form>
             )}
-            <button onClick={() => { setMode('login'); setError(''); setFoundRecoveryUser(null); }} className="w-full text-gray-400 text-[10px] font-black uppercase mt-4 tracking-widest text-center">Voltar ao Login</button>
+            <button onClick={() => { setMode('login'); setError(''); setFoundRecoveryUser(null); setRecoverySearch({ email: '', birth_date: '' }); }} className="w-full text-gray-400 text-[10px] font-black uppercase mt-4 tracking-widest text-center">Voltar ao Login</button>
           </div>
         ) : (
           <>
@@ -5823,6 +6480,29 @@ const App = () => {
   const [attendanceEditData, setAttendanceEditData] = useState<any>(null);
   const [publicProgram, setPublicProgram] = useState<HymnList | null>(null);
   const [loadingPublic, setLoadingPublic] = useState(false);
+  const [unreadBulletins, setUnreadBulletins] = useState<(BulletinMessage & { status_id: string })[]>([]);
+
+  const checkUnreadBulletins = async (email: string) => {
+    const { data } = await supabase.from('bulletin_user_status')
+      .select(`*, bulletin_messages(*)`)
+      .eq('user_id', email)
+      .eq('status', 'pending')
+      .eq('show_again', true);
+    
+    if (data) {
+      const formatted = data.map((s: any) => ({
+        ...s.bulletin_messages,
+        status_id: s.id
+      }));
+      setUnreadBulletins(formatted);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      checkUnreadBulletins(currentUser.email);
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -5836,11 +6516,14 @@ const App = () => {
     }
   }, []);
 
+  const isMaster = currentUser?.email === 'Admin' || currentUser?.isMasterAdmin;
+  const isAdmin = isMaster || currentUser?.isAdminUser;
+
   const activeEmail = viewingUser ? viewingUser.email : currentUser?.email;
-  const isReadOnly = currentUser?.email === 'Admin' && viewingUser !== null;
+  const isReadOnly = (isMaster || currentUser?.canReadOnlyMode || currentUser?.canViewOthers) && viewingUser !== null;
   const onExitImpersonation = viewingUser ? () => { setViewingUser(null); setScreen('admin_menu'); } : undefined;
 
-  const navigate = (next: string, data?: any) => { setHistory([...history, screen]); setScreen(next); if (next === 'create_hymn_list') setEditData(data); if (next === 'notebook_detail' || next === 'hymn_notebook_report') setNotebookData(data); if (['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next)) setReportData(data); if (next === 'roll_call') setAttendanceEditData(data); if (['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next)) setEditData(data); };
+  const navigate = (next: string, data?: any) => { setHistory([...history, screen]); setScreen(next); if (next === 'create_hymn_list') setEditData(data); if (next === 'admin_bulletin_form') setEditData(data); if (next === 'notebook_detail' || next === 'hymn_notebook_report') setNotebookData(data); if (['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next)) setReportData(data); if (next === 'roll_call') setAttendanceEditData(data); if (['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next)) setEditData(data); };
   const goBack = () => { const prev = history[history.length - 1] || 'home'; setHistory(history.slice(0, -1)); setScreen(prev); };
   const onLogout = () => { setCurrentUser(null); setViewingUser(null); setScreen('home'); setHistory([]); };
 
@@ -6050,62 +6733,69 @@ const App = () => {
 
   if (!currentUser) return <AuthScreen onLogin={setCurrentUser} />;
 
-  const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
-  const isAdmin = isMaster || currentUser.isAdminUser;
-
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="flex-1">
-        {(() => {
-          switch (screen) {
-            case 'profile': return <ProfileScreen user={currentUser} goBack={goBack} onUpdate={setCurrentUser} onExitImpersonation={onExitImpersonation} />;
-            case 'admin_menu': return <AdminMenuScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
-            case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); setScreen('home'); }} currentUser={currentUser} onAwaitingConductorRegistration={(u: any) => { setEditData(u); setScreen('admin_new_conductor'); }} />;
-            case 'admin_countries': return <AdminCountriesScreen goBack={goBack} navigate={navigate} />;
-            case 'admin_states': return <AdminStatesScreen goBack={goBack} navigate={navigate} />;
-            case 'admin_congregations': return <AdminCongregationsScreen goBack={goBack} navigate={navigate} />;
-            case 'admin_countries_report': return <AdminMasterReportView id="relatorio-paises" title="Relatório de Países Atendidos" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do País'}]} data={reportData} goBack={goBack} />;
-            case 'admin_states_report': return <AdminMasterReportView id="relatorio-estados" title="Relatório de Estados" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do Estado'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
-            case 'admin_congregations_report': return <AdminMasterReportView id="relatorio-congre" title="Relatório Geral de Congregações" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Congregação'}, {key:'state', label:'Estado'}, {key:'country', label:'País'}, {key:'address', label:'Endereço'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
-            case 'admin_conductors_report': return <AdminMasterReportView id="relatorio-regentes" title="Relatório de Regentes (CRR)" columns={[{key:'registry_number', label:'Registro'}, {key:'name', label:'Nome'}, {key:'congregation_name', label:'Congregação'}, {key:'phone', label:'Telefone'}]} data={reportData} goBack={goBack} />;
-            case 'admin_conductor_certificates': return <AdminConductorCertificatesScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
-            case 'admin_new_conductor': return <AdminConductorForm goBack={goBack} linkUserBeingApproved={editData} />;
-            case 'admin_edit_conductor': return <AdminConductorForm goBack={goBack} conductorToEdit={editData} />;
-            case 'admin_crr_card': return <CRRCardView conductor={editData} goBack={goBack} navigate={navigate} />;
-            case 'admin_registrations_summary': return <AdminRegistrationsSummaryScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
-            case 'home': return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} onBackup={handleBackup} isExporting={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} />;
-            case 'components': return <ComponentsScreen navigate={navigate} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
-            case 'instruments': return <InstrumentsScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'musicians': return <MusiciansScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'musician_report_selection': return <MusicianReportSelectionScreen navigate={navigate} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
-            case 'admin_messages': return <AdminMessagesScreen goBack={goBack} currentUser={currentUser} />;
-            case 'musicians_report': return <MusiciansReportScreen goBack={goBack} ownerEmail={activeEmail} />;
-            case 'instruments_report': return <InstrumentsReportScreen goBack={goBack} ownerEmail={activeEmail} />;
-            case 'musicians_voice_report': return <MusiciansVoiceReportScreen goBack={goBack} ownerEmail={activeEmail} />;
-            case 'musicians_instrument_report': return <MusiciansInstrumentReportScreen goBack={goBack} ownerEmail={activeEmail} />;
-            case 'attendance': return <AttendanceMenuScreen navigate={navigate} goBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'roll_call': return <RollCallScreen goBack={goBack} editData={attendanceEditData} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'attendance_history': return <AttendanceHistoryScreen goBack={goBack} onEdit={(r: any) => navigate('roll_call', r)} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'attendance_report_input': return <AttendanceReportInputScreen onGenerate={(s: any, e: any, t: any, g: any) => navigate('attendance_report', {s, e, t, g})} onCancel={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'attendance_report': return <AttendanceReportScreen goBack={goBack} ownerEmail={activeEmail} reportData={reportData} />;
-            case 'attendance_percentage_input': return <AttendancePercentageInputScreen onGenerate={(s: any, e: any, g: any) => navigate('attendance_percentage_report', {s, e, g})} onCancel={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'attendance_percentage_report': return <AttendancePercentageReportScreen goBack={goBack} ownerEmail={activeEmail} reportData={reportData} />;
-            case 'hymn_report': return <HymnReportScreen goBack={goBack} ownerEmail={activeEmail} reportData={reportData} />;
-            case 'hymns_library': return <HymnsLibraryScreen navigate={navigate} goBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'notebook_detail': return <NotebookDetailScreen notebook={notebookData} goBack={goBack} navigate={navigate} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'hymn_notebook_report': return <HymnNotebookReportScreen notebook={notebookData} goBack={goBack} ownerEmail={activeEmail} />;
-            case 'programs': return <ProgramsScreen navigate={navigate} goBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'guidelines': return <GuidelinesScreen goBack={goBack} onExitImpersonation={onExitImpersonation} />;
-            case 'hymn_lists': return <HymnListScreen goBack={goBack} onCreate={() => navigate('create_hymn_list')} onEdit={l => navigate('create_hymn_list', l)} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'create_hymn_list': return <CreateHymnListScreen onSave={goBack} onCancel={goBack} initialData={editData} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-            case 'hymn_report_input': return <HymnReportInputScreen onGenerate={(s: any, e: any, t: any) => navigate('hymn_report', {s, e, t})} onCancel={goBack} onExitImpersonation={onExitImpersonation} />;
-            case 'data_management': return <DataManagementScreen goBack={goBack} onBackupJSON={handleBackup} isExportingJSON={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} onImportJSON={handleImportJSON} onImportCSV={handleImportCSV} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} canExportBackups={isMaster || currentUser.canExportBackups} />;
-            default: return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} />;
-          }
-        })()}
+    <NavigationContext.Provider value={{ onLogout, onProfileClick: () => setScreen('profile') }}>
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="flex-1">
+          {(() => {
+            switch (screen) {
+              case 'profile': return <ProfileScreen user={currentUser} goBack={goBack} onUpdate={setCurrentUser} onExitImpersonation={onExitImpersonation} />;
+              case 'admin_menu': return <AdminMenuScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
+              case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); setScreen('home'); }} currentUser={currentUser} onAwaitingConductorRegistration={(u: any) => { setEditData(u); setScreen('admin_new_conductor'); }} />;
+              case 'admin_countries': return <AdminCountriesScreen goBack={goBack} navigate={navigate} />;
+              case 'admin_states': return <AdminStatesScreen goBack={goBack} navigate={navigate} />;
+              case 'admin_congregations': return <AdminCongregationsScreen goBack={goBack} navigate={navigate} />;
+              case 'admin_countries_report': return <AdminMasterReportView id="relatorio-paises" title="Relatório de Países Atendidos" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do País'}]} data={reportData} goBack={goBack} />;
+              case 'admin_states_report': return <AdminMasterReportView id="relatorio-estados" title="Relatório de Estados" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do Estado'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
+              case 'admin_congregations_report': return <AdminMasterReportView id="relatorio-congre" title="Relatório Geral de Congregações" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Congregação'}, {key:'state', label:'Estado'}, {key:'country', label:'País'}, {key:'address', label:'Endereço'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
+              case 'admin_conductors_report': return <AdminMasterReportView id="relatorio-regentes" title="Relatório de Regentes (CRR)" columns={[{key:'registry_number', label:'Registro'}, {key:'name', label:'Nome'}, {key:'congregation_name', label:'Congregação'}, {key:'phone', label:'Telefone'}]} data={reportData} goBack={goBack} />;
+              case 'admin_conductor_certificates': return <AdminConductorCertificatesScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
+              case 'admin_new_conductor': return <AdminConductorForm goBack={goBack} linkUserBeingApproved={editData} />;
+              case 'admin_edit_conductor': return <AdminConductorForm goBack={goBack} conductorToEdit={editData} />;
+              case 'admin_crr_card': return <CRRCardView conductor={editData} goBack={goBack} navigate={navigate} />;
+              case 'admin_registrations_summary': return <AdminRegistrationsSummaryScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
+              case 'home': return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} onBackup={handleBackup} isExporting={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} />;
+              case 'components': return <ComponentsScreen navigate={navigate} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
+              case 'instruments': return <InstrumentsScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'musicians': return <MusiciansScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'musician_report_selection': return <MusicianReportSelectionScreen navigate={navigate} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
+              case 'admin_messages': return <AdminMessagesScreen goBack={goBack} currentUser={currentUser} />;
+              case 'admin_bulletins': return <AdminBulletinsScreen goBack={goBack} navigate={navigate} currentUser={currentUser} />;
+              case 'admin_bulletin_form': return <AdminBulletinForm goBack={goBack} navigate={navigate} initialData={editData} currentUser={currentUser} />;
+              case 'bulletin_history': return <BulletinHistoryScreen goBack={goBack} currentUser={currentUser} />;
+              case 'musicians_report': return <MusiciansReportScreen goBack={goBack} ownerEmail={activeEmail} />;
+              case 'instruments_report': return <InstrumentsReportScreen goBack={goBack} ownerEmail={activeEmail} />;
+              case 'musicians_voice_report': return <MusiciansVoiceReportScreen goBack={goBack} ownerEmail={activeEmail} />;
+              case 'musicians_instrument_report': return <MusiciansInstrumentReportScreen goBack={goBack} ownerEmail={activeEmail} />;
+              case 'attendance': return <AttendanceMenuScreen navigate={navigate} goBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'roll_call': return <RollCallScreen goBack={goBack} editData={attendanceEditData} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'attendance_history': return <AttendanceHistoryScreen goBack={goBack} onEdit={(r: any) => navigate('roll_call', r)} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'attendance_report_input': return <AttendanceReportInputScreen onGenerate={(s: any, e: any, t: any, g: any) => navigate('attendance_report', {s, e, t, g})} onCancel={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'attendance_report': return <AttendanceReportScreen goBack={goBack} ownerEmail={activeEmail} reportData={reportData} />;
+              case 'attendance_percentage_input': return <AttendancePercentageInputScreen onGenerate={(s: any, e: any, g: any) => navigate('attendance_percentage_report', {s, e, g})} onCancel={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'attendance_percentage_report': return <AttendancePercentageReportScreen goBack={goBack} ownerEmail={activeEmail} reportData={reportData} />;
+              case 'hymn_report': return <HymnReportScreen goBack={goBack} ownerEmail={activeEmail} reportData={reportData} />;
+              case 'hymns_library': return <HymnsLibraryScreen navigate={navigate} goBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'notebook_detail': return <NotebookDetailScreen notebook={notebookData} goBack={goBack} navigate={navigate} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'hymn_notebook_report': return <HymnNotebookReportScreen notebook={notebookData} goBack={goBack} ownerEmail={activeEmail} />;
+              case 'programs': return <ProgramsScreen navigate={navigate} goBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'guidelines': return <GuidelinesScreen goBack={goBack} onExitImpersonation={onExitImpersonation} />;
+              case 'hymn_lists': return <HymnListScreen goBack={goBack} onCreate={() => navigate('create_hymn_list')} onEdit={l => navigate('create_hymn_list', l)} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'create_hymn_list': return <CreateHymnListScreen onSave={goBack} onCancel={goBack} initialData={editData} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'hymn_report_input': return <HymnReportInputScreen onGenerate={(s: any, e: any, t: any) => navigate('hymn_report', {s, e, t})} onCancel={goBack} onExitImpersonation={onExitImpersonation} />;
+              case 'data_management': return <DataManagementScreen goBack={goBack} onBackupJSON={handleBackup} isExportingJSON={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} onImportJSON={handleImportJSON} onImportCSV={handleImportCSV} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} canExportBackups={isMaster || currentUser.canExportBackups} />;
+              default: return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} />;
+            }
+          })()}
+        </div>
+        <FloatingChat currentUser={currentUser} isAdmin={isMaster || currentUser?.canChat} />
+        <BulletinDisplayModal 
+          unreadBulletins={unreadBulletins} 
+          onStatusUpdate={() => checkUnreadBulletins(currentUser.email)} 
+          onDismiss={() => setUnreadBulletins([])}
+        />
       </div>
-      <FloatingChat currentUser={currentUser} isAdmin={isMaster} />
-    </div>
+    </NavigationContext.Provider>
   );
 };
 
