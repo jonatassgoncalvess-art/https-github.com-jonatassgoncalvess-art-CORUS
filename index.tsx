@@ -2,7 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+// @ts-ignore
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// @ts-ignore
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+
+const DraggableAny = Draggable as any;
 
 const SUPABASE_URL = 'https://phjjccakzfwbytcbqvnh.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_8zEtiqLSMRF_gtsXLnpdLw_0_sPqE-t';
@@ -33,12 +38,18 @@ type UserAccount = {
   birth_date?: string;
   role: string;
   password: string;
-  status: 'pending' | 'authorized' | 'denied';
+  status: 'pending' | 'authorized' | 'denied' | 'disabled';
   isAdminUser?: boolean;
+  isMasterAdmin?: boolean;
   canViewOthers?: boolean;
   canRegister?: boolean;
   canApprove?: boolean;
   canDeleteUser?: boolean;
+  canEditProfiles?: boolean;
+  canResetPasswords?: boolean;
+  canManageLocations?: boolean;
+  canViewGlobalReports?: boolean;
+  managedUserEmails?: string[];
 };
 
 type Country = {
@@ -104,6 +115,7 @@ type AttendanceRecord = {
 };
 
 type HymnEntry = {
+  id?: string;
   notebook: string;
   number: string;
   title: string;
@@ -138,7 +150,7 @@ type MasterHymn = {
   owner_email?: string;
 };
 
-type HymnListType = 'Normal130' | 'Normal200' | 'Oracao' | 'Especial200' | 'Festiva200' | 'Comunhao200' | 'NatalAnoNovo';
+type HymnListType = 'Normal130' | 'Normal200' | 'Oracao' | 'Especial200' | 'Festiva200' | 'Comunhao200' | 'NatalAnoNovo' | 'Outra';
 
 type HymnList = {
   id: string;
@@ -270,6 +282,7 @@ const MEETING_TYPES: Record<string, string> = {
   Festiva200: 'Reunião Festiva (Até 2h)',
   Comunhao200: 'Reunião de Santa Comunhão',
   NatalAnoNovo: 'Natal / Ano Novo',
+  Outra: 'Outra',
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -453,9 +466,117 @@ const HomeScreen = ({ navigate, onLogout, isReadOnly, isAdmin, onProfileClick, o
       <MenuCard title="Presença" desc="Chamadas e Histórico" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>} onClick={() => navigate('attendance')} />
       <MenuCard title="Biblioteca de Hinos" desc="Cadastro por Caderno" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>} onClick={() => navigate('hymns_library')} />
       <MenuCard title="Programações" desc="Geração de Listas" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>} onClick={() => navigate('programs')} />
+      <MenuCard title="Dados e Backup" desc="Exportar/Importar CSV e JSON" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>} onClick={() => navigate('data_management')} />
     </div>
   </Layout>
 );
+
+const DataManagementScreen = ({ onBackupJSON, isExportingJSON, onBackupCSV, isExportingCSV, onImportJSON, onImportCSV, goBack, isReadOnly, onExitImpersonation, canExportBackups }: any) => {
+  const jsonInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const [csvTarget, setCsvTarget] = useState('musicians');
+
+  const handleJsonFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) onImportJSON(file);
+    if (jsonInputRef.current) jsonInputRef.current.value = '';
+  };
+
+  const handleCsvFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) onImportCSV(file, csvTarget);
+    if (csvInputRef.current) csvInputRef.current.value = '';
+  };
+
+  return (
+    <Layout title="Gerenciamento de Dados" onBack={goBack} onExitImpersonation={onExitImpersonation}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto mt-8">
+        {/* Export Section */}
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6 relative overflow-hidden">
+          {!canExportBackups && (
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center p-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <h3 className="font-black text-amber-900 uppercase text-xs">Acesso Restrito</h3>
+              <p className="text-[10px] text-gray-500 mt-1 uppercase font-bold">Você não tem permissão para exportar dados.</p>
+            </div>
+          )}
+          <h2 className="text-xl font-black text-indigo-900 uppercase tracking-widest border-b pb-4">Exportar Dados</h2>
+          <p className="text-gray-500 text-sm italic">Baixe seus dados para backup ou uso em Excel.</p>
+          
+          <button 
+            onClick={onBackupJSON} 
+            disabled={isExportingJSON}
+            className="w-full flex items-center justify-between p-4 bg-indigo-50 text-indigo-700 rounded-xl font-bold hover:bg-indigo-100 transition-all active:scale-95 disabled:opacity-50"
+          >
+            <div className="flex items-center gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>{isExportingJSON ? "Gerando JSON..." : "Backup Completo (JSON)"}</span>
+            </div>
+            <span className="text-[10px] uppercase opacity-60">Recomendado</span>
+          </button>
+
+          <button 
+            onClick={onBackupCSV} 
+            disabled={isExportingCSV}
+            className="w-full flex items-center justify-between p-4 bg-emerald-50 text-emerald-700 rounded-xl font-bold hover:bg-emerald-100 transition-all active:scale-95 disabled:opacity-50"
+          >
+            <div className="flex items-center gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>
+              <span>{isExportingCSV ? "Gerando CSV..." : "Exportar para Excel (CSV)"}</span>
+            </div>
+          </button>
+        </div>
+
+        {/* Import Section */}
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+          <h2 className="text-xl font-black text-indigo-900 uppercase tracking-widest border-b pb-4">Importar Dados</h2>
+          <p className="text-gray-500 text-sm italic">Restaure um backup ou adicione novos registros.</p>
+
+          <div className="space-y-4">
+            <label className="block">
+              <span className="text-[10px] font-black uppercase text-gray-900 block mb-2">Restaurar de arquivo JSON</span>
+              <button 
+                onClick={() => jsonInputRef.current?.click()}
+                disabled={isReadOnly}
+                className="w-full flex items-center gap-3 p-4 border-2 border-dashed border-gray-200 rounded-xl font-bold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-all disabled:opacity-50"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>Selecionar Backup (.json)</span>
+              </button>
+              <input ref={jsonInputRef} type="file" accept=".json" onChange={handleJsonFile} className="hidden" />
+            </label>
+
+            <div className="pt-4 border-t border-gray-50">
+              <span className="text-[10px] font-black uppercase text-gray-900 block mb-2">Importar de planilha CSV</span>
+              <div className="flex gap-2 mb-3">
+                <select 
+                  value={csvTarget} 
+                  onChange={e => setCsvTarget(e.target.value)}
+                  className="flex-1 border rounded-lg p-2 text-sm font-bold bg-gray-50"
+                >
+                  <option value="musicians">Músicos</option>
+                  <option value="instruments">Instrumentos</option>
+                  <option value="master_hymns">Bilbioteca de Hinos</option>
+                </select>
+                <button 
+                  onClick={() => csvInputRef.current?.click()}
+                  disabled={isReadOnly}
+                  className="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md hover:bg-gray-700 active:scale-95 disabled:opacity-50"
+                >
+                  Carregar CSV
+                </button>
+              </div>
+              <input ref={csvInputRef} type="file" accept=".csv" onChange={handleCsvFile} className="hidden" />
+              <p className="text-[9px] text-gray-400 leading-relaxed">Nota: O CSV deve seguir o formato exato das colunas exportadas pelo sistema.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+};
 
 const ComponentsScreen = ({ navigate, goBack, onExitImpersonation }: any) => (
   <Layout title="Componentes" onBack={goBack} onExitImpersonation={onExitImpersonation}>
@@ -476,7 +597,7 @@ const MusicianReportSelectionScreen = ({ navigate, goBack, onExitImpersonation }
   };
   return (
     <Layout title="Opções de Relatório" onBack={goBack} onExitImpersonation={onExitImpersonation}>
-      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 max-md mx-auto mt-12 space-y-6">
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 max-w-md mx-auto mt-12 space-y-6">
         <div>
           <label className="block text-sm font-black text-gray-700 uppercase tracking-widest mb-4">Tipo de Relatório</label>
           <select className="w-full border-2 border-gray-100 rounded-lg p-3 text-lg font-medium focus:border-indigo-500 outline-none transition-colors" value={type} onChange={e => setType(e.target.value)}>
@@ -1082,7 +1203,7 @@ const AdminCountriesScreen = ({ goBack, navigate }: any) => {
           <h3 className="font-black text-xs uppercase text-indigo-900 mb-4">{editingId ? 'Editando País' : 'Cadastrando Novo País'}</h3>
           <form onSubmit={prepareSave} className="flex flex-col sm:flex-row gap-4 items-end">
             <div className="flex-1 w-full">
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Nome do País</label>
+              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nome do País</label>
               <input required className="w-full border rounded p-2" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Brasil" />
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
@@ -1197,11 +1318,11 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
         <div className="bg-white p-6 rounded-xl border mb-6 shadow-sm animate-slide-down">
           <form onSubmit={prepareSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Nome do Estado</label>
+              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nome do Estado</label>
               <input required className="w-full border rounded p-2" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: São Paulo" />
             </div>
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">CEP Padrão</label>
+              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">CEP Padrão</label>
               <input required className="w-full border rounded p-2" value={formData.cep} onChange={e => setFormData({...formData, cep: e.target.value})} placeholder="00000-000" />
             </div>
             <div className="md:col-span-2 flex justify-end gap-2 mt-2">
@@ -1363,12 +1484,12 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
         <div className="bg-white p-6 rounded-xl border mb-6 shadow-sm animate-slide-down">
           <form onSubmit={prepareSave} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-3">
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Nome da Congregação</label>
+              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nome da Congregação</label>
               <input required className="w-full border rounded p-3 font-bold" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Sede Central, Bairro Novo..." />
             </div>
             
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Cód. País</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Cód. País</label>
               <div className="flex gap-2">
                 <input required className="w-20 border rounded p-2 text-center" value={formData.country_id} onChange={e => handleCountryCodeChange(e.target.value)} placeholder="01" />
                 <input readOnly className="flex-1 bg-gray-50 border rounded p-2 italic text-gray-500" value={foundCountryName} placeholder="Busca automática..." />
@@ -1376,7 +1497,7 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Cód. Estado</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Cód. Estado</label>
               <div className="flex gap-2">
                 <input required className="w-20 border rounded p-2 text-center" value={formData.state_id} onChange={e => handleStateCodeChange(e.target.value)} placeholder="01" />
                 <input readOnly className="flex-1 bg-gray-50 border rounded p-2 italic text-gray-500" value={foundStateName} placeholder="Busca automática..." />
@@ -1384,22 +1505,22 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">UF (Estado)</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">UF (Estado)</label>
               <input required className="w-full border rounded p-2 text-center uppercase" maxLength={2} value={formData.uf} onChange={e => setFormData({...formData, uf: e.target.value.toUpperCase()})} placeholder="SP" />
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">CEP</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">CEP</label>
               <input required className="w-full border rounded p-2" value={formData.cep} onChange={e => setFormData({...formData, cep: e.target.value})} placeholder="00000-000" />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Endereço</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Endereço</label>
               <input required className="w-full border rounded p-2" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Rua, Avenida..." />
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Nº</label>
+              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nº</label>
               <input required className="w-full border rounded p-2" value={formData.address_number} onChange={e => setFormData({...formData, address_number: e.target.value})} placeholder="123" />
             </div>
 
@@ -1435,7 +1556,20 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
   );
 };
 
-const AdminRegistrationsSummaryScreen = ({ navigate, goBack }: any) => {
+const AdminRegistrationsSummaryScreen = ({ navigate, goBack, currentUser }: any) => {
+  const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
+  const canViewReports = isMaster || currentUser.canViewGlobalReports;
+
+  const handleReport = async (type: string) => {
+    let table = '', local = '';
+    if (type === 'countries') { table = 'countries'; local = 'gca_countries'; }
+    if (type === 'states') { table = 'states'; local = 'gca_states'; }
+    if (type === 'congregations') { table = 'congregations_admin'; local = 'gca_congregations_admin'; }
+
+    const data = await fetchData(table, local);
+    navigate(`admin_${type}_report`, data);
+  };
+
   return (
     <Layout title="Módulo de Cadastros" onBack={goBack}>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
@@ -1458,6 +1592,36 @@ const AdminRegistrationsSummaryScreen = ({ navigate, goBack }: any) => {
           onClick={() => navigate('admin_congregations')} 
         />
       </div>
+
+      {canViewReports && (
+        <div className="mt-12 bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+           <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-6 border-b pb-2">Ambiente de Relatórios Globais</h3>
+           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <button 
+                onClick={() => handleReport('countries')}
+                className="bg-indigo-50 text-indigo-700 p-4 rounded-2xl font-bold uppercase text-[10px] hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-3"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+                Países
+              </button>
+              <button 
+                onClick={() => handleReport('states')}
+                className="bg-indigo-50 text-indigo-700 p-4 rounded-2xl font-bold uppercase text-[10px] hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-3"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+                Estados
+              </button>
+              <button 
+                onClick={() => handleReport('congregations')}
+                className="bg-indigo-50 text-indigo-700 p-4 rounded-2xl font-bold uppercase text-[10px] hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-3"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+                Congregações
+              </button>
+           </div>
+        </div>
+      )}
+
       <div className="mt-12 flex justify-center">
         <button onClick={goBack} className="border-2 border-gray-200 text-gray-500 px-12 py-2 rounded-full font-bold hover:bg-gray-100 transition-colors uppercase text-xs">Voltar ao Painel</button>
       </div>
@@ -1467,10 +1631,15 @@ const AdminRegistrationsSummaryScreen = ({ navigate, goBack }: any) => {
 
 // --- Módulo CRR (Certificado de Registro de Regentes) ---
 
-const AdminConductorCertificatesScreen = ({ navigate, goBack }: any) => {
+const AdminConductorCertificatesScreen = ({ navigate, goBack, currentUser }: any) => {
   const [conductors, setConductors] = useState<Conductor[]>([]);
   const [congregations, setCongregations] = useState<CongregationRecord[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState<Conductor | null>(null);
+
+  const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
+  const canRegister = isMaster || currentUser.canRegister;
+  const canManage = isMaster || currentUser.canApprove || currentUser.canRegister;
+  const canViewReports = isMaster || currentUser.canViewGlobalReports;
 
   useEffect(() => { 
     fetchData('conductors', 'gca_conductors').then(setConductors);
@@ -1498,19 +1667,23 @@ const AdminConductorCertificatesScreen = ({ navigate, goBack }: any) => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="font-bold text-gray-700 uppercase">Lista de Regentes</h2>
         <div className="flex gap-2">
-          <button 
-            onClick={() => {
-              const dataForReport = conductors.map(c => ({
-                ...c,
-                congregation_name: congregations.find(con => con.id === c.congregation_id)?.name || 'N/A'
-              }));
-              navigate('admin_conductors_report', dataForReport);
-            }} 
-            className="bg-gray-100 text-indigo-600 px-4 py-2 rounded font-bold border border-indigo-200"
-          >
-            Relatório
-          </button>
-          <button onClick={() => navigate('admin_new_conductor')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold shadow-md">Novo Registro</button>
+          {canViewReports && (
+            <button 
+              onClick={() => {
+                const dataForReport = conductors.map(c => ({
+                  ...c,
+                  congregation_name: congregations.find(con => con.id === c.congregation_id)?.name || 'N/A'
+                }));
+                navigate('admin_conductors_report', dataForReport);
+              }} 
+              className="bg-gray-100 text-indigo-600 px-4 py-2 rounded font-bold border border-indigo-200"
+            >
+              Relatório
+            </button>
+          )}
+          {canRegister && (
+            <button onClick={() => navigate('admin_new_conductor')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold shadow-md">Novo Registro</button>
+          )}
         </div>
       </div>
 
@@ -1539,10 +1712,14 @@ const AdminConductorCertificatesScreen = ({ navigate, goBack }: any) => {
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
               <button onClick={() => navigate('admin_crr_card', c)} className="flex-1 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded text-[10px] font-black uppercase border border-indigo-100">Emitir CRR</button>
-              <button onClick={() => navigate('admin_edit_conductor', c)} className="flex-1 bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-black uppercase shadow-sm">Editar</button>
-              <button onClick={() => setConfirmingDelete(c)} className="bg-red-50 text-red-700 p-2 rounded text-[10px] font-black uppercase border border-red-100">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-              </button>
+              {canManage && (
+                <button onClick={() => navigate('admin_edit_conductor', c)} className="flex-1 bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-black uppercase shadow-sm">Editar</button>
+              )}
+              {canRegister && (
+                <button onClick={() => setConfirmingDelete(c)} className="bg-red-50 text-red-700 p-2 rounded text-[10px] font-black uppercase border border-red-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -1778,13 +1955,13 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
 
         <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
-            <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Nome Completo</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nome Completo</label>
             <input required className="w-full border rounded p-3 font-bold" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: João da Silva" />
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">País (Cód)</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">País (Cód)</label>
               <div className="flex gap-2">
                 <div className="relative">
                   <input required className="w-16 border rounded p-2 text-center font-mono" value={formData.country_id} onChange={e => lookup('country_id', e.target.value)} placeholder="01" />
@@ -1796,7 +1973,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Estado (Cód)</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Estado (Cód)</label>
               <div className="flex gap-2">
                 <div className="relative">
                   <input required className="w-16 border rounded p-2 text-center font-mono" value={formData.state_id} onChange={e => lookup('state_id', e.target.value)} placeholder="01" />
@@ -1808,7 +1985,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Congregação (Cód)</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Congregação (Cód)</label>
               <div className="flex gap-2">
                 <div className="relative">
                   <input required className="w-20 border rounded p-2 text-center font-mono" value={formData.congregation_id} onChange={e => lookup('congregation_id', e.target.value)} placeholder="0001" />
@@ -1823,7 +2000,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
 
           <div className="space-y-4">
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Data de Nascimento</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Data de Nascimento</label>
               <div className="flex gap-3 items-center">
                 <input required type="date" className="flex-1 border rounded p-2" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} />
                 <div className="bg-indigo-50 px-3 py-2 rounded text-indigo-700 font-black text-xs text-center border border-indigo-100 min-w-[60px]">
@@ -1832,17 +2009,17 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Telefone</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Telefone</label>
               <input required className="w-full border rounded p-2" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="(00) 00000-0000" />
             </div>
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">E-mail</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">E-mail</label>
               <input required type="email" className="w-full border rounded p-2" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="email@exemplo.com" />
             </div>
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">Cargo Específico</label>
+            <label className="block text-[10px] font-black uppercase text-gray-900 mb-2">Cargo Específico</label>
             <select required className="w-full border rounded p-3 font-bold bg-indigo-50 border-indigo-100" value={formData.role_code} onChange={e => setFormData({...formData, role_code: e.target.value as any})}>
               <option value="S">S - Regente da Sede</option>
               <option value="I">I - Regente Itinerante</option>
@@ -2031,11 +2208,11 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
           <div className="space-y-4">
             <div className="flex justify-between items-end border-b border-indigo-100 pb-1">
               <div className="flex-1">
-                <span className="text-[6px] font-black text-indigo-700 uppercase block opacity-60 leading-none">Identificação do Regente</span>
+                <span className="text-[6px] font-black text-gray-900 uppercase block leading-none">Identificação do Regente</span>
                 <p className="text-[12px] font-black uppercase text-gray-900 leading-none">{conductor.name}</p>
               </div>
               <div className="text-right ml-4">
-                <span className="text-[6px] font-black text-indigo-700 uppercase block opacity-60 leading-none">Nº Registro (CRR)</span>
+                <span className="text-[6px] font-black text-gray-900 uppercase block leading-none">Nº Registro (CRR)</span>
                 <p className="text-[12px] font-black text-indigo-950 tracking-[1.5px] leading-none">
                   {conductor.registry_number}
                 </p>
@@ -2044,15 +2221,15 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
 
             <div className="grid grid-cols-2 gap-y-3 gap-x-6">
               <div>
-                <span className="text-[6px] font-black text-indigo-700 uppercase block opacity-60 leading-none mb-0.5">Cargo / Função</span>
+                <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Cargo / Função</span>
                 <p className="text-[9px] font-black uppercase text-indigo-900 leading-tight">{ROLE_LABELS[conductor.role_code] || 'Regente'}</p>
               </div>
               <div className="text-right">
-                <span className="text-[6px] font-black text-indigo-700 uppercase block opacity-60 leading-none mb-0.5">Data de Nascimento</span>
+                <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Data de Nascimento</span>
                 <p className="text-[9px] font-bold text-gray-700">{conductor.birth_date ? new Date(conductor.birth_date).toLocaleDateString('pt-BR') : '-'}</p>
               </div>
               <div className="col-span-2">
-                <span className="text-[6px] font-black text-indigo-700 uppercase block opacity-60 leading-none mb-0.5">Congregação / Unidade de Atendimento</span>
+                <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Congregação / Unidade de Atendimento</span>
                 <p className="text-[10px] font-bold uppercase text-gray-800 leading-tight">{congregationName}</p>
               </div>
             </div>
@@ -2061,7 +2238,7 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
           {/* Rodapé: Data e Assinatura */}
           <div className="flex items-end justify-between mt-auto pt-2 border-t border-gray-100">
             <div className="mb-2">
-              <span className="text-[6px] font-black text-gray-400 uppercase block leading-none mb-0.5">Data de Cadastro</span>
+              <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Data de Cadastro</span>
               <p className="text-[9px] font-black text-gray-700">{registrationDate}</p>
             </div>
             
@@ -2147,7 +2324,7 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
       </div>
       {instrumentToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] animate-fade-in">
-          <div className="bg-white rounded-xl p-8 w-full max-md shadow-2xl">
+          <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-bold mb-6 text-gray-900 leading-tight">Deseja Excluir o Instrumento {instrumentToDelete.name} Permanentemente?</h3>
             <div className="flex gap-4">
               <button onClick={confirmDelete} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-md">Sim</button>
@@ -2164,13 +2341,13 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
             <form onSubmit={handleSubmit} className="space-y-4">
               <input required placeholder="Nome" className={`w-full border rounded p-2 ${saveError ? 'border-red-500 bg-red-50' : ''}`} value={formData.name} onChange={e => { setFormData({...formData, name: e.target.value}); setSaveError(null); }} />
               <div>
-                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Modalidade</p>
+                <p className="text-xs font-bold text-gray-900 uppercase mb-1">Modalidade</p>
                 <select className="w-full border rounded p-2" value={formData.modality} onChange={e => setFormData({...formData, modality: e.target.value as any})}>
                   <option value="Metal">Metal</option><option value="Palheta">Palheta</option><option value="Cordas">Cordas</option><option value="Outro">Outro</option>
                 </select>
               </div>
               <div>
-                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Clave</p>
+                <p className="text-xs font-bold text-gray-900 uppercase mb-1">Clave</p>
                 <select className="w-full border rounded p-2" value={formData.timbre} onChange={e => setFormData({...formData, timbre: e.target.value as any})}>
                   <option value="Sol">Sol</option>
                   <option value="Fá">Fá</option>
@@ -2264,7 +2441,7 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
       </div>
       {musicianToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] animate-fade-in">
-          <div className="bg-white rounded-xl p-8 w-full max-md shadow-2xl">
+          <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-bold mb-6 text-gray-900 leading-tight">Deseja Excluir o Musico {musicianToDelete.name} Permanentemente?</h3>
             <div className="flex gap-4">
               <button onClick={confirmDelete} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-md">Sim</button>
@@ -2281,7 +2458,7 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
             <form onSubmit={handleSubmit} className="space-y-4">
               <input required placeholder="Nome Completo" className="w-full border rounded p-2" value={formData.name} onChange={e => { setFormData({...formData, name: e.target.value}); setSaveError(null); }} />
               <div>
-                <p className="text-sm font-bold mb-2">Vozes</p>
+                <p className="text-sm font-bold mb-2 text-gray-950">Vozes</p>
                 <div className="flex wrap gap-2">
                   {['Melodia', 'Contralto', 'Tenor', 'Baixo'].map(v => (
                     <button key={v} type="button" onClick={() => toggleVoice(v)} className={`px-3 py-1 rounded border transition-colors ${formData.voices.includes(v) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-100 border-gray-200'}`}>{v}</button>
@@ -2289,7 +2466,7 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
                 </div>
               </div>
               <div>
-                <p className="text-sm font-bold mb-2">Instrumentos</p>
+                <p className="text-sm font-bold mb-2 text-gray-950">Instrumentos</p>
                 <select className="w-full border rounded p-2 mb-2" onChange={e => addInstrument(e.target.value)}>
                   <option value="">Adicionar instrumento...</option>
                   {instruments.map(i => <option key={i.id} value={i.id}>{i.name} ({i.tuning})</option>)}
@@ -2346,20 +2523,20 @@ const AttendanceReportInputScreen = ({ onGenerate, onCancel, isReadOnly, onExitI
   
   return (
     <Layout title="Relatório de Presença" onBack={onCancel} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
-      <div className="bg-white p-8 rounded shadow max-md mx-auto mt-12 space-y-6">
+      <div className="bg-white p-8 rounded shadow max-w-md mx-auto mt-12 space-y-6">
         <h3 className="text-xl font-bold border-b pb-4">Filtrar Período</h3>
         <div className="space-y-6">
-          <div><label className="block text-base font-bold mb-2">Data Inicial</label><input type="date" className="w-full border rounded-xl p-3 text-base shadow-sm" value={start} onChange={e => setStart(e.target.value)} /></div>
-          <div><label className="block text-base font-bold mb-2">Data Final</label><input type="date" className="w-full border rounded-xl p-3 text-base shadow-sm" value={end} onChange={e => setEnd(e.target.value)} /></div>
+          <div><label className="block text-base font-bold mb-2 text-gray-950">Data Inicial</label><input type="date" className="w-full border rounded-xl p-3 text-base shadow-sm" value={start} onChange={e => setStart(e.target.value)} /></div>
+          <div><label className="block text-base font-bold mb-2 text-gray-950">Data Final</label><input type="date" className="w-full border rounded-xl p-3 text-base shadow-sm" value={end} onChange={e => setEnd(e.target.value)} /></div>
           <div>
-            <label className="block text-base font-bold mb-2">Grupo</label>
+            <label className="block text-base font-bold mb-2 text-gray-950">Grupo</label>
             <select className="w-full border rounded-xl p-3 text-base shadow-sm" value={group} onChange={e => setGroup(e.target.value as any)}>
               <option value="Geral">Geral (Todos)</option>
               <option value="Coral">Coral (Vozes)</option>
               <option value="Orquestra">Orquestra (Instrumentos)</option>
             </select>
           </div>
-          <div><label className="block text-base font-bold mb-2">Tipo</label><select className="w-full border rounded-xl p-3 text-base shadow-sm" value={type} onChange={e => setType(e.target.value as any)}>
+          <div><label className="block text-base font-bold mb-2 text-gray-950">Tipo</label><select className="w-full border rounded-xl p-3 text-base shadow-sm" value={type} onChange={e => setType(e.target.value as any)}>
             <option value="Todos">Todos</option>
             <option value="Somente Presentes">Somente Presentes</option>
             <option value="Somente Ausentes">Somente Ausentes</option>
@@ -2593,7 +2770,7 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
       {/* Modal Justificativa (Input) */}
       {activeJustifyId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
-            <div className="bg-white rounded-2xl p-6 w-full max-md shadow-2xl animate-fade-in">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in">
                 <h3 className="text-xl font-black text-indigo-900 uppercase mb-4">Informar Justificativa</h3>
                 <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Mínimo 10 caracteres</p>
                 {justifyError && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold mb-4 border-l-4 border-red-500">{justifyError}</div>}
@@ -2722,7 +2899,7 @@ const AttendanceHistoryScreen = ({ goBack, onEdit, ownerEmail, isReadOnly, onExi
 
         {recordToDelete && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] animate-fade-in">
-            <div className="bg-white rounded-xl p-8 w-full max-md shadow-2xl">
+            <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
               <h3 className="text-xl font-bold mb-6 text-gray-900 leading-tight">Deseja Excluir a Chamada do Dia {new Date(recordToDelete.date + 'T00:00:00').toLocaleDateString('pt-BR')} Permanentemente?</h3>
               <div className="flex gap-4">
                 <button onClick={confirmDelete} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-md">Sim</button>
@@ -2784,13 +2961,13 @@ const AttendancePercentageInputScreen = ({ onGenerate, onCancel, isReadOnly, onE
   const [group, setGroup] = useState<'Coral' | 'Orquestra' | 'Geral'>('Geral');
   return (
     <Layout title="Percentual de Participação" onBack={onCancel} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
-      <div className="bg-white p-8 rounded shadow max-md mx-auto mt-12 space-y-6">
+      <div className="bg-white p-8 rounded shadow max-w-md mx-auto mt-12 space-y-6">
         <h3 className="text-xl font-bold border-b pb-4">Gerar Relatório de Participação</h3>
         <div className="space-y-6">
-          <div><label className="block text-base font-bold mb-2">Data Inicial</label><input type="date" className="w-full border rounded-xl p-3 text-base shadow-sm" value={start} onChange={e => setStart(e.target.value)} /></div>
-          <div><label className="block text-base font-bold mb-2">Data Final</label><input type="date" className="w-full border rounded-xl p-3 text-base shadow-sm" value={end} onChange={e => setEnd(e.target.value)} /></div>
+          <div><label className="block text-base font-bold mb-2 text-gray-950">Data Inicial</label><input type="date" className="w-full border rounded-xl p-3 text-base shadow-sm" value={start} onChange={e => setStart(e.target.value)} /></div>
+          <div><label className="block text-base font-bold mb-2 text-gray-950">Data Final</label><input type="date" className="w-full border rounded-xl p-3 text-base shadow-sm" value={end} onChange={e => setEnd(e.target.value)} /></div>
           <div>
-            <label className="block text-base font-bold mb-2">Grupo</label>
+            <label className="block text-base font-bold mb-2 text-gray-950">Grupo</label>
             <select className="w-full border rounded-xl p-3 text-base shadow-sm" value={group} onChange={e => setGroup(e.target.value as any)}>
               <option value="Geral">Geral (Todos)</option>
               <option value="Coral">Coral (Vozes)</option>
@@ -2853,7 +3030,7 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
       </div>
       {hymnToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] animate-fade-in">
-          <div className="bg-white rounded-xl p-8 w-full max-md shadow-2xl">
+          <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-bold mb-6 text-gray-900 leading-tight">Deseja Excluir o Cadastro do Hino {hymnToDelete.number} - {hymnToDelete.title} Permanentemente?</h3>
             <div className="flex gap-4"><button onClick={confirmDelete} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold shadow-md">Sim</button><button onClick={() => setHymnToDelete(null)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-lg font-bold">Não</button></div>
           </div>
@@ -2965,7 +3142,7 @@ const HymnListScreen = ({ goBack, onCreate, onEdit, ownerEmail, isReadOnly, onEx
     <Layout title="Listas de Hinos" onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
       {listToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] animate-fade-in">
-          <div className="bg-white rounded-xl p-8 w-full max-md shadow-2xl">
+          <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-bold mb-6 text-gray-900 leading-tight">Deseja Excluir a Programação do Dia {new Date(listToDelete.date + 'T00:00:00').toLocaleDateString('pt-BR')} Permanentemente?</h3>
             <div className="flex gap-4"><button onClick={confirmDelete} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold shadow-md">Sim</button><button onClick={() => setListToDelete(null)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-lg font-bold">Não</button></div>
           </div>
@@ -2995,6 +3172,7 @@ const HymnListScreen = ({ goBack, onCreate, onEdit, ownerEmail, isReadOnly, onEx
 const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isReadOnly, onExitImpersonation }: any) => {
   const [data, setData] = useState<Partial<HymnList>>(initialData || { date: getBrasiliaYYYYMMDD(), congregation: '', type: 'Normal130', startTime: '19:00:00', isDetailed: false, owner_email: ownerEmail, sections: { hymnal: [], choir: [], contributions: [], message: [] }, sectionDurations: { contributions: '', message: '' } });
   const [showErrorMsg, setShowErrorMsg] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [libraryHymns, setLibraryHymns] = useState<MasterHymn[]>([]);
   const [searchModalHymns, setSearchModalHymns] = useState<{ sec: string, idx: number, notebook: string } | null>(null);
   const [hymnSearchTerm, setHymnSearchTerm] = useState('');
@@ -3017,19 +3195,19 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
     if (!isFirstRun.current) return;
     isFirstRun.current = false;
     let counts = { h: 5, c: 2, co: 1, m: 1 };
-    if (data.type === 'Normal200') counts = { h: 5, c: 2, co: 2, m: 1 }; else if (data.type === 'Especial200') counts = { h: 1, c: 3, co: 2, m: 1 }; else if (data.type === 'Festiva200') counts = { h: 1, c: 7, co: 2, m: 1 }; else if (data.type === 'Comunhao200') counts = { h: 1, c: 10, co: 2, m: 1 }; else if (data.type === 'NatalAnoNovo') counts = { h: 1, c: 1, co: 1, m: 1 }; 
-    const empty = (n: number, defNb: string = 'Caderno') => Array(n).fill(null).map(() => ({ notebook: defNb, number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }));
+    if (data.type === 'Normal200') counts = { h: 5, c: 2, co: 2, m: 1 }; else if (data.type === 'Especial200') counts = { h: 1, c: 3, co: 2, m: 1 }; else if (data.type === 'Festiva200') counts = { h: 1, c: 7, co: 2, m: 1 }; else if (data.type === 'Comunhao200') counts = { h: 1, c: 10, co: 2, m: 1 }; else if (data.type === 'NatalAnoNovo') counts = { h: 1, c: 1, co: 1, m: 1 }; else if (data.type === 'Outra') counts = { h: 5, c: 2, co: 1, m: 1 };
+    const empty = (n: number, defNb: string = 'Caderno') => Array(n).fill(null).map(() => ({ id: generateId(), notebook: defNb, number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }));
     const buildSections = async () => {
       const all = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail);
       const findTitle = (num: string, nb: string) => all.find((h: any) => h.notebook === nb && h.number === num)?.title || '';
       let sections: any = { hymnal: empty(counts.h, 'H'), choir: empty(counts.c), contributions: empty(counts.co), message: empty(counts.m) };
       if (data.type === 'Oracao') {
-        sections = { hymnal: [{ notebook: 'H', number: '1', title: findTitle('1', 'H') || 'Igreja Forte', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }], afterInitialPrayer: [{ notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }], choir: empty(2), choirAfterContributions: empty(2), message: [{ notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }], afterIndividualPrayer: [{ notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }] };
+        sections = { hymnal: [{ id: generateId(), notebook: 'H', number: '1', title: findTitle('1', 'H') || 'Igreja Forte', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }], afterInitialPrayer: [{ id: generateId(), notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }], choir: empty(2), choirAfterContributions: empty(2), message: [{ id: generateId(), notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }], afterIndividualPrayer: [{ id: generateId(), notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }] };
       } else {
-        if (sections.hymnal.length > 0) sections.hymnal[0] = { notebook: 'H', number: '1', title: findTitle('1', 'H') || 'Igreja Forte', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' };
-        if (data.type === 'Comunhao200') { sections.message = [{ notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }]; sections.finalization = [{ notebook: 'H', number: '57', title: findTitle('57', 'H') || 'Vitória', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }]; }
+        if (sections.hymnal.length > 0) sections.hymnal[0] = { id: generateId(), notebook: 'H', number: '1', title: findTitle('1', 'H') || 'Igreja Forte', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' };
+        if (data.type === 'Comunhao200') { sections.message = [{ id: generateId(), notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }]; sections.finalization = [{ id: generateId(), notebook: 'H', number: '57', title: findTitle('57', 'H') || 'Vitória', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }]; }
       }
-      for (let sec in sections) { sections[sec] = await Promise.all(sections[sec].map(async (e: any) => { const found = all.find((h: any) => h.notebook === e.notebook && h.number === e.number); return found ? { ...e, title: found.title } : e; })); }
+      for (let sec in sections) { sections[sec] = await Promise.all(sections[sec].map(async (e: any) => { const found = all.find((h: any) => h.notebook === e.notebook && h.number === e.number); return found ? { ...e, title: found.title, id: e.id || generateId() } : { ...e, id: e.id || generateId() }; })); }
       setData(prev => ({ ...prev, sections }));
     };
     buildSections();
@@ -3044,11 +3222,14 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
       s[idx].title = found ? found.title : '';
     }
     setData({ ...data, sections: { ...data.sections!, [sec]: s } });
+    if (validationErrors.length > 0) {
+      setValidationErrors(prev => prev.filter(err => !err.startsWith(`${sec}-${idx}`)));
+    }
   };
 
   const addRow = (sec: string) => {
     if (isReadOnly) return;
-    const newRow = { notebook: 'Caderno', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' };
+    const newRow = { id: generateId(), notebook: 'Caderno', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' };
     setData({ ...data, sections: { ...data.sections!, [sec]: [...(data.sections![sec] || []), newRow] } });
   };
 
@@ -3077,11 +3258,68 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
     setSearchModalHymns(null);
   };
 
+  const onDragEnd = (result: any) => {
+    if (!result.destination || isReadOnly) return;
+    const { source, destination } = result;
+    const sourceSec = source.droppableId;
+    const destSec = destination.droppableId;
+
+    if (sourceSec === destSec && source.index === destination.index) return;
+    
+    const newSections = { ...data.sections! };
+    const sourceEntries = [...(newSections[sourceSec] || [])];
+    const [movedItem] = sourceEntries.splice(source.index, 1);
+    
+    if (sourceSec === destSec) {
+      sourceEntries.splice(destination.index, 0, movedItem);
+      newSections[sourceSec] = sourceEntries;
+    } else {
+      const destEntries = [...(newSections[destSec] || [])];
+      destEntries.splice(destination.index, 0, movedItem);
+      newSections[sourceSec] = sourceEntries;
+      newSections[destSec] = destEntries;
+    }
+    
+    setData({ ...data, sections: newSections });
+    if (validationErrors.length > 0) {
+      setValidationErrors([]); // Clear to avoid index mismatch
+    }
+  };
+
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); if (isReadOnly) return;
     const allLibraryHymns = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail);
     let hasError = false;
-    Object.values(data.sections || {}).forEach((entries: any) => entries.forEach((entry: any) => { if (entry.number.trim() !== '') { if (entry.notebook === 'Caderno') hasError = true; else if (!allLibraryHymns.some((h: MasterHymn) => h.notebook === entry.notebook && h.number === entry.number)) hasError = true; } }));
+    const newErrors: string[] = [];
+
+    Object.entries(data.sections || {}).forEach(([sec, entries]) => {
+      (entries as any[]).forEach((entry, idx) => {
+        if (entry.number.trim() !== '') {
+          if (entry.notebook === 'Caderno') {
+            hasError = true;
+            newErrors.push(`${sec}-${idx}-notebook`);
+          } else {
+            const found = allLibraryHymns.find((h: MasterHymn) => h.notebook === entry.notebook && h.number === entry.number);
+            if (!found) {
+              hasError = true;
+              newErrors.push(`${sec}-${idx}-number`);
+            } else {
+              // Rule: Mandatory Execution if number/title found and field is visible
+              const sectionLabel = getSectionLabel(sec);
+              const isOracaoExecutionHide = data.type === 'Oracao' && (sec === 'hymnal' || sec === 'message' || sec === 'afterIndividualPrayer');
+              const hideExecution = sectionLabel === 'Hinário' || sectionLabel === 'Hinos do Hinário' || isOracaoExecutionHide;
+
+              if (!hideExecution && !entry.execution?.trim()) {
+                hasError = true;
+                newErrors.push(`${sec}-${idx}-execution`);
+              }
+            }
+          }
+        }
+      });
+    });
+
+    setValidationErrors(newErrors);
     if (hasError) { setShowErrorMsg(true); return; }
     const newList: HymnList = { id: initialData?.id || generateId(), owner_email: ownerEmail, ...data } as HymnList;
     const all = await fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail);
@@ -3098,7 +3336,12 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
     }
     return labelsMap[sec] || sec;
   };
-  const sectionOrder = data.type === 'Oracao' ? ['hymnal', 'afterInitialPrayer', 'choir', 'choirAfterContributions', 'message', 'afterIndividualPrayer'] : ['hymnal', 'choir', 'contributions', 'communion', 'message', 'finalization'];
+  const sectionOrder = (() => {
+    if (data.type === 'Oracao') return ['hymnal', 'afterInitialPrayer', 'choir', 'choirAfterContributions', 'message', 'afterIndividualPrayer'];
+    if (['Normal130', 'Normal200', 'Especial200', 'Festiva200', 'NatalAnoNovo', 'Outra'].includes(data.type)) return ['hymnal', 'choir', 'contributions', 'message'];
+    if (data.type === 'Comunhao200') return ['hymnal', 'choir', 'contributions', 'message', 'finalization'];
+    return ['hymnal', 'choir', 'contributions', 'communion', 'message', 'finalization'];
+  })();
 
   const dynamicWidthClass = data.isDetailed ? "max-w-[98%]" : "max-w-5xl";
 
@@ -3130,8 +3373,14 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
 
   return (
     <Layout title={initialData ? "Programa" : "Novo Programa"} onBack={onCancel} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} widthClass={dynamicWidthClass}>
-      <form onSubmit={save} className={`bg-white p-6 rounded shadow space-y-6 mx-auto ${dynamicWidthClass}`}>
-        {showErrorMsg && <div className="bg-red-100 p-4 mb-4 rounded font-bold animate-pulse text-red-700">Favor Cadastrar Hino ou selecionar um Caderno válido</div>}
+      <DragDropContext onDragEnd={onDragEnd}>
+        <form onSubmit={save} className={`bg-white p-6 rounded shadow space-y-6 mx-auto ${dynamicWidthClass}`}>
+          {showErrorMsg && (
+            <div className="bg-red-100 p-4 mb-4 rounded font-bold animate-pulse text-red-700 flex flex-col gap-1">
+              <p>Hinos incompletos ou não encontrados.</p>
+              <p className="text-xs font-normal">Verifique os campos destacados em vermelho (Nº, Caderno ou Execução).</p>
+            </div>
+          )}
         <div className={`grid grid-cols-1 ${data.type === 'NatalAnoNovo' ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4 border-b pb-6`}>
           <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Data</label><input required type="date" disabled={isReadOnly} className="w-full border rounded p-2" value={data.date} onChange={e => setData({...data, date: e.target.value})} /></div>
           <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Congregação</label><input required disabled={isReadOnly} placeholder="Ex.: São Paulo/SP" className="w-full border rounded p-2" value={data.congregation} onChange={e => setData({...data, congregation: e.target.value})} /></div>
@@ -3142,7 +3391,8 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
           <div className="flex items-center gap-2 pt-6"><input type="checkbox" id="isDetailed" disabled={isReadOnly} className="w-4 h-4" checked={data.isDetailed || false} onChange={e => setData({...data, isDetailed: e.target.checked})} /><label htmlFor="isDetailed" className="text-xs font-bold uppercase text-gray-500">Mais detalhada</label></div>
         </div>
         {sectionOrder.map((sec) => {
-          const entries = data.sections?.[sec]; if (!entries || entries.length === 0) return null;
+          const entries = data.sections?.[sec] || [];
+          if (isReadOnly && entries.length === 0) return null;
           const sectionLabel = getSectionLabel(sec);
           const isOracaoExecutionHide = data.type === 'Oracao' && (sec === 'hymnal' || sec === 'message' || sec === 'afterIndividualPrayer');
           const hideExecution = sectionLabel === 'Hinário' || sectionLabel === 'Hinos do Hinário' || isOracaoExecutionHide;
@@ -3154,53 +3404,78 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                   <span className="bg-white text-indigo-900 border border-indigo-100 px-6 py-2 rounded-full font-black uppercase text-xs shadow-sm tracking-widest animate-fade-in">Oração Individual</span>
                 </div>
               )}
-              <div className="bg-gray-50 p-4 rounded-xl border mb-6">
-                <div className="flex justify-between items-center mb-4">
-                   <div className="flex items-center gap-4">
-                     <h4 className="font-black uppercase text-indigo-900">{sectionLabel}</h4>
-                     {data.type === 'NatalAnoNovo' && (sec === 'contributions' || sec === 'message') && (
-                       <div className="flex items-center gap-2">
-                          <label className="text-[10px] font-black uppercase text-indigo-400">Tempo:</label>
-                          <input 
-                            disabled={isReadOnly}
-                            placeholder="00:00:00" 
-                            className="border rounded px-2 py-1 text-xs w-24 font-mono text-center"
-                            value={data.sectionDurations?.[sec] || ''}
-                            onChange={e => setData({...data, sectionDurations: {...data.sectionDurations, [sec]: e.target.value}})}
-                          />
-                       </div>
-                     )}
-                   </div>
-                 {data.type === 'NatalAnoNovo' && (sec === 'choir' || sec === 'contributions' || sec === 'message') && !isReadOnly && (
-                  <button type="button" onClick={() => addRow(sec)} className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase hover:bg-indigo-200 transition-colors flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Adicionar Linha
-                  </button>
-                )}
-              </div>
-              <div className="space-y-3">
-                {entries.map((e: any, i: number) => {
-                  const isFixedH = (sec === 'hymnal') || 
-                                   (data.type === 'Oracao' && (sec === 'afterInitialPrayer' || sec === 'message' || sec === 'afterIndividualPrayer')) ||
-                                   (data.type === 'Comunhao200' && (sec === 'message' || sec === 'finalization'));
-                  const isFirstHymnalRow = (sec === 'hymnal' && i === 0);
-                  const notebookLocked = isReadOnly || isFirstHymnalRow || (isFixedH && e.notebook === 'H');
-                  const numberLocked = isReadOnly || isFirstHymnalRow;
-                  const hasNbError = notebookError?.sec === sec && notebookError?.idx === i;
-                  return (
-                    <div key={i} className="flex flex-col gap-1">
-                      {hasNbError && (
-                        <div className="flex animate-bounce-short">
-                           <span className="bg-red-500 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Por Favor, Informe o Caderno</span>
-                        </div>
-                      )}
-                      <div className="flex flex-col sm:flex-row gap-2 items-center p-2 rounded">
-                      <select disabled={notebookLocked} className={`w-full sm:w-24 border rounded p-2 ${notebookLocked ? 'bg-gray-100' : 'bg-white'}`} value={e.notebook} onChange={ev => update(sec, i, 'notebook', ev.target.value)}><option value="Caderno">Caderno</option>{Object.keys(NOTEBOOKS).map(code => <option key={code} value={code}>{code}</option>)}</select>
+              <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8 shadow-sm">
+                <div className="flex flex-col items-center mb-6 gap-3">
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <h4 className="font-black uppercase text-indigo-900 text-lg border-b-2 border-indigo-200 px-8 pb-1.5 tracking-tight">{sectionLabel}</h4>
+                    {data.type === 'NatalAnoNovo' && (sec === 'contributions' || sec === 'message') && (
+                      <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-indigo-100 shadow-sm">
+                        <label className="text-[9px] font-black uppercase text-indigo-400">Duração:</label>
+                        <input 
+                          disabled={isReadOnly}
+                          placeholder="00:00:00" 
+                          className="border border-indigo-50 rounded-lg px-2 py-1 text-xs w-24 font-mono text-center focus:border-indigo-500 outline-none"
+                          value={data.sectionDurations?.[sec] || ''}
+                          onChange={e => setData({...data, sectionDurations: {...data.sectionDurations, [sec]: e.target.value}})}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-4">
+                    {(data.type === 'Outra' || (data.type === 'NatalAnoNovo' && (sec === 'choir' || sec === 'contributions' || sec === 'message'))) && !isReadOnly && (
+                      <button type="button" onClick={() => addRow(sec)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Adicionar Linha
+                      </button>
+                    )}
+                  </div>
+                </div>
+              <Droppable droppableId={sec}>
+                {(provided, snapshot) => (
+                  <div 
+                    {...provided.droppableProps} 
+                    ref={provided.innerRef} 
+                    className={`space-y-3 min-h-[60px] transition-all duration-200 rounded-xl ${snapshot.isDraggingOver ? 'bg-indigo-50/50 ring-2 ring-indigo-200 ring-dashed' : ''} ${entries.length === 0 ? 'border-2 border-dashed border-gray-200 flex items-center justify-center p-4' : ''}`}
+                  >
+                    {entries.length === 0 && (
+                      <div className="flex flex-col items-center gap-2 opacity-40">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                         <span className="text-[10px] font-black uppercase tracking-widest text-center">Arraste hinos para este bloco</span>
+                      </div>
+                    )}
+                    {entries.map((e: any, i: number) => {
+                      const isFixedH = (sec === 'hymnal') || 
+                                       (data.type === 'Oracao' && (sec === 'afterInitialPrayer' || sec === 'message' || sec === 'afterIndividualPrayer'));
+                      const isFirstHymnalRow = (sec === 'hymnal' && i === 0);
+                      const notebookLocked = isReadOnly || isFirstHymnalRow || (isFixedH && e.notebook === 'H');
+                      const numberLocked = isReadOnly || isFirstHymnalRow;
+                      const hasNbError = notebookError?.sec === sec && notebookError?.idx === i;
+                      const dndId = e.id || `${sec}-${i}`;
+                      return (
+                        <DraggableAny key={dndId} draggableId={dndId} index={i} isDragDisabled={isReadOnly}>
+                          {(provided: any, snapshot: any) => (
+                            <div 
+                              ref={provided.innerRef} 
+                              {...provided.draggableProps} 
+                              className={`flex flex-col gap-1 ${snapshot.isDragging ? 'opacity-50 ring-2 ring-indigo-500 rounded-xl bg-indigo-50/50 scale-105 z-50' : ''} transition-all duration-200`}
+                            >
+                              {hasNbError && (
+                                <div className="flex animate-bounce-short">
+                                  <span className="bg-red-500 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Por Favor, Informe o Caderno</span>
+                                </div>
+                              )}
+                              <div className="flex flex-col sm:flex-row gap-2 items-center p-2 rounded relative group">
+                                {!isReadOnly && (
+                                  <div {...provided.dragHandleProps} className="hidden sm:flex items-center justify-center cursor-grab active:cursor-grabbing p-1.5 text-gray-300 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all absolute -left-6 bg-white rounded-l-lg border border-r-0 border-gray-100">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>
+                                  </div>
+                                )}
+                                <select disabled={notebookLocked} className={`w-full sm:w-24 border rounded p-2 ${notebookLocked ? 'bg-gray-100' : 'bg-white'} ${validationErrors.includes(`${sec}-${i}-notebook`) ? 'border-red-500 bg-red-50' : ''}`} value={e.notebook} onChange={ev => update(sec, i, 'notebook', ev.target.value)}><option value="Caderno">Caderno</option>{Object.keys(NOTEBOOKS).map(code => <option key={code} value={code}>{code}</option>)}</select>
                       {data.type === 'Oracao' && (sec === 'afterInitialPrayer' || sec === 'message' || sec === 'afterIndividualPrayer') ? (
                         <div className="flex items-center gap-1">
                           <select 
                             disabled={isReadOnly}
-                            className="w-full sm:w-24 border rounded p-2 bg-white"
+                            className={`w-full sm:w-24 border rounded p-2 bg-white ${validationErrors.includes(`${sec}-${i}-number`) ? 'border-red-500 bg-red-50' : ''}`}
                             value={e.number}
                             onChange={ev => update(sec, i, 'number', ev.target.value)}
                           >
@@ -3249,7 +3524,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                         </div>
                       ) : (
                         <div className="flex items-center gap-1">
-                          <input disabled={numberLocked} placeholder="Nº" className="w-full sm:w-20 border rounded p-2" value={e.number} onChange={ev => update(sec, i, 'number', ev.target.value)} />
+                          <input disabled={numberLocked} placeholder="Nº" className={`w-full sm:w-20 border rounded p-2 ${validationErrors.includes(`${sec}-${i}-number`) ? 'border-red-500 bg-red-50' : ''}`} value={e.number} onChange={ev => update(sec, i, 'number', ev.target.value)} />
                           <button type="button" onClick={() => openHymnSearch(sec, i, e.notebook)} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="Pesquisar Hino">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                           </button>
@@ -3264,7 +3539,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                           <input disabled={isReadOnly} placeholder="Violonista" className="border rounded p-2 w-28" value={e.guitarist || ''} onChange={ev => update(sec, i, 'guitarist', ev.target.value)} />
                         </>
                       )}
-                      {!hideExecution && <input disabled={isReadOnly} placeholder="Execução" className="border rounded p-2 w-full sm:w-32" value={e.execution || ''} onChange={ev => update(sec, i, 'execution', ev.target.value)} />}
+                      {!hideExecution && <input disabled={isReadOnly} placeholder="Execução" className={`border rounded p-2 w-full sm:w-32 transition-all ${validationErrors.includes(`${sec}-${i}-execution`) ? 'border-red-500 bg-red-50 ring-2 ring-red-100' : ''}`} value={e.execution || ''} onChange={ev => update(sec, i, 'execution', ev.target.value)} />}
                       {data.type === 'NatalAnoNovo' && (
                         <div className="flex items-center gap-2">
                           <div className="flex flex-col">
@@ -3279,18 +3554,23 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                           )}
                         </div>
                       )}
-                      {data.type === 'NatalAnoNovo' && (sec === 'choir' || sec === 'contributions' || sec === 'message') && !isReadOnly && entries.length > 1 && (
+                      {(data.type === 'Outra' || (data.type === 'NatalAnoNovo' && (sec === 'choir' || sec === 'contributions' || sec === 'message'))) && !isReadOnly && entries.length > 1 && (
                         <button type="button" onClick={() => removeRow(sec, i)} className="text-red-400 hover:text-red-600 p-1 transition-colors ml-2" title="Remover Linha">
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                         </button>
                       )}
                     </div>
                   </div>
-                );
-              })}
-              </div>
-            </div>
-          </React.Fragment>
+                )}
+              </DraggableAny>
+            );
+          })}
+          {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
+    </div>
+  </React.Fragment>
         );
       })}
         
@@ -3314,6 +3594,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
 
         {!isReadOnly && <button type="submit" className="bg-indigo-600 text-white px-10 py-3 rounded-full font-bold shadow-lg w-full sm:w-auto">Finalizar Programa</button>}
       </form>
+    </DragDropContext>
 
       {searchModalHymns && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
@@ -3431,7 +3712,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
               )}
               <th className="px-2 py-2">Execução</th>
               {list.type === 'NatalAnoNovo' ? (
-                <th className="px-2 py-1 text-center">Término</th>
+                <th className="px-2 py-1 text-center">Cronometro</th>
               ) : null}
             </tr>
           </thead>
@@ -3464,7 +3745,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
                   <tr className="bg-gray-50">
                     <td 
                       colSpan={colSpanValue} 
-                      className={`px-2 py-1 font-black uppercase text-indigo-900 border-b border-gray-300 ${ (sectionLabel === 'Hinário' || sectionLabel === 'Apresentação do Coral') ? 'text-center' : 'text-left' }`}
+                      className={`px-2 py-1 font-black uppercase text-indigo-900 border-b border-gray-300 text-center`}
                       style={{ fontSize: '14px' }}
                     >
                       {sectionLabel}
@@ -3490,7 +3771,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
                         )}
                         <td className={`${cellPadding} text-gray-500 italic`}>{!hideExecution ? (e.execution || '-') : ''}</td>
                         {isNatal && (
-                          <td className={`${cellPadding} text-indigo-700 font-black text-center font-mono`}>{formatSecondsToClockTime(runningSeconds)}</td>
+                          <td className={`${cellPadding} text-black font-black text-center font-mono`} style={{ fontSize: '13px' }}>{formatSecondsToClockTime(runningSeconds)}</td>
                         )}
                       </tr>
                     );
@@ -3502,14 +3783,16 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
         </table>
 
         {list.type === 'NatalAnoNovo' && (
-          <div className="mt-4 p-4 border-2 border-black rounded flex justify-between items-center bg-gray-50">
-            <div>
-              <p className="text-[10px] font-black uppercase">Tempo Total de Apresentação</p>
-              <p className="text-xl font-black">{formatSecondsToDurationString(totalPresentationSeconds)}</p>
+          <div className="mt-4 pt-2 border-t-2 border-black flex justify-between items-start">
+            <div className="flex gap-4">
+              <div className="flex flex-col">
+                <span className="text-[8px] font-black uppercase text-gray-500">Tempo Total</span>
+                <span className="text-sm font-black">{formatSecondsToDurationString(totalPresentationSeconds)}</span>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] font-black uppercase">Encerramento Previsto</p>
-              <p className="text-2xl font-black">{formatSecondsToClockTime(runningSeconds)}</p>
+            <div className="text-right flex flex-col">
+              <span className="text-[8px] font-black uppercase text-gray-500">Encerramento Previsto</span>
+              <span className="text-lg font-black">{formatSecondsToClockTime(runningSeconds)}</span>
             </div>
           </div>
         )}
@@ -3659,11 +3942,11 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
 };
 
 const AdminMenuScreen = ({ navigate, goBack, currentUser }: any) => {
-  const isMaster = currentUser.email === 'Admin';
+  const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
   return (
     <Layout title="Painel Administrativo" onBack={goBack}>
       <div className="max-w-md mx-auto mt-8 grid gap-6">
-        {(isMaster || currentUser.canApprove) && (
+        {(isMaster || currentUser.canApprove || currentUser.canDeleteUser || currentUser.canResetPasswords || (currentUser.canRegister && currentUser.canApprove)) && (
           <MenuCard 
             title="Acessos" 
             desc="Gerir usuários (autorizar, desabilitar ou excluir)" 
@@ -3671,50 +3954,33 @@ const AdminMenuScreen = ({ navigate, goBack, currentUser }: any) => {
             onClick={() => navigate('admin_users')} 
           />
         )}
-        
-        {isMaster ? (
-          <>
-            <MenuCard 
-              title="Cadastros" 
-              desc="País, Estado e Congregações" 
-              icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>} 
-              onClick={() => navigate('admin_registrations_summary')} 
-            />
-            <MenuCard 
-              title="Certificado de Registro de Regentes" 
-              desc="Geração de certificados oficiais" 
-              icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg>} 
-              onClick={() => navigate('admin_conductor_certificates')} 
-            />
-            <MenuCard 
-              title="Mensagens" 
-              desc="Histórico e gestão de conversas do Chat" 
-              icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>} 
-              onClick={() => navigate('admin_messages')} 
-            />
-          </>
-        ) : (
-          currentUser.canViewOthers && (
-            <MenuCard 
-              title="Desempenho" 
-              desc="Visualizar ambiente de outros usuários" 
-              icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>} 
-              onClick={() => navigate('admin_performance')} 
-            />
-          )
-        )}
-      </div>
-    </Layout>
-  );
-};
 
-const AdminPerformanceScreen = ({ goBack, onImpersonate }: any) => {
-  const [users, setUsers] = useState<UserAccount[]>([]);
-  useEffect(() => { supabase.from('users').select('*').eq('status', 'authorized').then(({ data }) => setUsers(data || [])); }, []);
-  return (
-    <Layout title="Desempenho" onBack={goBack}>
-      <div className="bg-white rounded-xl shadow overflow-hidden border">
-        <table className="w-full text-left"><tbody className="divide-y">{users.filter(u => u.email !== 'Admin').map(u => (<tr key={u.id} className="hover:bg-gray-50"><td className="px-6 py-4 font-bold">{u.name}</td><td className="px-6 py-4 text-right"><button onClick={() => onImpersonate(u)} className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded text-[10px] font-black uppercase">Visualizar</button></td></tr>))}</tbody></table>
+        {(isMaster || currentUser.canManageLocations) && (
+          <MenuCard 
+            title="Cadastros" 
+            desc="País, Estado e Congregações" 
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>} 
+            onClick={() => navigate('admin_registrations_summary')} 
+          />
+        )}
+
+        {(isMaster || currentUser.canApprove || currentUser.canRegister) && (
+          <MenuCard 
+            title="Certificado de Registro de Regentes" 
+            desc="Geração de certificados oficiais" 
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg>} 
+            onClick={() => navigate('admin_conductor_certificates')} 
+          />
+        )}
+
+        {isMaster && (
+          <MenuCard 
+            title="Mensagens" 
+            desc="Histórico e gestão de conversas do Chat" 
+            icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2-2z"/></svg>} 
+            onClick={() => navigate('admin_messages')} 
+          />
+        )}
       </div>
     </Layout>
   );
@@ -3729,10 +3995,14 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
   const [passwordConfirmUser, setPasswordConfirmUser] = useState<UserAccount | null>(null);
   const [newPasswordGenerated, setNewPasswordGenerated] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const isMaster = currentUser.email === 'Admin';
+  const [showScopeSelector, setShowScopeSelector] = useState(false);
+  const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
+  const filteredUsersForAdmin = isMaster ? users : users.filter(u => (currentUser.managedUserEmails || []).includes(u.email));
 
   useEscapeKey(() => {
-    if (newPasswordGenerated) {
+    if (showScopeSelector) {
+      setShowScopeSelector(false);
+    } else if (newPasswordGenerated) {
       setNewPasswordGenerated(null);
       setPasswordConfirmUser(null);
     } else if (passwordConfirmUser) {
@@ -3776,8 +4046,17 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
   const savePermissions = async () => {
     if (!permissionModalUser) return;
     setPermissionError(null);
-    if (permissionModalUser.isAdminUser) {
-      const hasAnyPermission = permissionModalUser.canViewOthers || permissionModalUser.canRegister || permissionModalUser.canApprove || permissionModalUser.canDeleteUser;
+    if (permissionModalUser.isAdminUser && !permissionModalUser.isMasterAdmin) {
+      const hasAnyPermission = 
+        permissionModalUser.canViewOthers || 
+        permissionModalUser.canRegister || 
+        permissionModalUser.canApprove || 
+        permissionModalUser.canDeleteUser ||
+        permissionModalUser.canEditProfiles ||
+        permissionModalUser.canResetPasswords ||
+        permissionModalUser.canManageLocations ||
+        permissionModalUser.canViewGlobalReports;
+
       if (!hasAnyPermission) {
         setPermissionError("Favor habilitar usuário a realizar pelo menos uma das ações");
         return;
@@ -3785,10 +4064,21 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
     }
     const { error } = await supabase.from('users').update({
       isAdminUser: permissionModalUser.isAdminUser,
+      isMasterAdmin: permissionModalUser.isMasterAdmin,
       canViewOthers: permissionModalUser.canViewOthers,
       canRegister: permissionModalUser.canRegister,
       canApprove: permissionModalUser.canApprove,
-      canDeleteUser: permissionModalUser.canDeleteUser
+      canDeleteUser: permissionModalUser.canDeleteUser,
+      canEditProfiles: permissionModalUser.canApprove, // Syncing with canApprove as requested
+      canResetPasswords: permissionModalUser.canResetPasswords,
+      canManageLocations: permissionModalUser.canManageLocations,
+      canViewGlobalReports: permissionModalUser.canViewGlobalReports,
+      managedUserEmails: permissionModalUser.managedUserEmails || [],
+      // Reset removed flags just in case
+      canManageHymns: false,
+      canManageInstruments: false,
+      canExportBackups: false,
+      canEditOthers: false
     }).eq('id', permissionModalUser.id);
     if (!error) {
       setUsers(users.map(u => u.id === permissionModalUser.id ? permissionModalUser : u));
@@ -3855,25 +4145,25 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
                 </div>
               </div>
               <div className="flex gap-1.5 ml-4">
-                {u.status === 'authorized' && (
+                {u.status === 'authorized' && (isMaster || currentUser.canViewOthers) && (
                   <button onClick={() => handleImpersonate(u)} className="bg-indigo-50 text-indigo-600 p-2 rounded-lg hover:bg-indigo-600 hover:text-white transition-all transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   </button>
                 )}
-                {u.status === 'pending' && (
-                  <button onClick={() => updateStatus(u.id, 'authorized')} disabled={!isMaster && !currentUser.canApprove} className="bg-green-50 text-green-600 p-2 rounded-lg text-[10px] font-black uppercase px-3">Aceitar</button>
+                {u.status === 'pending' && (isMaster || currentUser.canApprove) && (
+                  <button onClick={() => updateStatus(u.id, 'authorized')} className="bg-green-50 text-green-600 p-2 rounded-lg text-[10px] font-black uppercase px-3">Aceitar</button>
                 )}
                 {u.status === 'authorized' && isMaster && (
                   <button onClick={() => { setPermissionModalUser(u); setPermissionError(null); }} className="bg-purple-50 text-purple-600 p-2 rounded-lg">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                   </button>
                 )}
-                {u.status !== 'pending' && (isMaster || currentUser.canApprove) && (
+                {u.status !== 'pending' && (isMaster || currentUser.canResetPasswords) && (
                   <button onClick={() => setPasswordConfirmUser(u)} title="Alterar Senha" className="bg-blue-50 text-blue-600 p-2 rounded-lg hover:bg-blue-600 hover:text-white transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                   </button>
                 )}
-                {u.status !== 'pending' && (isMaster || currentUser.canApprove) && (
+                {u.status !== 'pending' && (isMaster || currentUser.canApprove || currentUser.canEditProfiles) && (
                   <button onClick={() => setStatusConfirmUser({user: u, target: u.status === 'disabled' ? 'authorized' : 'disabled'})} className={`${u.status === 'disabled' ? 'bg-amber-50 text-amber-600' : 'bg-orange-50 text-orange-600'} px-3 py-2 rounded-lg text-[10px] font-black uppercase`}>
                     {u.status === 'disabled' ? 'Reabilitar' : 'Desabilitar'}
                   </button>
@@ -3891,9 +4181,9 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
     );
   };
 
-  const pending = users.filter(u => u.status === 'pending' && u.email !== 'Admin');
-  const authorized = users.filter(u => u.status === 'authorized' && u.email !== 'Admin');
-  const disabled = users.filter(u => u.status === 'disabled' && u.email !== 'Admin');
+  const pending = filteredUsersForAdmin.filter(u => u.status === 'pending' && u.email !== 'Admin');
+  const authorized = filteredUsersForAdmin.filter(u => u.status === 'authorized' && u.email !== 'Admin');
+  const disabled = filteredUsersForAdmin.filter(u => u.status !== 'pending' && u.status !== 'authorized' && u.email !== 'Admin');
 
   return (
     <Layout title="Acessos" onBack={goBack}>
@@ -3971,7 +4261,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
 
       {permissionModalUser && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] animate-fade-in backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-8 w-full max-md shadow-2xl space-y-6">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl space-y-6">
             <h3 className="text-xl font-black text-indigo-900 uppercase border-b pb-4">Níveis de Acesso: {permissionModalUser.name}</h3>
             
             {permissionError && (
@@ -3995,43 +4285,158 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
               </div>
 
               {permissionModalUser.isAdminUser && (
-                <div className="pl-4 space-y-3 animate-slide-down">
-                  {[
-                    { label: 'Autorizar leitura de ambiente de outros usuários', key: 'canViewOthers' },
-                    { label: 'Autorizar cadastrar novos usuários', key: 'canRegister' },
-                    { label: 'Autorizar aceitar e recusar novos usuários', key: 'canApprove' },
-                    { label: 'Autorizar excluir usuários', key: 'canDeleteUser' }
-                  ].map(opt => (
-                    <label key={opt.key} className="flex items-center gap-3 cursor-pointer group">
-                      <input 
-                        type="checkbox" 
-                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                        checked={(permissionModalUser as any)[opt.key]}
-                        onChange={(e) => {
-                          setPermissionError(null);
-                          setPermissionModalUser({...permissionModalUser, [opt.key]: e.target.checked});
-                        }}
-                      />
-                      <span className="text-xs font-semibold text-gray-700 group-hover:text-indigo-600 transition-colors uppercase">{opt.label}</span>
-                    </label>
-                  ))}
+                <div className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-100 animate-slide-down">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-amber-900 text-sm uppercase">Tornar Admin Master</span>
+                    <span className="text-[8px] text-amber-600 font-bold uppercase tracking-tight">Poderes totais (Chat e Deleção Global)</span>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setPermissionError(null);
+                      setPermissionModalUser({...permissionModalUser, isMasterAdmin: !permissionModalUser.isMasterAdmin});
+                    }}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${permissionModalUser.isMasterAdmin ? 'bg-amber-600' : 'bg-gray-300'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${permissionModalUser.isMasterAdmin ? 'left-7' : 'left-1'}`} />
+                  </button>
                 </div>
               )}
 
-              <button 
-                onClick={() => {
-                  setPermissionError(null);
-                  setPermissionModalUser({...permissionModalUser, isAdminUser: false, canViewOthers: false, canRegister: false, canApprove: false, canDeleteUser: false});
-                }}
-                className="w-full text-center py-2 text-[10px] font-black uppercase text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                Rebaixar à usuário comum
-              </button>
+              {permissionModalUser.isAdminUser && !permissionModalUser.isMasterAdmin && (
+                <div className="pl-4 space-y-6 animate-slide-down max-h-[500px] overflow-y-auto pr-2 scrollbar-thin">
+                  {[
+                    { 
+                      group: 'Gestão de Pessoas', 
+                      opts: [
+                        { label: 'Aprovar Solicitações e Editar Perfis', key: 'canApprove' },
+                        { label: 'Cadastrar Novos Usuários', key: 'canRegister' },
+                        { label: 'Excluir Usuários', key: 'canDeleteUser' },
+                        { label: 'Reset de Senhas', key: 'canResetPasswords' },
+                      ]
+                    },
+                    {
+                      group: 'Dados e Visão Global',
+                      opts: [
+                        { label: 'Gerir Localidades (Países/Estados)', key: 'canManageLocations' },
+                        { label: 'Visualizador de Ambientes', key: 'canViewOthers' },
+                        { label: 'Gerador de Relatórios Globais', key: 'canViewGlobalReports' },
+                      ]
+                    }
+                  ].map(category => (
+                    <div key={category.group} className="space-y-2">
+                      <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-50 pb-1">{category.group}</h4>
+                      <div className="space-y-2">
+                        {category.opts.map(opt => (
+                          <label key={opt.key} className="flex items-center gap-3 cursor-pointer group">
+                            <input 
+                              type="checkbox" 
+                              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                              checked={(permissionModalUser as any)[opt.key]}
+                              onChange={(e) => {
+                                setPermissionError(null);
+                                setPermissionModalUser({...permissionModalUser, [opt.key]: e.target.checked});
+                              }}
+                            />
+                            <span className="text-xs font-semibold text-gray-700 group-hover:text-indigo-600 transition-colors uppercase">{opt.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="mt-8 pt-4 border-t border-indigo-50">
+                    <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Escopo de Controle</h4>
+                    <p className="text-[9px] text-gray-400 font-bold uppercase mb-3">Defina quais usuários este admin poderá gerenciar</p>
+                    <button 
+                      onClick={() => setShowScopeSelector(true)}
+                      className="w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-bold uppercase text-[10px] border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+                      Configurar Usuários Gerenciados ({(permissionModalUser.managedUserEmails || []).length})
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4 pt-4 border-t">
               <button onClick={savePermissions} className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">Salvar</button>
               <button onClick={() => setPermissionModalUser(null)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase hover:bg-gray-200 transition-all">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showScopeSelector && permissionModalUser && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[250] animate-fade-in backdrop-blur-md">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-xl shadow-2xl space-y-6 max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-start border-b pb-4">
+              <div>
+                <h3 className="text-xl font-black text-indigo-900 uppercase tracking-tight">Escopo de Controle</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Selecione os usuários que {permissionModalUser.name} terá autoridade</p>
+              </div>
+              <button onClick={() => setShowScopeSelector(false)} className="bg-gray-100 p-2 rounded-full text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center bg-indigo-50/50 p-4 rounded-2xl">
+              <span className="text-[10px] font-black text-indigo-900 uppercase">Ações Rápidas:</span>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => {
+                    const allEmails = users.filter(usr => usr.email !== 'Admin' && usr.id !== permissionModalUser.id).map(usr => usr.email);
+                    setPermissionModalUser({...permissionModalUser, managedUserEmails: allEmails});
+                  }}
+                  className="text-[10px] font-black text-indigo-600 uppercase hover:underline"
+                >
+                  Selecionar Todos
+                </button>
+                <button 
+                  onClick={() => setPermissionModalUser({...permissionModalUser, managedUserEmails: []})}
+                  className="text-[10px] font-black text-red-500 uppercase hover:underline"
+                >
+                  Limpar Todos
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-4">
+                {users.filter(usr => usr.email !== 'Admin' && usr.id !== permissionModalUser.id).map(usr => (
+                  <label key={usr.id} className={`flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 transition-all ${
+                    (permissionModalUser.managedUserEmails || []).includes(usr.email) 
+                    ? 'border-indigo-600 bg-indigo-50 shadow-sm' 
+                    : 'border-gray-100 hover:border-indigo-200'
+                  }`}>
+                    <input 
+                      type="checkbox"
+                      className="w-5 h-5 rounded-md text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer"
+                      checked={(permissionModalUser.managedUserEmails || []).includes(usr.email)}
+                      onChange={(e) => {
+                        const current = permissionModalUser.managedUserEmails || [];
+                        const next = e.target.checked ? [...current, usr.email] : current.filter(email => email !== usr.email);
+                        setPermissionModalUser({...permissionModalUser, managedUserEmails: next});
+                      }}
+                    />
+                    <div className="flex flex-col min-w-0">
+                      <span className={`text-[12px] font-black leading-tight truncate uppercase ${
+                        (permissionModalUser.managedUserEmails || []).includes(usr.email) ? 'text-indigo-900' : 'text-gray-700'
+                      }`}>{usr.name}</span>
+                      <span className="text-[9px] text-gray-400 font-bold truncate">{usr.email}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-4 border-t">
+              <button 
+                onClick={() => setShowScopeSelector(false)}
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all text-xs"
+              >
+                Confirmar Seleção ({(permissionModalUser.managedUserEmails || []).length})
+              </button>
             </div>
           </div>
         </div>
@@ -4062,29 +4467,6 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
         </div>
       )}
 
-      {newPasswordGenerated && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[210] backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-8 w-full max-sm shadow-2xl text-center space-y-6 border-2 border-green-500 animate-zoom-in">
-            <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 mx-auto flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            </div>
-            <div>
-              <h3 className="text-xl font-black text-green-700 uppercase tracking-tight">Senha Alterada!</h3>
-              <p className="text-sm text-gray-500 mt-2">A nova senha de <strong>{passwordConfirmUser?.name}</strong> foi gerada com sucesso:</p>
-              <div className="mt-4 p-4 bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl font-bold">
-                 <p className="text-2xl font-mono font-black text-indigo-900 tracking-widest selection:bg-indigo-100">{newPasswordGenerated}</p>
-              </div>
-              <p className="text-[9px] text-gray-400 font-bold uppercase mt-4">Anote ou copie a senha acima e informe ao usuário.</p>
-            </div>
-            <button 
-              onClick={() => { setPasswordConfirmUser(null); setNewPasswordGenerated(null); }}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all text-center"
-            >
-              Concluído
-            </button>
-          </div>
-        </div>
-      )}
       {newPasswordGenerated && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[210] backdrop-blur-sm">
           <div className="bg-white rounded-2xl p-8 w-full max-sm shadow-2xl text-center space-y-6 border-2 border-green-500 animate-zoom-in">
@@ -4220,7 +4602,7 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
     return b.lastMsgDate - a.lastMsgDate;
   }).map(u => u.email);
 
-  const filteredUsers = sortedUsers.filter(email => {
+  const filteredUsers = (sortedUsers as string[]).filter(email => {
     const user = users.find(u => u.email === email);
     if (!user) return email.toLowerCase().includes(searchTerm.toLowerCase());
     return user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -4559,7 +4941,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
       await supabase.from('gca_chat_messages')
         .update({ read_at: getBrasiliaISO() })
         .eq('sender_id', otherEmail)
-        .eq('receiver_id', currentUser.email)
+        .eq('receiver_id', isAdmin ? 'Admin' : currentUser.email)
         .is('read_at', null);
       
       fetchMessages();
@@ -4592,9 +4974,9 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
 
         // 2. Cria uma nova mensagem baseada na antiga, mas com o novo texto
         await supabase.from('gca_chat_messages').insert({
-          sender_id: currentUser.email,
+          sender_id: isAdmin ? 'Admin' : currentUser.email,
           receiver_id: receiver,
-          sender_name: currentUser.name || 'Usuário',
+          sender_name: isAdmin ? 'Administrador' : (currentUser.name || 'Usuário'),
           text: msgText,
           status: 'Ativa',
           is_edited: true,
@@ -4605,9 +4987,9 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
         setEditingMsg(null);
       } else {
         await supabase.from('gca_chat_messages').insert({
-          sender_id: currentUser.email,
+          sender_id: isAdmin ? 'Admin' : currentUser.email,
           receiver_id: receiver,
-          sender_name: currentUser.name || 'Usuário',
+          sender_name: isAdmin ? 'Administrador' : (currentUser.name || 'Usuário'),
           text: msgText,
           status: 'Ativa',
           reply_to_id: replyTo?.id
@@ -5053,7 +5435,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
           <div className="p-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Nome Completo</label>
+                <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest block mb-2">Nome Completo</label>
                 <input 
                   disabled={!isEditing}
                   className={`w-full p-4 rounded-xl font-bold border-2 transition-all ${isEditing ? 'border-indigo-100 bg-white focus:border-indigo-600 outline-none' : 'border-transparent bg-gray-50 text-gray-400'}`}
@@ -5063,7 +5445,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">E-mail / Gmail</label>
+                <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest block mb-2">E-mail / Gmail</label>
                 <input 
                   type="email"
                   disabled={!isEditing}
@@ -5074,7 +5456,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Telefone</label>
+                <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest block mb-2">Telefone</label>
                 <input 
                   disabled={!isEditing}
                   className={`w-full p-4 rounded-xl font-bold border-2 transition-all ${isEditing ? 'border-indigo-100 bg-white focus:border-indigo-600 outline-none' : 'border-transparent bg-gray-50 text-gray-400'}`}
@@ -5084,7 +5466,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Data de Nascimento (Idade: {calculateAge(editForm.birth_date)})</label>
+                <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest block mb-2">Data de Nascimento (Idade: {calculateAge(editForm.birth_date)})</label>
                 <input 
                   type="date"
                   disabled={!isEditing}
@@ -5234,7 +5616,11 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
 };
 
 const AuthScreen = ({ onLogin }: any) => {
-  const [mode, setMode] = useState<'login' | 'request'>('login');
+  const [mode, setMode] = useState<'login' | 'request' | 'forgot'>('login');
+  const [showPassword, setShowPassword] = useState(false);
+  const [recoverySearch, setRecoverySearch] = useState({ email: '', phone: '' });
+  const [foundRecoveryUser, setFoundRecoveryUser] = useState<any>(null);
+  const [newPasswordData, setNewPasswordData] = useState({ password: '', confirm: '' });
   const [formData, setFormData] = useState({ name: '', email: '', congregation: '', phone: '', birth_date: '', role: '', password: '' });
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -5258,7 +5644,7 @@ const AuthScreen = ({ onLogin }: any) => {
       } 
       onLogin(data); 
     }
-    else { 
+    else if (mode === 'request') { 
       if (formData.password !== confirmPassword) {
         setError('As senhas não conferem');
         return;
@@ -5285,36 +5671,140 @@ const AuthScreen = ({ onLogin }: any) => {
       alert('Pedido enviado!'); setMode('login'); 
     }
   };
+
+  const handleRecoverySearch = async (e: any) => {
+    e.preventDefault();
+    setError('');
+    const { data, error: err } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', recoverySearch.email)
+      .eq('phone', recoverySearch.phone)
+      .single();
+    
+    if (err || !data) {
+      setError('E-mail ou Telefone não conferem com os dados cadastrados.');
+      return;
+    }
+    setFoundRecoveryUser(data);
+  };
+
+  const handleResetPassword = async (e: any) => {
+    e.preventDefault();
+    setError('');
+    if (newPasswordData.password !== newPasswordData.confirm) {
+      setError('As senhas não conferem');
+      return;
+    }
+    const { error: err } = await supabase
+      .from('users')
+      .update({ password: newPasswordData.password })
+      .eq('id', foundRecoveryUser.id);
+    
+    if (err) {
+      setError('Erro ao atualizar senha.');
+      return;
+    }
+    alert('Senha alterada com sucesso! Faça login com a nova senha.');
+    setMode('login');
+    setFoundRecoveryUser(null);
+    setRecoverySearch({ email: '', phone: '' });
+    setNewPasswordData({ password: '', confirm: '' });
+  };
+
   return (
-    <div className="min-h-screen bg-indigo-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-md">
+    <div className="min-h-screen bg-indigo-900 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Pano de fundo com símbolos musicais - Limpo e Profissional */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
+        {/* Nota Dupla - Superior Esquerda */}
+        <div className="absolute top-[10%] left-[10%] -rotate-12 opacity-10 text-white">
+          <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        </div>
+        {/* Nota Única - Superior Direita */}
+        <div className="absolute top-[15%] right-[12%] rotate-12 opacity-10 text-white">
+          <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </div>
+        {/* Nota Única - Inferior Esquerda */}
+        <div className="absolute bottom-[15%] left-[15%] rotate-[20deg] opacity-10 text-white">
+          <svg width="110" height="110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </div>
+        {/* Nota Dupla - Inferior Direita */}
+        <div className="absolute bottom-[10%] right-[10%] -rotate-[15deg] opacity-10 text-white">
+          <svg width="130" height="130" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        </div>
+      </div>
+
+      <div className={`bg-white rounded-2xl shadow-2xl p-8 w-full ${mode === 'request' ? 'max-w-md' : 'max-w-sm'} transition-all duration-300 relative z-10`}>
         <div className="text-center mb-8">
           <h2 className="text-4xl font-black text-indigo-900 uppercase tracking-tighter">CORUS</h2>
           <p className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mt-1">Gestor de Corais Apostólicos</p>
         </div>
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold mb-4 border-l-4 border-red-500">{error}</div>}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'request' && <input required placeholder="Nome Completo" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />}
-          <input required type="text" placeholder="E-mail" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-          {mode === 'request' && <input required placeholder="Congregação (Ex: Sede /SP)" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.congregation} onChange={e => setFormData({...formData, congregation: e.target.value})} />}
-          {mode === 'request' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest ml-1 mb-1 block">Data de Nascimento</label>
-                <input required type="date" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} />
+        
+        {mode === 'forgot' ? (
+          <div className="space-y-6">
+            <h3 className="text-xl font-bold text-gray-900 text-center uppercase tracking-tight">Recuperar Senha</h3>
+            {!foundRecoveryUser ? (
+              <form onSubmit={handleRecoverySearch} className="space-y-4">
+                <p className="text-xs text-gray-700 text-center italic font-medium">Informe seu e-mail e telefone cadastrados para confirmar sua identidade.</p>
+                <input required type="text" placeholder="Seu E-mail" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={recoverySearch.email} onChange={e => setRecoverySearch({...recoverySearch, email: e.target.value})} />
+                <input required type="text" placeholder="Seu Telefone (00) 00000-0000" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={recoverySearch.phone} onChange={e => setRecoverySearch({...recoverySearch, phone: e.target.value})} />
+                <button type="submit" className="w-full bg-indigo-700 text-white py-4 rounded-xl font-black uppercase shadow-lg hover:bg-indigo-800 transition-all active:scale-95">Verificar Dados</button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <p className="text-xs text-green-600 text-center font-bold">Identidade confirmada! Defina sua nova senha abaixo.</p>
+                <div className="relative">
+                  <input required type={showPassword ? "text" : "password"} placeholder="Nova Senha" title="Mínimo 6 caracteres" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={newPasswordData.password} onChange={e => setNewPasswordData({...newPasswordData, password: e.target.value})} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-indigo-600">
+                    {showPassword ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>}
+                  </button>
+                </div>
+                <input required type={showPassword ? "text" : "password"} placeholder="Confirmar Nova Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={newPasswordData.confirm} onChange={e => setNewPasswordData({...newPasswordData, confirm: e.target.value})} />
+                <button type="submit" className="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase shadow-lg hover:bg-green-700 transition-all active:scale-95">Salvar Nova Senha</button>
+              </form>
+            )}
+            <button onClick={() => { setMode('login'); setError(''); setFoundRecoveryUser(null); }} className="w-full text-gray-400 text-[10px] font-black uppercase mt-4 tracking-widest text-center">Voltar ao Login</button>
+          </div>
+        ) : (
+          <>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'request' && <input required placeholder="Nome Completo" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />}
+              <input required type="text" placeholder="E-mail" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+              {mode === 'request' && <input required placeholder="Congregação (Ex: Sede /SP)" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.congregation} onChange={e => setFormData({...formData, congregation: e.target.value})} />}
+              {mode === 'request' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[9px] font-black text-gray-900 uppercase tracking-widest ml-1 mb-1 block">Data de Nascimento</label>
+                    <input required type="date" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-gray-900 uppercase tracking-widest ml-1 mb-1 block">Telefone (WhatsApp)</label>
+                    <input required placeholder="(00) 00000-0000" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                  </div>
+                </div>
+              )}
+              {mode === 'request' && <input required placeholder="Cargo no Ministério" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} />}
+              <div className="relative">
+                <input required type={showPassword ? "text" : "password"} placeholder="Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-indigo-600 transition-colors">
+                  {showPassword ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>}
+                </button>
               </div>
-              <div>
-                <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest ml-1 mb-1 block">Telefone (WhatsApp)</label>
-                <input required placeholder="(00) 00000-0000" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-              </div>
+              {mode === 'request' && <input required type={showPassword ? "text" : "password"} placeholder="Confirmar Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />}
+              
+              <button type="submit" className="w-full bg-indigo-700 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-800 transition-all active:scale-95">{mode === 'login' ? 'Entrar' : 'Solicitar Acesso'}</button>
+            </form>
+            <div className="flex flex-col gap-4 mt-6">
+              {mode === 'login' && (
+                <button onClick={() => { setMode('forgot'); setError(''); }} className="text-indigo-600 text-xs font-black uppercase tracking-widest hover:underline transition-colors text-center w-full bg-indigo-50 py-2 rounded-lg">Esqueci minha senha</button>
+              )}
+              <button onClick={() => { setMode(mode === 'login' ? 'request' : 'login'); setError(''); setShowPassword(false); }} className="w-full text-indigo-600 text-xs font-bold uppercase tracking-widest">
+                {mode === 'login' ? 'Solicitar Acesso' : 'Voltar ao Login'}
+              </button>
             </div>
-          )}
-          {mode === 'request' && <input required placeholder="Cargo no Ministério" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} />}
-          <input required type="password" placeholder="Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
-          {mode === 'request' && <input required type="password" placeholder="Confirmar Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />}
-          <button type="submit" className="w-full bg-indigo-700 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-800 transition-all active:scale-95">{mode === 'login' ? 'Entrar' : 'Solicitar Acesso'}</button>
-        </form>
-        <button onClick={() => { setMode(mode === 'login' ? 'request' : 'login'); setError(''); }} className="w-full text-indigo-600 text-xs font-bold uppercase mt-6 tracking-widest">{mode === 'login' ? 'Solicitar Acesso' : 'Voltar ao Login'}</button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -5322,6 +5812,8 @@ const AuthScreen = ({ onLogin }: any) => {
 
 const App = () => {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
   const [viewingUser, setViewingUser] = useState<UserAccount | null>(null);
   const [screen, setScreen] = useState('home');
   const [history, setHistory] = useState<string[]>([]);
@@ -5352,12 +5844,213 @@ const App = () => {
   const goBack = () => { const prev = history[history.length - 1] || 'home'; setHistory(history.slice(0, -1)); setScreen(prev); };
   const onLogout = () => { setCurrentUser(null); setViewingUser(null); setScreen('home'); setHistory([]); };
 
+  const handleBackup = async () => {
+    if (!currentUser) return;
+    setIsExporting(true);
+    const email = currentUser.email;
+    try {
+      const backupData: any = {
+        exportDate: getBrasiliaISO(),
+        user: currentUser,
+      };
+
+      const tablesToExport = [
+        { name: 'instruments', key: 'gca_instruments' },
+        { name: 'musicians', key: 'gca_musicians' },
+        { name: 'attendance', key: 'gca_attendance' },
+        { name: 'master_hymns', key: 'gca_master_hymns' },
+        { name: 'hymn_lists', key: 'hymn_lists' },
+      ];
+
+      // Admin specific tables
+      if (currentUser.email === 'Admin') {
+        tablesToExport.push(
+          { name: 'countries', key: 'gca_countries' },
+          { name: 'states', key: 'gca_states' },
+          { name: 'congregations_admin', key: 'gca_congregations' },
+          { name: 'conductors', key: 'gca_conductors' },
+          { name: 'users', key: 'gca_users' }
+        );
+      }
+
+      for (const table of tablesToExport) {
+        backupData[table.name] = await fetchData(table.name, table.key, email);
+      }
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `backup-corus-${email}-${getBrasiliaYYYYMMDD()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Erro no backup:', error);
+      alert('Erro ao gerar backup de dados.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleCSVExport = async () => {
+    if (!currentUser) return;
+    setIsExportingCSV(true);
+    const email = currentUser.email;
+
+    try {
+      const tablesToExport = [
+        { name: 'instruments', key: 'gca_instruments', label: 'Instrumentos' },
+        { name: 'musicians', key: 'gca_musicians', label: 'Musicos' },
+        { name: 'attendance', key: 'gca_attendance', label: 'Presenca' },
+        { name: 'master_hymns', key: 'gca_master_hymns', label: 'Biblioteca_Hinos' },
+      ];
+
+      for (const table of tablesToExport) {
+        const data = await fetchData(table.name, table.key, email);
+        if (data && data.length > 0) {
+          // Simple JSON to CSV conversion for flat objects
+          const headers = Object.keys(data[0]);
+          const csvContent = [
+            headers.join(','),
+            ...data.map((row: any) => 
+              headers.map(fieldName => {
+                let val = row[fieldName];
+                if (typeof val === 'object') val = JSON.stringify(val);
+                // Escape commas and quotes
+                const cell = String(val).replace(/"/g, '""');
+                return `"${cell}"`;
+              }).join(',')
+            )
+          ].join('\n');
+
+          const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `export-corus-${table.label}-${getBrasiliaYYYYMMDD()}.csv`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          
+          // Small delay between downloads to prevent browser blocking
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+    } catch (error) {
+      console.error('Erro no export CSV:', error);
+      alert('Erro ao gerar exportação CSV.');
+    } finally {
+      setIsExportingCSV(false);
+    }
+  };
+
+  const handleImportJSON = async (file: File) => {
+    if (!currentUser) return;
+    const email = currentUser.email;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        const backup = JSON.parse(text);
+        
+        const tableMap: Record<string, string> = {
+          instruments: 'gca_instruments',
+          musicians: 'gca_musicians',
+          attendance: 'gca_attendance',
+          master_hymns: 'gca_master_hymns',
+          hymn_lists: 'hymn_lists'
+        };
+
+        let importCount = 0;
+        for (const [jsonKey, localKey] of Object.entries(tableMap)) {
+          const items = backup[jsonKey];
+          if (Array.isArray(items) && items.length > 0) {
+            await saveData(jsonKey, localKey, items, email);
+            importCount += items.length;
+          }
+        }
+        alert(`Sucesso! ${importCount} registros foram importados do arquivo JSON.`);
+        window.location.reload();
+      } catch (err) {
+        console.error('Erro na importação JSON:', err);
+        alert('Erro ao processar o arquivo de backup. Verifique se o formato está correto.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportCSV = async (file: File, target: string) => {
+    if (!currentUser) return;
+    const email = currentUser.email;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+        if (lines.length < 2) { alert('CSV vazio ou sem dados.'); return; }
+
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const rows = lines.slice(1).map(line => {
+          // Robust CSV line parser to handle quotes and nested commas
+          const values: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+              if (inQuotes && line[i+1] === '"') { current += '"'; i++; }
+              else { inQuotes = !inQuotes; }
+            } else if (char === ',' && !inQuotes) {
+              values.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          values.push(current.trim());
+          
+          const obj: any = {};
+          headers.forEach((h, idx) => {
+            let val: any = values[idx]?.replace(/^"|"$/g, '').replace(/""/g, '"');
+            // Try to parse arrays or nested objects
+            if (val && (val.startsWith('[') || val.startsWith('{'))) {
+              try { val = JSON.parse(val); } catch (e) {}
+            }
+            // Handle Musicians voices/instruments if they were joined strings in old/manual edits
+            if (target === 'musicians' && (h === 'voices' || h === 'instruments') && typeof val === 'string') {
+              val = val.split(',').map(s => s.trim()).filter(s => s !== '');
+            }
+            obj[h] = val;
+          });
+          return obj;
+        });
+
+        const localKeyMap: Record<string, string> = {
+          musicians: 'gca_musicians',
+          instruments: 'gca_instruments',
+          master_hymns: 'gca_master_hymns'
+        };
+
+        await saveData(target, localKeyMap[target], rows, email);
+        alert(`Sucesso! ${rows.length} registros foram importados do CSV para ${target}.`);
+        window.location.reload();
+      } catch (err) {
+        console.error('Erro na importação CSV:', err);
+        alert('Erro ao processar o arquivo CSV. Verifique o cabeçalho e separadores.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   if (loadingPublic) return <div className="min-h-screen bg-indigo-900 flex items-center justify-center text-white font-bold animate-pulse uppercase tracking-widest">Carregando Programa...</div>;
   if (publicProgram) return <PrintView list={publicProgram} onBack={() => { setPublicProgram(null); window.history.replaceState({}, '', window.location.pathname); }} />;
 
   if (!currentUser) return <AuthScreen onLogin={setCurrentUser} />;
 
-  const isMaster = currentUser.email === 'Admin';
+  const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
   const isAdmin = isMaster || currentUser.isAdminUser;
 
   return (
@@ -5367,7 +6060,6 @@ const App = () => {
           switch (screen) {
             case 'profile': return <ProfileScreen user={currentUser} goBack={goBack} onUpdate={setCurrentUser} onExitImpersonation={onExitImpersonation} />;
             case 'admin_menu': return <AdminMenuScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
-            case 'admin_performance': return <AdminPerformanceScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); setScreen('home'); }} />;
             case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); setScreen('home'); }} currentUser={currentUser} onAwaitingConductorRegistration={(u: any) => { setEditData(u); setScreen('admin_new_conductor'); }} />;
             case 'admin_countries': return <AdminCountriesScreen goBack={goBack} navigate={navigate} />;
             case 'admin_states': return <AdminStatesScreen goBack={goBack} navigate={navigate} />;
@@ -5376,12 +6068,12 @@ const App = () => {
             case 'admin_states_report': return <AdminMasterReportView id="relatorio-estados" title="Relatório de Estados" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do Estado'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
             case 'admin_congregations_report': return <AdminMasterReportView id="relatorio-congre" title="Relatório Geral de Congregações" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Congregação'}, {key:'state', label:'Estado'}, {key:'country', label:'País'}, {key:'address', label:'Endereço'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
             case 'admin_conductors_report': return <AdminMasterReportView id="relatorio-regentes" title="Relatório de Regentes (CRR)" columns={[{key:'registry_number', label:'Registro'}, {key:'name', label:'Nome'}, {key:'congregation_name', label:'Congregação'}, {key:'phone', label:'Telefone'}]} data={reportData} goBack={goBack} />;
-            case 'admin_conductor_certificates': return <AdminConductorCertificatesScreen navigate={navigate} goBack={goBack} />;
+            case 'admin_conductor_certificates': return <AdminConductorCertificatesScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
             case 'admin_new_conductor': return <AdminConductorForm goBack={goBack} linkUserBeingApproved={editData} />;
             case 'admin_edit_conductor': return <AdminConductorForm goBack={goBack} conductorToEdit={editData} />;
             case 'admin_crr_card': return <CRRCardView conductor={editData} goBack={goBack} navigate={navigate} />;
-            case 'admin_registrations_summary': return <AdminRegistrationsSummaryScreen navigate={navigate} goBack={goBack} />;
-            case 'home': return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} />;
+            case 'admin_registrations_summary': return <AdminRegistrationsSummaryScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
+            case 'home': return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} onBackup={handleBackup} isExporting={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} />;
             case 'components': return <ComponentsScreen navigate={navigate} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
             case 'instruments': return <InstrumentsScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
             case 'musicians': return <MusiciansScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
@@ -5407,11 +6099,12 @@ const App = () => {
             case 'hymn_lists': return <HymnListScreen goBack={goBack} onCreate={() => navigate('create_hymn_list')} onEdit={l => navigate('create_hymn_list', l)} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
             case 'create_hymn_list': return <CreateHymnListScreen onSave={goBack} onCancel={goBack} initialData={editData} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
             case 'hymn_report_input': return <HymnReportInputScreen onGenerate={(s: any, e: any, t: any) => navigate('hymn_report', {s, e, t})} onCancel={goBack} onExitImpersonation={onExitImpersonation} />;
+            case 'data_management': return <DataManagementScreen goBack={goBack} onBackupJSON={handleBackup} isExportingJSON={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} onImportJSON={handleImportJSON} onImportCSV={handleImportCSV} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} canExportBackups={isMaster || currentUser.canExportBackups} />;
             default: return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} />;
           }
         })()}
       </div>
-      <FloatingChat currentUser={currentUser} isAdmin={isAdmin} />
+      <FloatingChat currentUser={currentUser} isAdmin={isMaster} />
     </div>
   );
 };
