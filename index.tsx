@@ -71,7 +71,7 @@ type Country = {
 type State = {
   id: string;
   name: string;
-  cep: string;
+  uf: string;
 };
 
 type CongregationRecord = {
@@ -528,17 +528,10 @@ const DataManagementScreen = ({ onBackupJSON, isExportingJSON, onBackupCSV, isEx
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto mt-8">
         {/* Export Section */}
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6 relative overflow-hidden">
-          {!canExportBackups && (
-            <div className="absolute inset-0 bg-white/80 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center p-6 text-center">
-              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              </div>
-              <h3 className="font-black text-amber-900 uppercase text-xs">Acesso Restrito</h3>
-              <p className="text-[10px] text-gray-500 mt-1 uppercase font-bold">Você não tem permissão para exportar dados.</p>
-            </div>
-          )}
           <h2 className="text-xl font-black text-indigo-900 uppercase tracking-widest border-b pb-4">Exportar Dados</h2>
-          <p className="text-gray-500 text-sm italic">Baixe seus dados para backup ou uso em Excel.</p>
+          <p className="text-gray-500 text-sm italic">
+            {canExportBackups ? "Baixe o backup completo do sistema (Acesso Master)." : "Baixe seus dados para backup ou uso em Excel."}
+          </p>
           
           <button 
             onClick={onBackupJSON} 
@@ -547,7 +540,7 @@ const DataManagementScreen = ({ onBackupJSON, isExportingJSON, onBackupCSV, isEx
           >
             <div className="flex items-center gap-3">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <span>{isExportingJSON ? "Gerando JSON..." : "Backup Completo (JSON)"}</span>
+              <span>{isExportingJSON ? "Gerando JSON..." : canExportBackups ? "Backup Master (Sistema Completo)" : "Meu Backup (JSON)"}</span>
             </div>
             <span className="text-[10px] uppercase opacity-60">Recomendado</span>
           </button>
@@ -1269,7 +1262,7 @@ const AdminCountriesScreen = ({ goBack, navigate }: any) => {
 const AdminStatesScreen = ({ goBack, navigate }: any) => {
   const [states, setStates] = useState<State[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', cep: '' });
+  const [formData, setFormData] = useState({ name: '', uf: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmingAction, setConfirmingAction] = useState<{ type: 'save' | 'delete', data?: any } | null>(null);
 
@@ -1302,7 +1295,7 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
     }
     setStates(updated);
     await saveData('states', 'gca_states', updated);
-    setFormData({ name: '', cep: '' });
+    setFormData({ name: '', uf: '' });
     setEditingId(null);
     setShowForm(false);
     setConfirmingAction(null);
@@ -1323,7 +1316,7 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
         <h2 className="font-bold text-gray-700 uppercase">Estados Cadastrados</h2>
         <div className="flex gap-2">
           <button onClick={() => navigate('admin_states_report', states)} className="bg-gray-100 text-indigo-600 px-4 py-2 rounded font-bold border border-indigo-200">Relatório</button>
-          <button onClick={() => { setEditingId(null); setFormData({name: '', cep: ''}); setShowForm(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Novo Estado</button>
+          <button onClick={() => { setEditingId(null); setFormData({name: '', uf: ''}); setShowForm(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Novo Estado</button>
         </div>
       </div>
 
@@ -1355,8 +1348,8 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
               <input required className="w-full border rounded p-2" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: São Paulo" />
             </div>
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">CEP Padrão</label>
-              <input required className="w-full border rounded p-2" value={formData.cep} onChange={e => setFormData({...formData, cep: e.target.value})} placeholder="00000-000" />
+              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">UF (Estado)</label>
+              <input required className="w-full border rounded p-2 uppercase" maxLength={2} value={formData.uf} onChange={e => setFormData({...formData, uf: e.target.value.toUpperCase()})} placeholder="SP" />
             </div>
             <div className="md:col-span-2 flex justify-end gap-2 mt-2">
               <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 px-4 py-2">Cancelar</button>
@@ -1372,10 +1365,10 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
             <div className="flex items-center flex-1 w-full">
               <span className="font-mono bg-gray-50 px-2 py-1 rounded text-indigo-600 font-bold border">{s.id}</span>
               <span className="flex-1 ml-4 font-bold text-gray-800 uppercase">{s.name}</span>
-              <span className="text-gray-400 font-medium text-sm">{s.cep}</span>
+              <span className="text-gray-400 font-black text-sm uppercase">{s.uf}</span>
             </div>
             <div className="flex gap-4 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto">
-              <button onClick={() => { setEditingId(s.id); setFormData({name: s.name, cep: s.cep}); setShowForm(true); }} className="text-indigo-600 font-bold uppercase text-[10px] hover:underline">Editar</button>
+              <button onClick={() => { setEditingId(s.id); setFormData({name: s.name, uf: s.uf}); setShowForm(true); }} className="text-indigo-600 font-bold uppercase text-[10px] hover:underline">Editar</button>
               <button onClick={() => setConfirmingAction({ type: 'delete', data: s })} className="text-red-500 font-bold uppercase text-[10px] hover:underline">Excluir</button>
             </div>
           </div>
@@ -1422,8 +1415,12 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
   };
 
   const handleStateCodeChange = (code: string) => {
-    setFormData({ ...formData, state_id: code });
     const found = states.find(s => s.id === code);
+    setFormData({ 
+      ...formData, 
+      state_id: code,
+      uf: found ? found.uf : formData.uf
+    });
     setFoundStateName(found ? found.name : 'Não encontrado');
   };
 
@@ -1479,6 +1476,7 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
     return congre.map(c => ({
       ...c,
       state: states.find(s => s.id === c.state_id)?.name || '-',
+      uf: states.find(s => s.id === c.state_id)?.uf || '-',
       country: countries.find(co => co.id === c.country_id)?.name || '-'
     }));
   };
@@ -1539,7 +1537,7 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
 
             <div>
             <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">UF (Estado)</label>
-              <input required className="w-full border rounded p-2 text-center uppercase" maxLength={2} value={formData.uf} onChange={e => setFormData({...formData, uf: e.target.value.toUpperCase()})} placeholder="SP" />
+              <input readOnly title="Preenchido automaticamente pelo Cód. Estado" className="w-full border rounded p-2 text-center uppercase bg-gray-50 text-gray-500 font-black" maxLength={2} value={formData.uf} placeholder="--" />
             </div>
 
             <div>
@@ -6516,6 +6514,34 @@ const App = () => {
     }
   }, []);
 
+  useEffect(() => {
+    // Inicialização da história do navegador
+    if (!window.history.state) {
+      window.history.replaceState({ screen: 'home', history: [] }, '', '');
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && e.state.screen) {
+        // Restaura o estado da tela e da história interna
+        setScreen(e.state.screen);
+        setHistory(e.state.history || []);
+        
+        // Restaura dados de contexto se presentes no estado
+        if (e.state.editData !== undefined) setEditData(e.state.editData);
+        if (e.state.notebookData !== undefined) setNotebookData(e.state.notebookData);
+        if (e.state.reportData !== undefined) setReportData(e.state.reportData);
+        if (e.state.attendanceEditData !== undefined) setAttendanceEditData(e.state.attendanceEditData);
+      } else {
+        // Fallback para home
+        setScreen('home');
+        setHistory([]);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const isMaster = currentUser?.email === 'Admin' || currentUser?.isMasterAdmin;
   const isAdmin = isMaster || currentUser?.isAdminUser;
 
@@ -6523,17 +6549,59 @@ const App = () => {
   const isReadOnly = (isMaster || currentUser?.canReadOnlyMode || currentUser?.canViewOthers) && viewingUser !== null;
   const onExitImpersonation = viewingUser ? () => { setViewingUser(null); setScreen('admin_menu'); } : undefined;
 
-  const navigate = (next: string, data?: any) => { setHistory([...history, screen]); setScreen(next); if (next === 'create_hymn_list') setEditData(data); if (next === 'admin_bulletin_form') setEditData(data); if (next === 'notebook_detail' || next === 'hymn_notebook_report') setNotebookData(data); if (['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next)) setReportData(data); if (next === 'roll_call') setAttendanceEditData(data); if (['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next)) setEditData(data); };
-  const goBack = () => { const prev = history[history.length - 1] || 'home'; setHistory(history.slice(0, -1)); setScreen(prev); };
-  const onLogout = () => { setCurrentUser(null); setViewingUser(null); setScreen('home'); setHistory([]); };
+  const navigate = (next: string, data?: any) => { 
+    const newHistory = [...history, screen];
+    
+    // Captura o estado atual dos dados para persistência na história
+    const stateData: any = { 
+      screen: next, 
+      history: newHistory,
+      editData: next === 'create_hymn_list' || next === 'admin_bulletin_form' || ['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next) ? data : editData,
+      notebookData: next === 'notebook_detail' || next === 'hymn_notebook_report' ? data : notebookData,
+      reportData: ['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next) ? data : reportData,
+      attendanceEditData: next === 'roll_call' ? data : attendanceEditData
+    };
+    
+    window.history.pushState(stateData, '', '');
+    
+    setHistory(newHistory); 
+    setScreen(next); 
+    if (next === 'create_hymn_list') setEditData(data); 
+    if (next === 'admin_bulletin_form') setEditData(data); 
+    if (next === 'notebook_detail' || next === 'hymn_notebook_report') setNotebookData(data); 
+    if (['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next)) setReportData(data); 
+    if (next === 'roll_call') setAttendanceEditData(data); 
+    if (['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next)) setEditData(data); 
+  };
+
+  const goBack = () => { 
+    if (window.history.state && window.history.state.history && window.history.state.history.length > 0) {
+      window.history.back();
+    } else {
+      const prev = history[history.length - 1] || 'home'; 
+      setHistory(history.slice(0, -1)); 
+      setScreen(prev); 
+    }
+  };
+
+  const onLogout = () => { 
+    setCurrentUser(null); 
+    setViewingUser(null); 
+    setScreen('home'); 
+    setHistory([]); 
+    window.history.pushState({ screen: 'home', history: [] }, '', window.location.pathname);
+  };
 
   const handleBackup = async () => {
     if (!currentUser) return;
     setIsExporting(true);
-    const email = currentUser.email;
+    const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
+    const emailToFilter = isMaster ? undefined : currentUser.email;
+    
     try {
       const backupData: any = {
         exportDate: getBrasiliaISO(),
+        type: isMaster ? 'MASTER_FULL_BACKUP' : 'USER_DATA_ONLY',
         user: currentUser,
       };
 
@@ -6545,8 +6613,8 @@ const App = () => {
         { name: 'hymn_lists', key: 'hymn_lists' },
       ];
 
-      // Admin specific tables
-      if (currentUser.email === 'Admin') {
+      // Admin specific tables only if master
+      if (isMaster) {
         tablesToExport.push(
           { name: 'countries', key: 'gca_countries' },
           { name: 'states', key: 'gca_states' },
@@ -6557,14 +6625,15 @@ const App = () => {
       }
 
       for (const table of tablesToExport) {
-        backupData[table.name] = await fetchData(table.name, table.key, email);
+        backupData[table.name] = await fetchData(table.name, table.key, emailToFilter);
       }
 
+      const fileName = isMaster ? `backup-SISTEMA-COMPLETO-${getBrasiliaYYYYMMDD()}.json` : `backup-perfil-${currentUser.email}-${getBrasiliaYYYYMMDD()}.json`;
       const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `backup-corus-${email}-${getBrasiliaYYYYMMDD()}.json`;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -6580,7 +6649,8 @@ const App = () => {
   const handleCSVExport = async () => {
     if (!currentUser) return;
     setIsExportingCSV(true);
-    const email = currentUser.email;
+    const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
+    const emailToFilter = isMaster ? undefined : currentUser.email;
 
     try {
       const tablesToExport = [
@@ -6591,7 +6661,7 @@ const App = () => {
       ];
 
       for (const table of tablesToExport) {
-        const data = await fetchData(table.name, table.key, email);
+        const data = await fetchData(table.name, table.key, emailToFilter);
         if (data && data.length > 0) {
           // Simple JSON to CSV conversion for flat objects
           const headers = Object.keys(data[0]);
@@ -6746,8 +6816,8 @@ const App = () => {
               case 'admin_states': return <AdminStatesScreen goBack={goBack} navigate={navigate} />;
               case 'admin_congregations': return <AdminCongregationsScreen goBack={goBack} navigate={navigate} />;
               case 'admin_countries_report': return <AdminMasterReportView id="relatorio-paises" title="Relatório de Países Atendidos" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do País'}]} data={reportData} goBack={goBack} />;
-              case 'admin_states_report': return <AdminMasterReportView id="relatorio-estados" title="Relatório de Estados" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do Estado'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
-              case 'admin_congregations_report': return <AdminMasterReportView id="relatorio-congre" title="Relatório Geral de Congregações" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Congregação'}, {key:'state', label:'Estado'}, {key:'country', label:'País'}, {key:'address', label:'Endereço'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
+              case 'admin_states_report': return <AdminMasterReportView id="relatorio-estados" title="Relatório de Estados" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do Estado'}, {key:'uf', label:'UF'}]} data={reportData} goBack={goBack} />;
+              case 'admin_congregations_report': return <AdminMasterReportView id="relatorio-congre" title="Relatório Geral de Congregações" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Congregação'}, {key:'state', label:'Estado'}, {key:'uf', label:'UF'}, {key:'country', label:'País'}, {key:'address', label:'Endereço'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
               case 'admin_conductors_report': return <AdminMasterReportView id="relatorio-regentes" title="Relatório de Regentes (CRR)" columns={[{key:'registry_number', label:'Registro'}, {key:'name', label:'Nome'}, {key:'congregation_name', label:'Congregação'}, {key:'phone', label:'Telefone'}]} data={reportData} goBack={goBack} />;
               case 'admin_conductor_certificates': return <AdminConductorCertificatesScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
               case 'admin_new_conductor': return <AdminConductorForm goBack={goBack} linkUserBeingApproved={editData} />;
@@ -6783,7 +6853,7 @@ const App = () => {
               case 'hymn_lists': return <HymnListScreen goBack={goBack} onCreate={() => navigate('create_hymn_list')} onEdit={l => navigate('create_hymn_list', l)} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'create_hymn_list': return <CreateHymnListScreen onSave={goBack} onCancel={goBack} initialData={editData} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'hymn_report_input': return <HymnReportInputScreen onGenerate={(s: any, e: any, t: any) => navigate('hymn_report', {s, e, t})} onCancel={goBack} onExitImpersonation={onExitImpersonation} />;
-              case 'data_management': return <DataManagementScreen goBack={goBack} onBackupJSON={handleBackup} isExportingJSON={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} onImportJSON={handleImportJSON} onImportCSV={handleImportCSV} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} canExportBackups={isMaster || currentUser.canExportBackups} />;
+              case 'data_management': return <DataManagementScreen goBack={goBack} onBackupJSON={handleBackup} isExportingJSON={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} onImportJSON={handleImportJSON} onImportCSV={handleImportCSV} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} canExportBackups={isMaster} />;
               default: return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} />;
             }
           })()}
