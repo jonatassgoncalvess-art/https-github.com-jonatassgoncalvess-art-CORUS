@@ -20,11 +20,48 @@
           display: block !important;
         }
         body {
-          background-color: white;
+          background-color: white !important;
+          margin: 0 !important;
+          padding: 0 !important;
         }
         @page {
           size: A4;
-          margin: 1.5cm;
+          margin: 10mm 15mm;
+        }
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          overflow: visible !important;
+        }
+        table {
+          page-break-inside: auto;
+          width: 100% !important;
+        }
+        tr {
+          page-break-inside: avoid;
+          page-break-after: auto;
+        }
+        thead {
+          display: table-header-group;
+        }
+        tfoot {
+          display: table-footer-group;
+        }
+        img {
+          max-width: 100% !important;
+          page-break-inside: avoid;
+        }
+        h1, h2, h3, h4, h5, h6 {
+          page-break-after: avoid;
+        }
+        .bg-white {
+          box-shadow: none !important;
+          border: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          width: 100% !important;
+          max-width: none !important;
+          min-height: 0 !important;
         }
       }
       @keyframes bounce-short {

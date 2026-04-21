@@ -339,9 +339,19 @@ const downloadPDF = (elementId: string, filename: string, orientation: 'portrait
   // @ts-ignore
   if (typeof html2pdf === 'undefined') { window.print(); return; }
   const opt = {
-    margin: 5, filename: filename, image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 3, useCORS: true, letterRendering: true },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: orientation }
+    margin: [10, 10, 10, 10], // top, left, bottom, right (em mm)
+    filename: filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { 
+      scale: 2, 
+      useCORS: true, 
+      letterRendering: true,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: orientation === 'portrait' ? 794 : 1123 // Largura aproximada de A4 em 96dpi
+    },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: orientation, compress: true },
+    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
   };
   // @ts-ignore
   window.html2pdf().set(opt).from(element).save();
@@ -660,7 +670,7 @@ const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
           <button onClick={() => downloadPDF('instruments-report-view', `relatorio-instrumentos.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="instruments-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
+      <div id="instruments-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Instrumentos</h2>
@@ -713,7 +723,7 @@ const MusiciansReportScreen = ({ goBack, ownerEmail }: any) => {
           <button onClick={() => downloadPDF('musician-report-alpha', `musicos-alfabetico.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="musician-report-alpha" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
+      <div id="musician-report-alpha" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relação de Integrantes</h2>
@@ -756,7 +766,7 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
           <button onClick={() => downloadPDF('musician-report-voice', `musicos-por-voz.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="musician-report-voice" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
+      <div id="musician-report-voice" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Voz</h2>
@@ -801,7 +811,7 @@ const MusiciansInstrumentReportScreen = ({ goBack, ownerEmail }: any) => {
           <button onClick={() => downloadPDF('musician-report-instrument', `musicos-por-instrumento.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="musician-report-instrument" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
+      <div id="musician-report-instrument" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
         <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Integrantes por Instrumento</h2>
@@ -868,7 +878,7 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
           <button onClick={() => downloadPDF('attendance-report-view', `relatorio-presenca.pdf`, 'landscape')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="attendance-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[297mm] min-h-[210mm]">
+      <div id="attendance-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[297mm] min-h-[210mm] print:shadow-none print:m-0 print:p-0">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Presença</h2>
@@ -990,7 +1000,7 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
           <button onClick={() => downloadPDF('attendance-perc-view', `percentual-participacao.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="attendance-perc-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
+      <div id="attendance-perc-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
         <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Participação Proporcional</h2>
@@ -1082,7 +1092,7 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
           <button onClick={() => downloadPDF('hymn-notebook-report-view', `hinos-${notebook.code}.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="hymn-notebook-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
+      <div id="hymn-notebook-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Biblioteca de Hinos</h2>
@@ -1115,7 +1125,7 @@ const AdminMasterReportView = ({ id, title, columns, data, goBack }: any) => (
         <button onClick={() => downloadPDF(id, `${id}.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
       </div>
     </div>
-    <div id={id} className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
+    <div id={id} className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
       <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
         <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
         <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">{title}</h2>
@@ -2175,7 +2185,7 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
       </div>
 
       {/* Folha A4 de Pré-visualização com o Cartão no Centro */}
-      <div id="crr-card-wrapper" className="bg-white shadow-2xl mx-auto max-w-[297mm] min-h-[210mm] flex items-center justify-center p-12">
+      <div id="crr-card-wrapper" className="bg-white shadow-2xl mx-auto max-w-[297mm] min-h-[210mm] flex items-center justify-center p-12 print:shadow-none print:m-0 print:p-0">
         {/* Carteira Profissional - Formato de Crachá Horizontal Ideal (95mm x 65mm) */}
         <div id="crr-card-body" className="w-[95mm] h-[65mm] bg-white relative overflow-hidden flex flex-col border border-gray-300 rounded-[2mm] font-sans shadow-sm">
         
@@ -3678,7 +3688,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
           <button onClick={() => downloadPDF('program-print', `programa-${list.date}.pdf`, (list.isDetailed || list.type === 'NatalAnoNovo') ? 'landscape' : 'portrait')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="program-print" className={`bg-white shadow-2xl mx-auto ${(list.isDetailed || list.type === 'NatalAnoNovo') ? 'max-w-[297mm] min-h-[210mm]' : 'max-w-[210mm] min-h-[297mm]'} ${list.type === 'NatalAnoNovo' ? 'p-6' : 'p-12'}`}>
+      <div id="program-print" className={`bg-white shadow-2xl mx-auto ${(list.isDetailed || list.type === 'NatalAnoNovo') ? 'max-w-[297mm] min-h-[210mm]' : 'max-w-[210mm] min-h-[297mm]'} ${list.type === 'NatalAnoNovo' ? 'p-6' : 'p-10'} print:shadow-none print:m-0 print:p-0`}>
         <div className={`text-center border-b-2 border-double border-black pb-2 ${list.type === 'NatalAnoNovo' ? 'mb-2' : 'mb-4'}`} style={{ fontSize: '14px' }}>
           <h1 className="font-black uppercase tracking-tighter">Igreja Apostólica</h1>
           <h2 className="font-bold mt-1 border border-black inline-block px-4 py-0.5 uppercase">{MEETING_TYPES[list.type]}</h2>
@@ -3897,7 +3907,7 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
           <button onClick={() => downloadPDF('hymn-usage-report-view', `relatorio-uso-hinos.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="hymn-usage-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
+      <div id="hymn-usage-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Frequência de Uso de Hinos</h2>
