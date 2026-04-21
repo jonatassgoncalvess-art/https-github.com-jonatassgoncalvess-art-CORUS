@@ -80,6 +80,7 @@ type CongregationRecord = {
   country_id: string;
   state_id: string;
   address: string;
+  neighborhood: string;
   address_number: string;
   cep: string;
 };
@@ -1384,7 +1385,7 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
   const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', country_id: '', state_id: '', address: '', address_number: '', cep: '', uf: '' });
+  const [formData, setFormData] = useState({ name: '', country_id: '', state_id: '', address: '', neighborhood: '', address_number: '', cep: '', uf: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmingAction, setConfirmingAction] = useState<{ type: 'save' | 'delete', data?: any } | null>(null);
   
@@ -1442,7 +1443,7 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
     }
     setCongre(updated);
     await saveData('congregations_admin', 'gca_congregations_admin', updated);
-    setFormData({ name: '', country_id: '', state_id: '', address: '', address_number: '', cep: '', uf: '' });
+    setFormData({ name: '', country_id: '', state_id: '', address: '', neighborhood: '', address_number: '', cep: '', uf: '' });
     setFoundCountryName('');
     setFoundStateName('');
     setEditingId(null);
@@ -1464,7 +1465,7 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
     const nameParts = c.name.split('/');
     const uf = nameParts.length > 1 ? nameParts[1] : '';
     const nameOnly = nameParts[0].trim();
-    setFormData({ name: nameOnly, country_id: c.country_id, state_id: c.state_id, address: c.address, address_number: c.address_number, cep: c.cep, uf });
+    setFormData({ name: nameOnly, country_id: c.country_id, state_id: c.state_id, address: c.address, neighborhood: c.neighborhood || '', address_number: c.address_number, cep: c.cep, uf });
     const co = countries.find(x => x.id === c.country_id);
     const st = states.find(x => x.id === c.state_id);
     setFoundCountryName(co ? co.name : '');
@@ -1487,7 +1488,7 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
         <h2 className="font-bold text-gray-700 uppercase">Congregações</h2>
         <div className="flex gap-2">
           <button onClick={() => navigate('admin_congregations_report', getReportData())} className="bg-gray-100 text-indigo-600 px-4 py-2 rounded font-bold border border-indigo-200">Relatório</button>
-          <button onClick={() => { setEditingId(null); setShowForm(true); setFormData({ name: '', country_id: '', state_id: '', address: '', address_number: '', cep: '', uf: '' }); setFoundCountryName(''); setFoundStateName(''); }} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Nova Congregação</button>
+          <button onClick={() => { setEditingId(null); setShowForm(true); setFormData({ name: '', country_id: '', state_id: '', address: '', neighborhood: '', address_number: '', cep: '', uf: '' }); setFoundCountryName(''); setFoundStateName(''); }} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Nova Congregação</button>
         </div>
       </div>
 
@@ -1553,6 +1554,11 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
             <div>
               <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nº</label>
               <input required className="w-full border rounded p-2" value={formData.address_number} onChange={e => setFormData({...formData, address_number: e.target.value})} placeholder="123" />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Bairro</label>
+              <input required className="w-full border rounded p-2" value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})} placeholder="Ex: Centro, Vila Maria..." />
             </div>
 
             <div className="lg:col-span-3 flex justify-end gap-2 mt-4 border-t pt-4">
@@ -6817,7 +6823,7 @@ const App = () => {
               case 'admin_congregations': return <AdminCongregationsScreen goBack={goBack} navigate={navigate} />;
               case 'admin_countries_report': return <AdminMasterReportView id="relatorio-paises" title="Relatório de Países Atendidos" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do País'}]} data={reportData} goBack={goBack} />;
               case 'admin_states_report': return <AdminMasterReportView id="relatorio-estados" title="Relatório de Estados" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do Estado'}, {key:'uf', label:'UF'}]} data={reportData} goBack={goBack} />;
-              case 'admin_congregations_report': return <AdminMasterReportView id="relatorio-congre" title="Relatório Geral de Congregações" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Congregação'}, {key:'state', label:'Estado'}, {key:'uf', label:'UF'}, {key:'country', label:'País'}, {key:'address', label:'Endereço'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
+              case 'admin_congregations_report': return <AdminMasterReportView id="relatorio-congre" title="Relatório Geral de Congregações" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Congregação'}, {key:'state', label:'Estado'}, {key:'uf', label:'UF'}, {key:'country', label:'País'}, {key:'address', label:'Endereço'}, {key:'address_number', label:'Nº'}, {key:'neighborhood', label:'Bairro'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
               case 'admin_conductors_report': return <AdminMasterReportView id="relatorio-regentes" title="Relatório de Regentes (CRR)" columns={[{key:'registry_number', label:'Registro'}, {key:'name', label:'Nome'}, {key:'congregation_name', label:'Congregação'}, {key:'phone', label:'Telefone'}]} data={reportData} goBack={goBack} />;
               case 'admin_conductor_certificates': return <AdminConductorCertificatesScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
               case 'admin_new_conductor': return <AdminConductorForm goBack={goBack} linkUserBeingApproved={editData} />;
