@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -333,26 +333,41 @@ const NOTEBOOKS: Record<string, string> = {
   "OJ": "Orquestra Jovem", "SC": "Solos Coral", "SE": "Solos Esp. + Orq.", "SEC": "Solos Esp. + Coral"
 };
 
-const downloadPDF = (elementId: string, filename: string, orientation: 'portrait' | 'landscape' = 'portrait') => {
+const downloadPDF = (
+  elementId: string,
+  filename: string,
+  orientation: 'portrait' | 'landscape' = 'portrait'
+) => {
   const element = document.getElementById(elementId);
   if (!element) return;
+
   // @ts-ignore
-  if (typeof html2pdf === 'undefined') { window.print(); return; }
+  if (typeof html2pdf === 'undefined') { 
+    window.print(); 
+    return; 
+  }
+
   const opt = {
-    margin: [10, 10, 10, 10], // top, left, bottom, right (em mm)
+    margin: 5,
     filename: filename,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { 
-      scale: 2, 
-      useCORS: true, 
+      scale: 2,
+      useCORS: true,
       letterRendering: true,
+      logging: false,
       scrollX: 0,
-      scrollY: 0,
-      windowWidth: orientation === 'portrait' ? 794 : 1123 // Largura aproximada de A4 em 96dpi
+      scrollY: 0
     },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: orientation, compress: true },
-    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    jsPDF: { 
+      unit: 'mm',
+      format: 'a4',
+      orientation: orientation,
+      compress: true
+    },
+    pagebreak: { mode: ['css', 'legacy'] }
   };
+
   // @ts-ignore
   window.html2pdf().set(opt).from(element).save();
 };
@@ -663,14 +678,14 @@ const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
 
   return (
     <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print">
-        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
+      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print relative z-50">
+        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 active:scale-95 transition-all font-bold">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('instruments-report-view', `relatorio-instrumentos.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
           <button onClick={() => downloadPDF('instruments-report-view', `relatorio-instrumentos.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="instruments-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
+      <div id="instruments-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Instrumentos</h2>
@@ -716,14 +731,14 @@ const MusiciansReportScreen = ({ goBack, ownerEmail }: any) => {
   
   return (
     <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print">
-        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
+      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print relative z-50">
+        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 active:scale-95 transition-all font-bold">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('musician-report-alpha', `musicos-alfabetico.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
           <button onClick={() => downloadPDF('musician-report-alpha', `musicos-alfabetico.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="musician-report-alpha" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
+      <div id="musician-report-alpha" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relação de Integrantes</h2>
@@ -766,7 +781,7 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
           <button onClick={() => downloadPDF('musician-report-voice', `musicos-por-voz.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="musician-report-voice" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
+      <div id="musician-report-voice" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Voz</h2>
@@ -811,7 +826,7 @@ const MusiciansInstrumentReportScreen = ({ goBack, ownerEmail }: any) => {
           <button onClick={() => downloadPDF('musician-report-instrument', `musicos-por-instrumento.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="musician-report-instrument" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
+      <div id="musician-report-instrument" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
         <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Integrantes por Instrumento</h2>
@@ -878,7 +893,7 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
           <button onClick={() => downloadPDF('attendance-report-view', `relatorio-presenca.pdf`, 'landscape')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="attendance-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[297mm] min-h-[210mm] print:shadow-none print:m-0 print:p-0">
+      <div id="attendance-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[297mm] min-h-[210mm]">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Presença</h2>
@@ -1000,7 +1015,7 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
           <button onClick={() => downloadPDF('attendance-perc-view', `percentual-participacao.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="attendance-perc-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
+      <div id="attendance-perc-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
         <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Participação Proporcional</h2>
@@ -1092,7 +1107,7 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
           <button onClick={() => downloadPDF('hymn-notebook-report-view', `hinos-${notebook.code}.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="hymn-notebook-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
+      <div id="hymn-notebook-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Biblioteca de Hinos</h2>
@@ -1116,16 +1131,38 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
 
 // --- Relatórios do Módulo Admin Master ---
 
-const AdminMasterReportView = ({ id, title, columns, data, goBack }: any) => (
-  <div className="bg-gray-100 p-8 min-h-screen">
-    <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print">
-      <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
-      <div className="flex gap-2">
-        <button onClick={() => downloadHTML(id, `${id}.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-        <button onClick={() => downloadPDF(id, `${id}.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
+const AdminMasterReportView = ({ id, title, columns, data, goBack, orientation = 'portrait' }: any) => {
+  useEscapeKey(goBack, [goBack]);
+
+  return (
+    <div className="bg-gray-100 p-8 min-h-screen">
+      <div className={`mx-auto mb-4 flex justify-between no-print relative z-30 ${orientation === 'landscape' ? 'max-w-[297mm]' : 'max-w-[210mm]'}`}>
+        <button 
+          onClick={goBack} 
+          className="bg-gray-600 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 active:scale-95 transition-all font-bold cursor-pointer"
+        >
+          Voltar
+        </button>
+        <button 
+          onClick={() => downloadPDF(id, `${id}.pdf`, orientation)} 
+          className="bg-indigo-600 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-indigo-700 active:scale-95 transition-all"
+        >
+          Gerar PDF
+        </button>
       </div>
-    </div>
-    <div id={id} className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
+
+    {/* Folha A4 */}
+    <div 
+      id={id}
+      className={`
+        bg-white mx-auto
+        p-[10mm]
+        ${orientation === 'landscape' 
+          ? 'w-[297mm] min-h-[210mm]' 
+          : 'w-[210mm] min-h-[297mm]'}
+        print:shadow-none print:m-0
+      `}
+    >
       <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
         <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
         <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">{title}</h2>
@@ -1152,6 +1189,7 @@ const AdminMasterReportView = ({ id, title, columns, data, goBack }: any) => (
     </div>
   </div>
 );
+};
 
 // --- Telas de Cadastros Admin (País, Estado, Congregação) ---
 
@@ -1237,18 +1275,25 @@ const AdminCountriesScreen = ({ goBack, navigate }: any) => {
       )}
 
       {showForm && (
-        <div className="bg-white p-6 rounded-xl border mb-6 shadow-sm animate-slide-down">
-          <h3 className="font-black text-xs uppercase text-indigo-900 mb-4">{editingId ? 'Editando País' : 'Cadastrando Novo País'}</h3>
-          <form onSubmit={prepareSave} className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-1 w-full">
-              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nome do País</label>
-              <input required className="w-full border rounded p-2" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Brasil" />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl animate-scale-up border border-indigo-100">
+            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editando País' : 'Cadastrando Novo País'}</h3>
+              <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <button type="submit" className="flex-1 bg-green-600 text-white px-6 py-2 rounded font-bold">{editingId ? 'Salvar Alteração' : 'Gravar'}</button>
-              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="px-4 py-2 text-gray-400">Cancelar</button>
-            </div>
-          </form>
+            <form onSubmit={prepareSave} className="space-y-6">
+              <div className="w-full">
+                <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nome do País</label>
+                <input required autoFocus className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold placeholder:text-gray-300" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Brasil" />
+              </div>
+              <div className="flex gap-4 pt-2">
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Salvar Edição' : 'Gravar'}</button>
+                <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -1353,21 +1398,31 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
       )}
 
       {showForm && (
-        <div className="bg-white p-6 rounded-xl border mb-6 shadow-sm animate-slide-down">
-          <form onSubmit={prepareSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nome do Estado</label>
-              <input required className="w-full border rounded p-2" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: São Paulo" />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl animate-scale-up border border-indigo-100">
+            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editando Estado' : 'Novo Estado'}</h3>
+              <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
-            <div>
-              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">UF (Estado)</label>
-              <input required className="w-full border rounded p-2 uppercase" maxLength={2} value={formData.uf} onChange={e => setFormData({...formData, uf: e.target.value.toUpperCase()})} placeholder="SP" />
-            </div>
-            <div className="md:col-span-2 flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 px-4 py-2">Cancelar</button>
-              <button type="submit" className="bg-green-600 text-white px-6 py-2 rounded font-bold">{editingId ? 'Salvar Edição' : 'Salvar'}</button>
-            </div>
-          </form>
+            <form onSubmit={prepareSave} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-3">
+                  <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nome do Estado</label>
+                  <input required autoFocus className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold placeholder:text-gray-300" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: São Paulo" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">UF</label>
+                  <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold text-center uppercase placeholder:text-gray-300" maxLength={2} value={formData.uf} onChange={e => setFormData({...formData, uf: e.target.value.toUpperCase()})} placeholder="SP" />
+                </div>
+              </div>
+              <div className="flex gap-4 pt-2">
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Salvar Edição' : 'Salvar'}</button>
+                <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -1528,59 +1583,70 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
       )}
 
       {showForm && (
-        <div className="bg-white p-6 rounded-xl border mb-6 shadow-sm animate-slide-down">
-          <form onSubmit={prepareSave} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-3">
-              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nome da Congregação</label>
-              <input required className="w-full border rounded p-3 font-bold" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Sede Central, Bairro Novo..." />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-2xl shadow-2xl animate-scale-up border border-indigo-100 overflow-y-auto max-h-[90vh] custom-scrollbar-heavy">
+            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editando Congregação' : 'Nova Congregação'}</h3>
+              <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
-            
-            <div>
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Cód. País</label>
-              <div className="flex gap-2">
-                <input required className="w-20 border rounded p-2 text-center" value={formData.country_id} onChange={e => handleCountryCodeChange(e.target.value)} placeholder="01" />
-                <input readOnly className="flex-1 bg-gray-50 border rounded p-2 italic text-gray-500" value={foundCountryName} placeholder="Busca automática..." />
+            <form onSubmit={prepareSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nome da Congregação</label>
+                <input required autoFocus className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold placeholder:text-gray-300" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Sede Central, Bairro Novo..." />
               </div>
-            </div>
-
-            <div>
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Cód. Estado</label>
-              <div className="flex gap-2">
-                <input required className="w-20 border rounded p-2 text-center" value={formData.state_id} onChange={e => handleStateCodeChange(e.target.value)} placeholder="01" />
-                <input readOnly className="flex-1 bg-gray-50 border rounded p-2 italic text-gray-500" value={foundStateName} placeholder="Busca automática..." />
+              
+              <div>
+                <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Cód. País</label>
+                <div className="flex gap-2">
+                  <input required className="w-20 border-2 border-gray-100 rounded-xl p-4 text-center focus:border-indigo-600 outline-none transition-all font-bold" value={formData.country_id} onChange={e => handleCountryCodeChange(e.target.value)} placeholder="01" />
+                  <input readOnly className="flex-1 bg-gray-50 border-2 border-transparent rounded-xl p-4 italic text-gray-400 font-medium" value={foundCountryName} placeholder="Busca automática..." />
+                </div>
               </div>
-            </div>
 
-            <div>
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">UF (Estado)</label>
-              <input readOnly title="Preenchido automaticamente pelo Cód. Estado" className="w-full border rounded p-2 text-center uppercase bg-gray-50 text-gray-500 font-black" maxLength={2} value={formData.uf} placeholder="--" />
-            </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Cód. Estado</label>
+                <div className="flex gap-2">
+                  <input required className="w-20 border-2 border-gray-100 rounded-xl p-4 text-center focus:border-indigo-600 outline-none transition-all font-bold" value={formData.state_id} onChange={e => handleStateCodeChange(e.target.value)} placeholder="01" />
+                  <input readOnly className="flex-1 bg-gray-50 border-2 border-transparent rounded-xl p-4 italic text-gray-400 font-medium" value={foundStateName} placeholder="Busca automática..." />
+                </div>
+              </div>
 
-            <div>
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">CEP</label>
-              <input required className="w-full border rounded p-2" value={formData.cep} onChange={e => setFormData({...formData, cep: e.target.value})} placeholder="00000-000" />
-            </div>
+              <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">UF (Automático)</label>
+                  <input readOnly className="w-full border-2 border-transparent bg-gray-50 rounded-xl p-4 text-center uppercase text-indigo-600 font-black shadow-inner" maxLength={2} value={formData.uf} placeholder="--" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">CEP</label>
+                  <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold" value={formData.cep} onChange={e => setFormData({...formData, cep: e.target.value})} placeholder="00000-000" />
+                </div>
+              </div>
 
-            <div className="md:col-span-2">
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Endereço</label>
-              <input required className="w-full border rounded p-2" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Rua, Avenida..." />
-            </div>
+              <div className="md:col-span-2 space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Endereço (Rua/Av)</label>
+                  <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Ex: Rua das Flores" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nº</label>
+                    <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold" value={formData.address_number} onChange={e => setFormData({...formData, address_number: e.target.value})} placeholder="123" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Bairro</label>
+                    <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold" value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})} placeholder="Ex: Centro" />
+                  </div>
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nº</label>
-              <input required className="w-full border rounded p-2" value={formData.address_number} onChange={e => setFormData({...formData, address_number: e.target.value})} placeholder="123" />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Bairro</label>
-              <input required className="w-full border rounded p-2" value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})} placeholder="Ex: Centro, Vila Maria..." />
-            </div>
-
-            <div className="lg:col-span-3 flex justify-end gap-2 mt-4 border-t pt-4">
-              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 px-4 py-2">Cancelar</button>
-              <button type="submit" className="bg-green-600 text-white px-8 py-2 rounded font-bold shadow-md">{editingId ? 'Confirmar Edição' : 'Salvar Congregação'}</button>
-            </div>
-          </form>
+              <div className="md:col-span-2 flex gap-4 pt-4 border-t border-indigo-50 mt-2">
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Confirmar Edição' : 'Salvar Congregação'}</button>
+                <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
       <div className="space-y-4">
@@ -2185,7 +2251,7 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
       </div>
 
       {/* Folha A4 de Pré-visualização com o Cartão no Centro */}
-      <div id="crr-card-wrapper" className="bg-white shadow-2xl mx-auto max-w-[297mm] min-h-[210mm] flex items-center justify-center p-12 print:shadow-none print:m-0 print:p-0">
+      <div id="crr-card-wrapper" className="bg-white shadow-2xl mx-auto max-w-[297mm] min-h-[210mm] flex items-center justify-center p-12">
         {/* Carteira Profissional - Formato de Crachá Horizontal Ideal (95mm x 65mm) */}
         <div id="crr-card-body" className="w-[95mm] h-[65mm] bg-white relative overflow-hidden flex flex-col border border-gray-300 rounded-[2mm] font-sans shadow-sm">
         
@@ -2332,28 +2398,49 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
         </div>
       )}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">{editingId ? 'Editar Instrumento' : 'Novo Instrumento'}</h3>
-            {saveError && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded relative mb-4 text-center text-sm font-bold animate-pulse">{saveError}</div>}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <input required placeholder="Nome" className={`w-full border rounded p-2 ${saveError ? 'border-red-500 bg-red-50' : ''}`} value={formData.name} onChange={e => { setFormData({...formData, name: e.target.value}); setSaveError(null); }} />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl animate-scale-up border border-indigo-100">
+            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editar Instrumento' : 'Novo Instrumento'}</h3>
+              <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            {saveError && (
+              <div className="mb-6 bg-red-50 border-2 border-red-100 p-4 rounded-xl flex items-center gap-3 animate-slide-down">
+                <div className="bg-red-500 text-white rounded-full p-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+                <span className="text-red-700 font-bold text-xs uppercase tracking-tight">{saveError}</span>
+              </div>
+            )}
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <p className="text-xs font-bold text-gray-900 uppercase mb-1">Modalidade</p>
-                <select className="w-full border rounded p-2" value={formData.modality} onChange={e => setFormData({...formData, modality: e.target.value as any})}>
-                  <option value="Metal">Metal</option><option value="Palheta">Palheta</option><option value="Cordas">Cordas</option><option value="Outro">Outro</option>
-                </select>
+                <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nome do Instrumento</label>
+                <input required autoFocus placeholder="Nome" className={`w-full border-2 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none transition-all ${saveError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.name} onChange={e => { setFormData({...formData, name: e.target.value}); setSaveError(null); }} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Modalidade</label>
+                  <select className="w-full border-2 border-gray-100 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none" value={formData.modality} onChange={e => setFormData({...formData, modality: e.target.value as any})}>
+                    <option value="Metal">Metal</option><option value="Palheta">Palheta</option><option value="Cordas">Cordas</option><option value="Outro">Outro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Clave</label>
+                  <select className="w-full border-2 border-gray-100 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none" value={formData.timbre} onChange={e => setFormData({...formData, timbre: e.target.value as any})}>
+                    <option value="Sol">Sol</option>
+                    <option value="Fá">Fá</option>
+                    <option value="Dó">Dó</option>
+                  </select>
+                </div>
               </div>
               <div>
-                <p className="text-xs font-bold text-gray-900 uppercase mb-1">Clave</p>
-                <select className="w-full border rounded p-2" value={formData.timbre} onChange={e => setFormData({...formData, timbre: e.target.value as any})}>
-                  <option value="Sol">Sol</option>
-                  <option value="Fá">Fá</option>
-                  <option value="Dó">Dó</option>
-                </select>
+                <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Afinação (Sib, Do...)</label>
+                <input required placeholder="Afinação" className={`w-full border-2 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none transition-all ${saveError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.tuning} onChange={e => { setFormData({...formData, tuning: e.target.value}); setSaveError(null); }} />
               </div>
-              <input required placeholder="Afinação (Sib, Do...)" className={`w-full border rounded p-2 ${saveError ? 'border-red-500 bg-red-50' : ''}`} value={formData.tuning} onChange={e => { setFormData({...formData, tuning: e.target.value}); setSaveError(null); }} />
-              <div className="flex justify-end gap-2 pt-4"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-gray-500">Cancelar</button><button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded font-bold">{editingId ? 'Atualizar' : 'Salvar'}</button></div>
+              <div className="flex gap-4 pt-4 border-t border-indigo-50">
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Atualizar' : 'Salvar'}</button>
+                <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
+              </div>
             </form>
           </div>
         </div>
@@ -2449,36 +2536,58 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
         </div>
       )}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg my-8">
-            <h3 className="text-xl font-bold mb-4">{editingId ? 'Editar Integrante' : 'Novo Integrante'}</h3>
-            {saveError && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded relative mb-4 text-center text-sm font-bold animate-pulse">{saveError}</div>}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <input required placeholder="Nome Completo" className="w-full border rounded p-2" value={formData.name} onChange={e => { setFormData({...formData, name: e.target.value}); setSaveError(null); }} />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl animate-scale-up border border-indigo-100 overflow-y-auto max-h-[90vh] custom-scrollbar-heavy">
+            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editar Integrante' : 'Novo Integrante'}</h3>
+              <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            {saveError && (
+              <div className="mb-6 bg-red-50 border-2 border-red-100 p-4 rounded-xl flex items-center gap-3 animate-slide-down">
+                <div className="bg-red-500 text-white rounded-full p-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+                <span className="text-red-700 font-bold text-xs uppercase tracking-tight">{saveError}</span>
+              </div>
+            )}
+            <form onSubmit={handleSubmit} className="space-y-8">
               <div>
-                <p className="text-sm font-bold mb-2 text-gray-950">Vozes</p>
-                <div className="flex wrap gap-2">
+                <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nome Completo</label>
+                <input required autoFocus placeholder="Nome Completo" className="w-full border-2 border-gray-100 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none transition-all" value={formData.name} onChange={e => { setFormData({...formData, name: e.target.value}); setSaveError(null); }} />
+              </div>
+              
+              <div>
+                <p className="text-[10px] font-black uppercase text-gray-400 mb-4 tracking-widest">Vozes do Integrante</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {['Melodia', 'Contralto', 'Tenor', 'Baixo'].map(v => (
-                    <button key={v} type="button" onClick={() => toggleVoice(v)} className={`px-3 py-1 rounded border transition-colors ${formData.voices.includes(v) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-100 border-gray-200'}`}>{v}</button>
+                    <button key={v} type="button" onClick={() => toggleVoice(v)} className={`px-4 py-3 rounded-xl border-2 transition-all font-bold text-sm ${formData.voices.includes(v) ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' : 'bg-gray-50 border-transparent text-gray-400 hover:border-gray-200'}`}>{v}</button>
                   ))}
                 </div>
               </div>
+
               <div>
-                <p className="text-sm font-bold mb-2 text-gray-950">Instrumentos</p>
-                <select className="w-full border rounded p-2 mb-2" onChange={e => addInstrument(e.target.value)}>
-                  <option value="">Adicionar instrumento...</option>
-                  {instruments.map(i => <option key={i.id} value={i.id}>{i.name} ({i.tuning})</option>)}
-                </select>
-                <div className="flex wrap gap-2">
-                  {formData.instruments.map(id => (
-                    <span key={id} className="bg-indigo-50 px-2 py-1 rounded text-xs border border-indigo-200 flex items-center gap-1">
-                      {instruments.find(i => i.id === id)?.name}
-                      <button type="button" onClick={() => removeInstrument(id)} className="text-indigo-400 font-bold ml-1">×</button>
-                    </span>
-                  ))}
+                <p className="text-[10px] font-black uppercase text-gray-400 mb-4 tracking-widest">Selecione os Instrumentos</p>
+                <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-50">
+                  <select className="w-full border-2 border-white rounded-xl p-4 mb-4 font-bold focus:border-indigo-600 outline-none shadow-sm" onChange={e => addInstrument(e.target.value)}>
+                    <option value="">Adicionar novo instrumento...</option>
+                    {instruments.map(i => <option key={i.id} value={i.id}>{i.name} ({i.tuning})</option>)}
+                  </select>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.instruments.map(id => (
+                      <span key={id} className="bg-white px-4 py-2 rounded-full text-[10px] font-black uppercase text-indigo-700 border-2 border-indigo-100 flex items-center gap-2 shadow-sm animate-scale-up">
+                        {instruments.find(i => i.id === id)?.name}
+                        <button type="button" onClick={() => removeInstrument(id)} className="bg-red-50 text-red-500 rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">×</button>
+                      </span>
+                    ))}
+                    {formData.instruments.length === 0 && <p className="text-[10px] text-indigo-300 font-bold uppercase italic py-2">Nenhum instrumento selecionado</p>}
+                  </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-2 pt-4"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-gray-500">Cancelar</button><button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded font-bold">{editingId ? 'Atualizar' : 'Salvar'}</button></div>
+
+              <div className="flex gap-4 pt-4 border-t border-indigo-50">
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Atualizar Integrante' : 'Salvar Cadastro'}</button>
+                <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
+              </div>
             </form>
           </div>
         </div>
@@ -3038,15 +3147,46 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
         </div>
       )}
       {showForm && (
-        <div className="bg-white p-6 rounded shadow mb-6 animate-fade-in">
-          <h3 className="font-bold mb-4">{editingId ? 'Editar Hino' : 'Adicionar Hino'}</h3>
-          {validationError && <div className="mb-4 bg-red-50 border-l-4 border-red-500 text-red-700 font-bold text-sm">Número ou Título Já Cadastrado</div>}
-          {startZeroError && <div className="mb-4 bg-red-50 border-l-4 border-red-500 text-red-700 font-bold text-sm px-3 py-2">O número do hino não pode começar com zero</div>}
-          <form onSubmit={saveHymn} className="flex flex-col sm:flex-row gap-4">
-            <input required placeholder="Nº" className={`w-full sm:w-24 border rounded p-2 transition-colors ${validationError || startZeroError ? 'border-red-500 bg-red-50' : ''}`} value={formData.number} onChange={e => { setFormData({...formData, number: e.target.value}); setValidationError(false); setStartZeroError(false); }} />
-            <input required placeholder="Título" className={`flex-1 border rounded p-2 transition-colors ${validationError ? 'border-red-500 bg-red-50' : ''}`} value={formData.title} onChange={e => { setFormData({...formData, title: e.target.value}); setValidationError(false); }} />
-            <div className="flex gap-2"><button type="submit" className="flex-1 bg-indigo-600 text-white px-6 py-2 rounded font-bold">{editingId ? 'Atualizar' : 'Salvar'}</button><button type="button" onClick={() => { setShowForm(false); setEditingId(null); setValidationError(false); }} className="px-4 py-2 border rounded">Cancelar</button></div>
-          </form>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl animate-scale-up border border-indigo-100">
+            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editar Hino' : 'Adicionar Hino'}</h3>
+              <button onClick={() => { setShowForm(false); setEditingId(null); setValidationError(false); setStartZeroError(false); }} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            
+            {validationError && (
+              <div className="mb-6 bg-red-50 border-2 border-red-100 p-4 rounded-xl flex items-center gap-3 animate-slide-down">
+                <div className="bg-red-500 text-white rounded-full p-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+                <span className="text-red-700 font-bold text-xs uppercase tracking-tight">Número ou Título Já Cadastrado</span>
+              </div>
+            )}
+            
+            {startZeroError && (
+              <div className="mb-6 bg-amber-50 border-2 border-amber-100 p-4 rounded-xl flex items-center gap-3 animate-slide-down">
+                <div className="bg-amber-500 text-white rounded-full p-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+                <span className="text-amber-700 font-bold text-xs uppercase tracking-tight">O número não pode começar com zero</span>
+              </div>
+            )}
+
+            <form onSubmit={saveHymn} className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="sm:col-span-1">
+                  <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nº</label>
+                  <input required autoFocus placeholder="Nº" className={`w-full border-2 rounded-xl p-4 font-black text-center text-indigo-600 focus:border-indigo-600 outline-none transition-all ${validationError || startZeroError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.number} onChange={e => { setFormData({...formData, number: e.target.value}); setValidationError(false); setStartZeroError(false); }} />
+                </div>
+                <div className="sm:col-span-3">
+                  <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Título do Hino</label>
+                  <input required placeholder="Título" className={`w-full border-2 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none transition-all ${validationError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.title} onChange={e => { setFormData({...formData, title: e.target.value}); setValidationError(false); }} />
+                </div>
+              </div>
+              <div className="flex gap-4 pt-2">
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Atualizar' : 'Salvar'}</button>
+                <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setValidationError(false); setStartZeroError(false); }} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
       <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -3681,14 +3821,14 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
 
   return (
     <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[1200px] mx-auto mb-4 flex justify-between no-print">
+      <div className="max-w-[1200px] mx-auto mb-4 flex justify-between no-print relative z-20">
         <button onClick={onBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('program-print', `programa-${list.date}.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
           <button onClick={() => downloadPDF('program-print', `programa-${list.date}.pdf`, (list.isDetailed || list.type === 'NatalAnoNovo') ? 'landscape' : 'portrait')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="program-print" className={`bg-white shadow-2xl mx-auto ${(list.isDetailed || list.type === 'NatalAnoNovo') ? 'max-w-[297mm] min-h-[210mm]' : 'max-w-[210mm] min-h-[297mm]'} ${list.type === 'NatalAnoNovo' ? 'p-6' : 'p-10'} print:shadow-none print:m-0 print:p-0`}>
+      <div id="program-print" className={`bg-white shadow-2xl mx-auto ${(list.isDetailed || list.type === 'NatalAnoNovo') ? 'max-w-[297mm] min-h-[210mm]' : 'max-w-[210mm] min-h-[297mm]'} ${list.type === 'NatalAnoNovo' ? 'p-6' : 'p-12'}`}>
         <div className={`text-center border-b-2 border-double border-black pb-2 ${list.type === 'NatalAnoNovo' ? 'mb-2' : 'mb-4'}`} style={{ fontSize: '14px' }}>
           <h1 className="font-black uppercase tracking-tighter">Igreja Apostólica</h1>
           <h2 className="font-bold mt-1 border border-black inline-block px-4 py-0.5 uppercase">{MEETING_TYPES[list.type]}</h2>
@@ -3907,7 +4047,7 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
           <button onClick={() => downloadPDF('hymn-usage-report-view', `relatorio-uso-hinos.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="hymn-usage-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm] print:shadow-none print:m-0 print:p-0">
+      <div id="hymn-usage-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
         <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Frequência de Uso de Hinos</h2>
@@ -6545,18 +6685,18 @@ const App = () => {
     }
 
     const handlePopState = (e: PopStateEvent) => {
+      // Prioridade total para o estado do evento para manter consistência com o navegador
       if (e.state && e.state.screen) {
-        // Restaura o estado da tela e da história interna
         setScreen(e.state.screen);
         setHistory(e.state.history || []);
         
-        // Restaura dados de contexto se presentes no estado
+        // Restaura dados específicos da tela
         if (e.state.editData !== undefined) setEditData(e.state.editData);
         if (e.state.notebookData !== undefined) setNotebookData(e.state.notebookData);
         if (e.state.reportData !== undefined) setReportData(e.state.reportData);
         if (e.state.attendanceEditData !== undefined) setAttendanceEditData(e.state.attendanceEditData);
       } else {
-        // Fallback para home
+        // Fallback robusto se o estado for perdido por inatividade
         setScreen('home');
         setHistory([]);
       }
@@ -6573,7 +6713,7 @@ const App = () => {
   const isReadOnly = (isMaster || currentUser?.canReadOnlyMode || currentUser?.canViewOthers) && viewingUser !== null;
   const onExitImpersonation = viewingUser ? () => { setViewingUser(null); setScreen('admin_menu'); } : undefined;
 
-  const navigate = (next: string, data?: any) => { 
+  const navigate = useCallback((next: string, data?: any) => { 
     const newHistory = [...history, screen];
     
     // Captura o estado atual dos dados para persistência na história
@@ -6596,17 +6736,19 @@ const App = () => {
     if (['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next)) setReportData(data); 
     if (next === 'roll_call') setAttendanceEditData(data); 
     if (['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next)) setEditData(data); 
-  };
+  }, [history, screen, editData, notebookData, reportData, attendanceEditData]);
 
-  const goBack = () => { 
+  const goBack = useCallback(() => { 
     if (window.history.state && window.history.state.history && window.history.state.history.length > 0) {
       window.history.back();
-    } else {
-      const prev = history[history.length - 1] || 'home'; 
-      setHistory(history.slice(0, -1)); 
+    } else if (history.length > 0) {
+      const prev = history[history.length - 1]; 
+      setHistory(prevHistory => prevHistory.slice(0, -1)); 
       setScreen(prev); 
+    } else {
+      setScreen('home');
     }
-  };
+  }, [history]);
 
   const onLogout = () => { 
     setCurrentUser(null); 
@@ -6841,7 +6983,7 @@ const App = () => {
               case 'admin_congregations': return <AdminCongregationsScreen goBack={goBack} navigate={navigate} />;
               case 'admin_countries_report': return <AdminMasterReportView id="relatorio-paises" title="Relatório de Países Atendidos" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do País'}]} data={reportData} goBack={goBack} />;
               case 'admin_states_report': return <AdminMasterReportView id="relatorio-estados" title="Relatório de Estados" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Nome do Estado'}, {key:'uf', label:'UF'}]} data={reportData} goBack={goBack} />;
-              case 'admin_congregations_report': return <AdminMasterReportView id="relatorio-congre" title="Relatório Geral de Congregações" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Congregação'}, {key:'state', label:'Estado'}, {key:'uf', label:'UF'}, {key:'country', label:'País'}, {key:'address', label:'Endereço'}, {key:'address_number', label:'Nº'}, {key:'neighborhood', label:'Bairro'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} />;
+              case 'admin_congregations_report': return <AdminMasterReportView id="relatorio-congre" title="Relatório Geral de Congregações" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Congregação'}, {key:'state', label:'Estado'}, {key:'uf', label:'UF'}, {key:'country', label:'País'}, {key:'address', label:'Endereço'}, {key:'address_number', label:'Nº'}, {key:'neighborhood', label:'Bairro'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} orientation="landscape" />;
               case 'admin_conductors_report': return <AdminMasterReportView id="relatorio-regentes" title="Relatório de Regentes (CRR)" columns={[{key:'registry_number', label:'Registro'}, {key:'name', label:'Nome'}, {key:'congregation_name', label:'Congregação'}, {key:'phone', label:'Telefone'}]} data={reportData} goBack={goBack} />;
               case 'admin_conductor_certificates': return <AdminConductorCertificatesScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
               case 'admin_new_conductor': return <AdminConductorForm goBack={goBack} linkUserBeingApproved={editData} />;

@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+@theme {
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-scale-up: scale-up 0.2s cubic-bezier(0.165, 0.84, 0.44, 1);
+  --animate-slide-down: slide-down 0.3s ease-out;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes scale-up {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  @keyframes slide-down {
+    from { transform: translateY(-10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+}
+
 .custom-scrollbar-heavy::-webkit-scrollbar {
   width: 12px;
 }
