@@ -2171,11 +2171,13 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
       <div className="mb-8 flex gap-4 no-print flex-wrap justify-center">
         <button onClick={goBack} className="bg-gray-700 text-white px-6 py-2 rounded-full font-bold">Voltar</button>
         <button onClick={() => navigate('admin_edit_conductor', conductor)} className="bg-amber-600 text-white px-6 py-2 rounded-full font-bold shadow-lg">Editar Informações</button>
-        <button onClick={() => downloadPDF('crr-card-body', `CRR-${conductor.registry_number}.pdf`, 'landscape')} className="bg-indigo-600 text-white px-8 py-2 rounded-full font-bold shadow-lg">Baixar Cartão (PDF)</button>
+        <button onClick={() => downloadPDF('crr-card-wrapper', `CRR-${conductor.registry_number}.pdf`, 'landscape')} className="bg-indigo-600 text-white px-8 py-2 rounded-full font-bold shadow-lg">Baixar Cartão (PDF)</button>
       </div>
 
-      {/* Carteira Profissional - Formato de Crachá Horizontal Ideal (95mm x 65mm) */}
-      <div id="crr-card-body" className="w-[95mm] h-[65mm] bg-white shadow-2xl relative overflow-hidden flex flex-col border border-gray-300 rounded-[2mm] font-sans">
+      {/* Folha A4 de Pré-visualização com o Cartão no Centro */}
+      <div id="crr-card-wrapper" className="bg-white shadow-2xl mx-auto max-w-[297mm] min-h-[210mm] flex items-center justify-center p-12">
+        {/* Carteira Profissional - Formato de Crachá Horizontal Ideal (95mm x 65mm) */}
+        <div id="crr-card-body" className="w-[95mm] h-[65mm] bg-white relative overflow-hidden flex flex-col border border-gray-300 rounded-[2mm] font-sans shadow-sm">
         
         {/* Cabeçalho Oficial Centralizado (Sem logos e sem "Sede Mundial") */}
         <div className="bg-white py-3 border-b border-indigo-100 flex flex-col items-center justify-center">
@@ -2241,6 +2243,7 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
         <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-900 opacity-[0.03]"></div>
         <div className="absolute bottom-0 left-0 w-full h-1 bg-indigo-900"></div>
       </div>
+    </div>
       
       <p className="mt-8 text-xs text-gray-500 max-w-sm text-center font-medium">
         Tamanho final sugerido: 9,5cm x 6,5cm.<br/>
@@ -3675,7 +3678,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
           <button onClick={() => downloadPDF('program-print', `programa-${list.date}.pdf`, (list.isDetailed || list.type === 'NatalAnoNovo') ? 'landscape' : 'portrait')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
-      <div id="program-print" className={`bg-white shadow-2xl mx-auto ${(list.isDetailed || list.type === 'NatalAnoNovo') ? 'max-w-[297mm]' : 'max-w-[210mm]'} min-h-[297mm] ${list.type === 'NatalAnoNovo' ? 'p-6' : 'p-12'}`}>
+      <div id="program-print" className={`bg-white shadow-2xl mx-auto ${(list.isDetailed || list.type === 'NatalAnoNovo') ? 'max-w-[297mm] min-h-[210mm]' : 'max-w-[210mm] min-h-[297mm]'} ${list.type === 'NatalAnoNovo' ? 'p-6' : 'p-12'}`}>
         <div className={`text-center border-b-2 border-double border-black pb-2 ${list.type === 'NatalAnoNovo' ? 'mb-2' : 'mb-4'}`} style={{ fontSize: '14px' }}>
           <h1 className="font-black uppercase tracking-tighter">Igreja Apostólica</h1>
           <h2 className="font-bold mt-1 border border-black inline-block px-4 py-0.5 uppercase">{MEETING_TYPES[list.type]}</h2>
