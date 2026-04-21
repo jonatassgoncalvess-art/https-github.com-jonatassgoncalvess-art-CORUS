@@ -254,6 +254,7 @@ const saveData = async (table: string, localKey: string, data: any, ownerEmail?:
     const { error } = await supabase.from(table).upsert(dataToUpsert);
     if (error) {
        console.error(`Erro Supabase em ${table}:`, error.message);
+       alert(`Atenção: Os dados de ${table} foram salvos apenas localmente. Erro no Banco: ${error.message}`);
     }
   } catch (err) {
     console.error(`Erro crítico ao sincronizar ${table}:`, err);
