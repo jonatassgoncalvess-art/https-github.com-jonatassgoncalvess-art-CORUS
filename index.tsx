@@ -1405,7 +1405,10 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
   }, [confirmingAction, showForm, goBack]);
 
   useEffect(() => { 
-    fetchData('congregations_admin', 'gca_congregations_admin').then(setCongre);
+    fetchData('congregations_admin', 'gca_congregations_admin').then(data => {
+      const sorted = data.sort((a: any, b: any) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+      setCongre(sorted);
+    });
     fetchData('countries', 'gca_countries').then(setCountries);
     fetchData('states', 'gca_states').then(setStates);
   }, []);
@@ -1442,8 +1445,9 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
       const newId = (maxId + 1).toString().padStart(4, '0');
       updated = [...congre, { id: newId, ...formData, name: fullName }];
     }
-    setCongre(updated);
-    await saveData('congregations_admin', 'gca_congregations_admin', updated);
+    const finalSorted = updated.sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+    setCongre(finalSorted);
+    await saveData('congregations_admin', 'gca_congregations_admin', finalSorted);
     setFormData({ name: '', country_id: '', state_id: '', address: '', neighborhood: '', address_number: '', cep: '', uf: '' });
     setFoundCountryName('');
     setFoundStateName('');
