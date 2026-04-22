@@ -442,48 +442,50 @@ const Layout = ({ children, title, onBack, onLogout: propLogout, isReadOnly, onP
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {onExitImpersonation && (
-        <div className="bg-amber-600 text-white p-2 text-center no-print shadow-inner animate-fade-in">
-          <div className={`mx-auto flex items-center justify-center gap-4 text-[10px] sm:text-xs font-black uppercase tracking-widest ${widthClass}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-            Ambiente de Visualização (Modo Leitura)
-            <button 
-              onClick={onExitImpersonation}
-              className="bg-white text-amber-700 px-4 py-1.5 rounded-full font-black hover:bg-amber-50 transition-all shadow-md active:scale-95"
-            >
-              Sair e Voltar ao Admin
-            </button>
-          </div>
-        </div>
-      )}
-      <header className="bg-indigo-700 text-white p-4 shadow-md no-print">
-        <div className={`mx-auto flex items-center justify-between ${widthClass}`}>
-          <div className="flex items-center gap-3">
-            {onBack && (
-              <button onClick={onBack} className="p-1 hover:bg-indigo-600 rounded">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      <div className="sticky top-0 z-[100] no-print">
+        {onExitImpersonation && (
+          <div className="bg-amber-600 text-white p-2 text-center shadow-inner animate-fade-in border-b border-amber-500/20">
+            <div className={`mx-auto flex items-center justify-center gap-4 text-[10px] sm:text-xs font-black uppercase tracking-widest ${widthClass}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              Ambiente de Visualização (Modo Leitura)
+              <button 
+                onClick={onExitImpersonation}
+                className="bg-white text-amber-700 px-4 py-1.5 rounded-full font-black hover:bg-amber-50 transition-all shadow-md active:scale-95"
+              >
+                Sair e Voltar ao Admin
               </button>
-            )}
-            <h1 className="text-xl font-bold">{title}</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            {isReadOnly && <span className="bg-yellow-400 text-indigo-900 text-[10px] font-black px-2 py-0.5 rounded uppercase">Somente Leitura</span>}
-            <div className="text-sm opacity-80 hidden sm:block">CORUS - Gestor de Corais Apostólicos</div>
-            <div className="flex items-center gap-2">
-              {onProfileClick && (
-                <button onClick={onProfileClick} className="p-1 hover:bg-indigo-600 rounded" title="Meu Perfil">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                </button>
-              )}
-              {onLogout && (
-                <button onClick={onLogout} className="p-1 hover:bg-red-600 rounded" title="Sair">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                </button>
-              )}
             </div>
           </div>
-        </div>
-      </header>
+        )}
+        <header className="bg-indigo-700 text-white p-4 shadow-md">
+          <div className={`mx-auto flex items-center justify-between ${widthClass}`}>
+            <div className="flex items-center gap-3">
+              {onBack && (
+                <button onClick={onBack} className="p-1 hover:bg-indigo-600 rounded cursor-pointer">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+              )}
+              <h1 className="text-xl font-bold">{title}</h1>
+            </div>
+            <div className="flex items-center gap-4">
+              {isReadOnly && <span className="bg-yellow-400 text-indigo-900 text-[10px] font-black px-2 py-0.5 rounded uppercase">Somente Leitura</span>}
+              <div className="text-sm opacity-80 hidden sm:block">CORUS - Gestor de Corais Apostólicos</div>
+              <div className="flex items-center gap-2">
+                {onProfileClick && (
+                  <button onClick={onProfileClick} className="p-1 hover:bg-indigo-600 rounded cursor-pointer" title="Meu Perfil">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </button>
+                )}
+                {onLogout && (
+                  <button onClick={onLogout} className="p-1 hover:bg-red-600 rounded cursor-pointer" title="Sair">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </header>
+      </div>
       <main className={`flex-1 mx-auto w-full p-4 ${widthClass}`}>
         {children}
       </main>
@@ -504,7 +506,7 @@ const MenuCard = ({ title, desc, icon, onClick }: any) => (
 const ConfirmationModal = ({ title, message, onConfirm, onCancel, confirmText = "Confirmar", confirmColor = "bg-indigo-600" }: any) => {
   useEscapeKey(onCancel, [onCancel]);
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[400] backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-2xl p-8 w-full max-sm shadow-2xl text-center">
         <h3 className="text-xl font-black text-gray-900 uppercase mb-4 leading-tight">{title}</h3>
         <p className="text-gray-500 text-sm mb-8">{message}</p>
@@ -1246,11 +1248,11 @@ const AdminCountriesScreen = ({ goBack, navigate }: any) => {
 
   return (
     <Layout title="Gerenciar Países" onBack={goBack}>
-      <div className="flex justify-between items-center mb-6">
+      <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
         <h2 className="font-bold text-gray-700 uppercase">Países Cadastrados</h2>
         <div className="flex gap-2">
-          <button onClick={() => navigate('admin_countries_report', countries)} className="bg-gray-100 text-indigo-600 px-4 py-2 rounded font-bold border border-indigo-200">Relatório</button>
-          <button onClick={() => { setEditingId(null); setName(''); setShowForm(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Novo País</button>
+          <button onClick={() => navigate('admin_countries_report', countries)} className="bg-white text-indigo-600 px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-indigo-100 hover:bg-indigo-50 transition-all shadow-sm">Relatório</button>
+          <button onClick={() => { setEditingId(null); setName(''); setShowForm(true); }} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Novo País</button>
         </div>
       </div>
 
@@ -1369,11 +1371,11 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
 
   return (
     <Layout title="Gerenciar Estados" onBack={goBack}>
-      <div className="flex justify-between items-center mb-6">
+      <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
         <h2 className="font-bold text-gray-700 uppercase">Estados Cadastrados</h2>
         <div className="flex gap-2">
-          <button onClick={() => navigate('admin_states_report', states)} className="bg-gray-100 text-indigo-600 px-4 py-2 rounded font-bold border border-indigo-200">Relatório</button>
-          <button onClick={() => { setEditingId(null); setFormData({name: '', uf: ''}); setShowForm(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Novo Estado</button>
+          <button onClick={() => navigate('admin_states_report', states)} className="bg-white text-indigo-600 px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-indigo-100 hover:bg-indigo-50 transition-all shadow-sm">Relatório</button>
+          <button onClick={() => { setEditingId(null); setFormData({name: '', uf: ''}); setShowForm(true); }} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Novo Estado</button>
         </div>
       </div>
 
@@ -1554,11 +1556,11 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
 
   return (
     <Layout title="Gerenciar Congregações" onBack={goBack}>
-      <div className="flex justify-between items-center mb-6">
+      <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
         <h2 className="font-bold text-gray-700 uppercase">Congregações</h2>
         <div className="flex gap-2">
-          <button onClick={() => navigate('admin_congregations_report', getReportData())} className="bg-gray-100 text-indigo-600 px-4 py-2 rounded font-bold border border-indigo-200">Relatório</button>
-          <button onClick={() => { setEditingId(null); setShowForm(true); setFormData({ name: '', country_id: '', state_id: '', address: '', neighborhood: '', address_number: '', cep: '', uf: '' }); setFoundCountryName(''); setFoundStateName(''); }} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Nova Congregação</button>
+          <button onClick={() => navigate('admin_congregations_report', getReportData())} className="bg-white text-indigo-600 border-2 border-indigo-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all shadow-sm">Relatório</button>
+          <button onClick={() => { setEditingId(null); setShowForm(true); setFormData({ name: '', country_id: '', state_id: '', address: '', neighborhood: '', address_number: '', cep: '', uf: '' }); setFoundCountryName(''); setFoundStateName(''); }} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Nova Congregação</button>
         </div>
       </div>
 
@@ -2371,18 +2373,18 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
 
   return (
     <Layout title="Instrumentos" onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
-      <div className="flex justify-between items-center mb-6">
+      <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
         <h2 className="text-lg font-semibold">Instrumentos Cadastrados</h2>
         {!isReadOnly && (
           <div className="flex gap-2">
             <button 
               onClick={() => navigate('instruments_report')} 
-              className="bg-white text-indigo-600 border border-indigo-600 px-4 py-2 rounded font-bold hover:bg-indigo-50 transition-colors flex items-center gap-2"
+              className="bg-white text-indigo-600 border-2 border-indigo-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all shadow-sm flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 15h6"/><path d="M9 11h6"/><path d="M9 19h10"/></svg>
               Relatório
             </button>
-            <button onClick={() => { setEditingId(null); setFormData({ name: '', modality: 'Metal', timbre: 'Sol', tuning: '' }); setSaveError(null); setShowForm(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold hover:bg-indigo-700 transition-colors">Novo</button>
+            <button onClick={() => { setEditingId(null); setFormData({ name: '', modality: 'Metal', timbre: 'Sol', tuning: '' }); setSaveError(null); setShowForm(true); }} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Novo Instrumento</button>
           </div>
         )}
       </div>
@@ -2509,18 +2511,18 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
 
   return (
     <Layout title="Músicos" onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
-      <div className="flex justify-between items-center mb-6">
+      <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
         <h2 className="text-lg font-semibold">Integrantes</h2>
         {!isReadOnly && (
           <div className="flex gap-2">
             <button 
               onClick={() => navigate('musicians_report')} 
-              className="bg-white text-indigo-600 border border-indigo-600 px-4 py-2 rounded font-bold hover:bg-indigo-50 transition-colors flex items-center gap-2"
+              className="bg-white text-indigo-600 border-2 border-indigo-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all shadow-sm flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 15h6"/><path d="M9 11h6"/><path d="M9 19h10"/></svg>
               Relatório
             </button>
-            <button onClick={() => { setEditingId(null); setFormData({ name: '', voices: [], instruments: [] }); setSaveError(null); setShowForm(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold hover:bg-indigo-700 transition-colors">Novo</button>
+            <button onClick={() => { setEditingId(null); setFormData({ name: '', voices: [], instruments: [] }); setSaveError(null); setShowForm(true); }} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Novo Integrante</button>
           </div>
         )}
       </div>
@@ -2829,14 +2831,17 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
 
   return (
     <Layout title={editData ? "Editar Chamada" : "Lista de Chamada"} onBack={handleBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
-      <div className="bg-white p-6 rounded-lg shadow">
-        <div className="flex justify-between items-center mb-4 border-b pb-2">
-           <h3 className="text-lg font-bold">Informe as Presenças {filterGroup ? `(${filterGroup})` : ''}</h3>
-           {filterGroup && !editData && (
-             <button onClick={() => setFilterGroup(null)} className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-3 py-1 rounded hover:bg-indigo-100 transition-colors">Trocar Filtro</button>
-           )}
+      <div className="bg-white p-6 rounded-lg shadow min-h-[60vh] flex flex-col">
+        <div className="sticky top-[76px] z-30 bg-white shadow-md rounded-xl p-4 mb-6 border border-indigo-50 flex justify-between items-center">
+           <h3 className="text-sm font-black text-indigo-900 uppercase tracking-widest leading-tight">Escolha os Presentes {filterGroup ? `(${filterGroup})` : ''}</h3>
+           <div className="flex gap-2 items-center">
+             {filterGroup && !editData && (
+               <button onClick={() => setFilterGroup(null)} className="text-sm font-bold text-indigo-600 bg-indigo-50 px-5 py-2.5 rounded-xl hover:bg-indigo-100 transition-colors border border-indigo-100">Trocar Filtro</button>
+             )}
+             {!isReadOnly && <button onClick={handleSaveClick} className="bg-indigo-600 text-white px-7 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Salvar Chamada</button>}
+           </div>
         </div>
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-4 flex-1">
           {filteredMusicians.sort((a,b) => a.name.localeCompare(b.name)).map(m => {
             const isPresent = selected.has(m.id);
             const hasJustify = !!justifications[m.id];
@@ -2990,14 +2995,14 @@ const AttendanceHistoryScreen = ({ goBack, onEdit, ownerEmail, isReadOnly, onExi
   return (
     <Layout title="Registro de Presença" onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-base font-black text-indigo-900 uppercase tracking-widest">Filtrar por Grupo</h3>
-          <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
+        <div className="sticky top-[60px] z-20 bg-gray-50 shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest">Filtro Rápido</h3>
+          <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide justify-center">
             {['Todos', 'Geral', 'Coral', 'Orquestra'].map((g) => (
               <button
                 key={g}
                 onClick={() => setFilterGroup(g as any)}
-                className={`px-6 py-2.5 rounded-full text-sm font-black uppercase transition-all whitespace-nowrap ${filterGroup === g ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                className={`px-7 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap border-2 ${filterGroup === g ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' : 'bg-white text-gray-400 border-transparent hover:border-gray-200'}`}
               >
                 {g}
               </button>
@@ -3131,11 +3136,14 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
 
   return (
     <Layout title={`${notebook.code} - ${notebook.name}`} onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-        <input placeholder="Filtrar hinos..." className="w-full sm:w-64 border rounded p-2" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-gray-100">
+        <div className="relative w-full sm:w-64">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input placeholder="Filtrar hinos..." className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-100 rounded-xl font-bold focus:border-indigo-600 outline-none transition-all placeholder:text-gray-300 shadow-sm" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <button onClick={() => navigate('hymn_notebook_report', notebook)} className="flex-1 sm:flex-none bg-gray-600 text-white px-6 py-2 rounded font-bold">Relatório</button>
-          {!isReadOnly && <button onClick={() => { setEditingId(null); setFormData({ number: '', title: '' }); setValidationError(false); setShowForm(true); }} className="flex-1 sm:flex-none bg-indigo-600 text-white px-6 py-2 rounded font-bold">Cadastrar Novo</button>}
+          <button onClick={() => navigate('hymn_notebook_report', notebook)} className="flex-1 sm:flex-none bg-white text-indigo-600 border-2 border-indigo-100 px-7 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-indigo-50 transition-all">Relatório</button>
+          {!isReadOnly && <button onClick={() => { setEditingId(null); setFormData({ number: '', title: '' }); setValidationError(false); setShowForm(true); }} className="flex-1 sm:flex-none bg-indigo-600 text-white px-7 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Cadastrar Novo</button>}
         </div>
       </div>
       {hymnToDelete && (
@@ -3290,7 +3298,10 @@ const HymnListScreen = ({ goBack, onCreate, onEdit, ownerEmail, isReadOnly, onEx
           </div>
         </div>
       )}
-      <div className="flex justify-between items-center mb-6"><h2 className="text-lg font-semibold">Histórico</h2>{!isReadOnly && <button onClick={onCreate} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold shadow">Nova Lista</button>}</div>
+      <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
+        <h2 className="text-base font-bold text-indigo-900">Histórico de Programas</h2>
+        {!isReadOnly && <button onClick={onCreate} className="bg-indigo-600 text-white px-7 py-3 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Nova Lista</button>}
+      </div>
       <div className="space-y-4">
         {lists.sort((a,b) => b.date.localeCompare(a.date)).map(l => (
           <div key={l.id} className="bg-white p-4 rounded shadow flex justify-between items-center hover:bg-gray-50 transition-colors">
