@@ -27,11 +27,11 @@
   border-radius: 10px;
 }
 .custom-scrollbar-heavy::-webkit-scrollbar-thumb {
-  background: #6366f1;
+  background: #3b82f6;
   border-radius: 10px;
 }
 .custom-scrollbar-heavy::-webkit-scrollbar-thumb:hover {
-  background: #4f46e5;
+  background: #2563eb;
 }
 
 .quill-content .ql-align-center {

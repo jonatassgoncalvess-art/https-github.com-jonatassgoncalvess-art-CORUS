@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -98,6 +98,17 @@ type Conductor = {
   registry_number: string;
   created_at?: string;
   owner_email?: string;
+};
+
+type CalendarEvent = {
+  id: string;
+  user_email: string;
+  title: string;
+  description: string;
+  event_type: 'Ensaio' | 'Reunião' | 'Reunião de Oração' | 'Reunião Festiva' | 'Aprimoramento';
+  start_time: string;
+  end_time?: string;
+  created_at?: string;
 };
 
 type Instrument = {
@@ -457,22 +468,22 @@ const Layout = ({ children, title, onBack, onLogout: propLogout, isReadOnly, onP
             </div>
           </div>
         )}
-        <header className="bg-indigo-700 text-white p-4 shadow-md">
+        <header className="bg-blue-700 text-white p-4 shadow-md">
           <div className={`mx-auto flex items-center justify-between ${widthClass}`}>
             <div className="flex items-center gap-3">
               {onBack && (
-                <button onClick={onBack} className="p-1 hover:bg-indigo-600 rounded cursor-pointer">
+                <button onClick={onBack} className="p-1 hover:bg-blue-600 rounded cursor-pointer">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 </button>
               )}
               <h1 className="text-xl font-bold">{title}</h1>
             </div>
             <div className="flex items-center gap-4">
-              {isReadOnly && <span className="bg-yellow-400 text-indigo-900 text-[10px] font-black px-2 py-0.5 rounded uppercase">Somente Leitura</span>}
+              {isReadOnly && <span className="bg-yellow-400 text-blue-900 text-[10px] font-black px-2 py-0.5 rounded uppercase">Somente Leitura</span>}
               <div className="text-sm opacity-80 hidden sm:block">CORUS - Gestor de Corais Apostólicos</div>
               <div className="flex items-center gap-2">
                 {onProfileClick && (
-                  <button onClick={onProfileClick} className="p-1 hover:bg-indigo-600 rounded cursor-pointer" title="Meu Perfil">
+                  <button onClick={onProfileClick} className="p-1 hover:bg-blue-600 rounded cursor-pointer" title="Meu Perfil">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                   </button>
                 )}
@@ -495,7 +506,7 @@ const Layout = ({ children, title, onBack, onLogout: propLogout, isReadOnly, onP
 
 const MenuCard = ({ title, desc, icon, onClick }: any) => (
   <button onClick={onClick} className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100 flex flex-col items-center text-center gap-4 w-full h-full">
-    <div className="text-indigo-600 bg-indigo-50 p-4 rounded-full">{icon}</div>
+    <div className="text-blue-600 bg-blue-50 p-4 rounded-full">{icon}</div>
     <div>
       <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
       <p className="text-gray-500 text-sm mt-1">{desc}</p>
@@ -503,7 +514,7 @@ const MenuCard = ({ title, desc, icon, onClick }: any) => (
   </button>
 );
 
-const ConfirmationModal = ({ title, message, onConfirm, onCancel, confirmText = "Confirmar", confirmColor = "bg-indigo-600" }: any) => {
+const ConfirmationModal = ({ title, message, onConfirm, onCancel, confirmText = "Confirmar", confirmColor = "bg-blue-600" }: any) => {
   useEscapeKey(onCancel, [onCancel]);
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[400] backdrop-blur-sm animate-fade-in">
@@ -525,6 +536,7 @@ const HomeScreen = ({ navigate, onLogout, isReadOnly, isAdmin, onProfileClick, o
   <Layout title="Menu Principal" onLogout={onLogout} isReadOnly={isReadOnly} onProfileClick={onProfileClick} onExitImpersonation={onExitImpersonation}>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
       {isAdmin && !onExitImpersonation && <MenuCard title="Painel Admin" desc="Gerenciar Usuários e Acessos" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>} onClick={() => navigate('admin_menu')} />}
+      <MenuCard title="Calendário" desc="Ensaios e Reuniões" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>} onClick={() => navigate('calendar')} />
       <MenuCard title="Componentes" desc="Músicos e Instrumentos" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>} onClick={() => navigate('components')} />
       <MenuCard title="Presença" desc="Chamadas e Histórico" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>} onClick={() => navigate('attendance')} />
       <MenuCard title="Biblioteca de Hinos" desc="Cadastro por Caderno" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>} onClick={() => navigate('hymns_library')} />
@@ -534,6 +546,848 @@ const HomeScreen = ({ navigate, onLogout, isReadOnly, isAdmin, onProfileClick, o
     </div>
   </Layout>
 );
+
+const getBrazilianHolidays = (year: number) => {
+  const holidays: Record<string, string> = {
+    [`${year}-01-01`]: "Confraternização Universal",
+    [`${year}-04-21`]: "Tiradentes",
+    [`${year}-05-01`]: "Dia do Trabalho",
+    [`${year}-09-07`]: "Independência do Brasil",
+    [`${year}-10-12`]: "Nossa Senhora Aparecida",
+    [`${year}-11-02`]: "Finados",
+    [`${year}-11-15`]: "Proclamação da República",
+    [`${year}-11-20`]: "Dia de Zumbi e da Consciência Negra",
+    [`${year}-12-25`]: "Natal",
+  };
+
+  // Calculate Easter (Gauss algorithm)
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  
+  const easter = new Date(year, month - 1, day);
+  
+  const addDate = (base: Date, days: number, name: string) => {
+    const dt = new Date(base);
+    dt.setDate(dt.getDate() + days);
+    const str = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    holidays[str] = name;
+  };
+
+  addDate(easter, -47, "Carnaval");
+  addDate(easter, -2, "Sexta-feira Santa");
+  addDate(easter, 0, "Páscoa");
+  addDate(easter, 60, "Corpus Christi");
+
+  return holidays;
+};
+
+const CalendarPreviewModal = ({ events, startDate, endDate, exportType, onClose, onDownload }: { events: CalendarEvent[], startDate: string, endDate: string, exportType: string, onClose: () => void, onDownload: () => void }) => {
+  const monthNamesPT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  
+  // Group events by Month/Year
+  const groupedEvents: Record<string, CalendarEvent[]> = {};
+  events.forEach(event => {
+    const d = new Date(event.start_time);
+    const key = `${monthNamesPT[d.getMonth()]} de ${d.getFullYear()}`;
+    if (!groupedEvents[key]) groupedEvents[key] = [];
+    groupedEvents[key].push(event);
+  });
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl h-[95vh] flex flex-col overflow-hidden relative animate-zoom-in">
+        <div className="p-4 border-b flex justify-between items-center bg-gray-50 shrink-0">
+          <div>
+            <h3 className="text-base font-black text-black uppercase tracking-widest leading-none">Pré-visualização do Calendário</h3>
+            <p className="text-[10px] text-black uppercase mt-1 font-bold">Verifique os dados abaixo antes de gerar o arquivo</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onDownload} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-200">
+              Gerar e Baixar PDF
+            </button>
+            <button onClick={onClose} className="p-2 text-black hover:text-red-500 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex-1 bg-gray-100 overflow-y-auto p-4 sm:p-8 flex justify-center">
+          {/* Simulated PDF Page */}
+          <div className="bg-white w-full max-w-[800px] min-h-full shadow-lg p-10 sm:p-14 font-sans text-black">
+            <div className="text-center mb-12">
+              <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Calendário de Eventos</h1>
+              <div className="flex flex-col gap-1 mt-3 text-[11px] text-black font-bold uppercase tracking-widest">
+                <p>Período: {new Date(`${startDate}T00:00:00`).toLocaleDateString()} a {new Date(`${endDate}T00:00:00`).toLocaleDateString()}</p>
+                <p>Filtro: {exportType}</p>
+              </div>
+            </div>
+
+            {Object.entries(groupedEvents).map(([monthYear, monthEvents]) => (
+              <div key={monthYear} className="mb-10">
+                <h2 className="text-lg font-black text-black uppercase tracking-widest border-b-4 border-black/10 pb-1 mb-6">{monthYear}</h2>
+                <div className="flex flex-col gap-4">
+                  {monthEvents.map((event, idx) => {
+                    const dateObj = new Date(event.start_time);
+                    const day = String(dateObj.getDate()).padStart(2, '0');
+                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const weekday = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][dateObj.getDay()];
+                    const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                    const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+                    const holidayName = getBrazilianHolidays(dateObj.getFullYear())[dateStr];
+                    const dayOfWeekIdx = dateObj.getDay();
+                    const isWeekend = dayOfWeekIdx === 0 || dayOfWeekIdx === 6;
+
+                    return (
+                      <div key={event.id} className="flex items-baseline gap-6 border-b border-gray-100 pb-3">
+                        <div className="w-40 shrink-0">
+                          <p className={`text-[13px] font-black ${
+                            holidayName ? 'text-red-600' : isWeekend ? 'text-blue-600' : 'text-black'
+                          }`}>
+                            {day}/{month} ({weekday}){holidayName ? ` - ${holidayName}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-[14px] font-bold text-black">{timeStr} - {event.title}</p>
+                        </div>
+                        <div className="shrink-0">
+                          <p className="text-[10px] font-black text-white uppercase tracking-tighter bg-black px-3 py-1 rounded-full">{event.event_type}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }: any) => {
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedDayData, setSelectedDayData] = useState<{ date: string, events: CalendarEvent[], holiday: string | null } | null>(null);
+
+  // Form states
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState<CalendarEvent['event_type']>('Ensaio');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+
+  // PDF Export states
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
+  const [exportType, setExportType] = useState('Todos');
+  const [filteredEventsForPreview, setFilteredEventsForPreview] = useState<CalendarEvent[] | null>(null);
+
+  // New Pickers states
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [showYearPicker, setShowYearPicker] = useState(false);
+  const [pickerYear, setPickerYear] = useState(currentDate.getFullYear());
+
+  useEffect(() => {
+    fetchEvents();
+  }, [ownerEmail]);
+
+  const fetchEvents = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('gca_calendar_events')
+        .select('*')
+        .eq('user_email', ownerEmail)
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+      setEvents(data || []);
+    } catch (err) {
+      console.error('Erro ao buscar eventos:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveEvent = async () => {
+    if (!title || !date || !time) return alert('Título, data e horário são obrigatórios.');
+
+    const startTimeFormatted = `${date}T${time}:00`;
+
+    try {
+      if (selectedEvent) {
+        const { error } = await supabase
+          .from('gca_calendar_events')
+          .update({
+            title,
+            description,
+            event_type: type,
+            start_time: startTimeFormatted
+          })
+          .eq('id', selectedEvent.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('gca_calendar_events')
+          .insert({
+            user_email: ownerEmail,
+            title,
+            description,
+            event_type: type,
+            start_time: startTimeFormatted
+          });
+        if (error) throw error;
+      }
+      setShowEventModal(false);
+      resetForm();
+      fetchEvents();
+    } catch (err) {
+      console.error('Erro ao salvar evento:', err);
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!confirm('Deseja excluir este evento?')) return;
+    try {
+      const { error } = await supabase.from('gca_calendar_events').delete().eq('id', id);
+      if (error) throw error;
+      fetchEvents();
+      setShowEventModal(false);
+    } catch (err) {
+      console.error('Erro ao excluir evento:', err);
+    }
+  };
+
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setType('Ensaio');
+    setDate('');
+    setTime('');
+    setSelectedEvent(null);
+  };
+
+  const generatePDF = (preview: boolean = true) => {
+    if (!exportStartDate || !exportEndDate) return alert('Selecione a data de Início e Fim para gerar o PDF.');
+
+    console.log('Filtro solicitado:', { exportStartDate, exportEndDate, exportType });
+    console.log('Total de eventos no sistema:', events.length);
+
+    // Normalizing filter dates to local dates
+    const start = new Date(`${exportStartDate}T00:00:00`);
+    const end = new Date(`${exportEndDate}T23:59:59`);
+
+    const filtered = events.filter(e => {
+      const eDate = new Date(e.start_time);
+      const matchesPeriod = eDate >= start && eDate <= end;
+      const matchesType = exportType === 'Todos' || e.event_type === exportType;
+      return matchesPeriod && matchesType;
+    });
+
+    console.log('Eventos após filtragem:', filtered.length);
+
+    if (filtered.length === 0) {
+      if (events.length === 0) {
+        return alert('Você ainda não possui nenhum evento agendado.');
+      }
+      return alert(`Nenhum evento encontrado no período de ${new Date(`${exportStartDate}T00:00:00`).toLocaleDateString()} a ${new Date(`${exportEndDate}T00:00:00`).toLocaleDateString()} para o filtro selecionado.`);
+    }
+
+    // Sort by date
+    const sorted = [...filtered].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
+    console.log('Generating PDF for filtered events:', sorted);
+
+    if (preview) {
+      setFilteredEventsForPreview(sorted);
+      setShowExportModal(false); 
+    } else {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      doc.setFontSize(26);
+      doc.setTextColor(0, 0, 0); 
+      doc.setFont('helvetica', 'bold');
+      doc.text('CALENDÁRIO DE EVENTOS', pageWidth / 2, 25, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0); 
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Período: ${new Date(`${exportStartDate}T00:00:00`).toLocaleDateString()} a ${new Date(`${exportEndDate}T00:00:00`).toLocaleDateString()}`, pageWidth / 2, 35, { align: 'center' });
+      doc.text(`Filtro: ${exportType}`, pageWidth / 2, 42, { align: 'center' });
+
+      let currentY = 55;
+      let currentMonthYear = '';
+      const monthNamesPT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+      sorted.forEach((event, index) => {
+        const dateObj = new Date(event.start_time);
+        const monthYear = `${monthNamesPT[dateObj.getMonth()]} de ${dateObj.getFullYear()}`;
+
+        if (currentY > 260) {
+          doc.addPage();
+          currentY = 25;
+        }
+
+        if (monthYear !== currentMonthYear) {
+          if (index > 0) currentY += 15;
+          doc.setFontSize(18);
+          doc.setTextColor(0, 0, 0);
+          doc.setFont('helvetica', 'bold');
+          doc.text(monthYear.toUpperCase(), 14, currentY);
+          currentY += 10;
+          doc.setDrawColor(0, 0, 0);
+          doc.setLineWidth(0.5);
+          doc.line(14, currentY - 8, pageWidth - 14, currentY - 8);
+          currentMonthYear = monthYear;
+        }
+
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const dayOfWeekIdx = dateObj.getDay();
+        const weekday = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][dayOfWeekIdx];
+        const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        // Calculate holiday for this date
+        const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+        const holidayName = getBrazilianHolidays(dateObj.getFullYear())[dateStr];
+        const isWeekend = dayOfWeekIdx === 0 || dayOfWeekIdx === 6;
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        
+        if (holidayName) {
+          doc.setTextColor(220, 38, 38); // Red-600
+        } else if (isWeekend) {
+          doc.setTextColor(37, 99, 235); // Blue-600
+        } else {
+          doc.setTextColor(0, 0, 0); // Black
+        }
+
+        doc.text(`${day}/${String(dateObj.getMonth() + 1).padStart(2, '0')} (${weekday})${holidayName ? ` - ${holidayName}` : ''}`, 14, currentY);
+        
+        doc.setTextColor(0, 0, 0); // Reset for content
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${timeStr} - ${event.title}`, 70, currentY);
+        
+        doc.setFontSize(10);
+        doc.text(event.event_type.toUpperCase(), pageWidth - 14, currentY, { align: 'right' });
+
+        currentY += 10;
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.1);
+        doc.line(14, currentY - 2, pageWidth - 14, currentY - 2);
+      });
+
+      doc.save(`Calendario_${exportStartDate}_${exportEndDate}.pdf`);
+    }
+  };
+
+  const daysInMonth = (month: number, year: number) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (month: number, year: number) => new Date(year, month, 1).getDay();
+
+  const renderCalendar = () => {
+    const month = currentDate.getMonth();
+    const year = currentDate.getFullYear();
+    const days = daysInMonth(month, year);
+    const firstDay = firstDayOfMonth(month, year);
+    
+    const calendarDays = [];
+    for (let i = 0; i < firstDay; i++) {
+      calendarDays.push(<div key={`empty-${i}`} className="h-24 border border-gray-100 bg-gray-50/50"></div>);
+    }
+    
+    for (let d = 1; d <= days; d++) {
+      const monthStr = String(month + 1).padStart(2, '0');
+      const dayStr = String(d).padStart(2, '0');
+      const dayDateString = `${year}-${monthStr}-${dayStr}`;
+      const dayEvents = events.filter(e => e.start_time.startsWith(dayDateString));
+      const holidayName = currentHolidays[dayDateString];
+      const dayOfWeek = new Date(year, month, d).getDay(); // 0 = Sun, 6 = Sat
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      
+      calendarDays.push(
+        <div 
+          key={d} 
+          onClick={() => setSelectedDayData({
+            date: dayDateString,
+            events: dayEvents.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()),
+            holiday: holidayName || null
+          })}
+          className="h-28 border border-gray-100 p-2 overflow-y-auto hover:bg-blue-50/40 transition-all group relative cursor-pointer"
+          title={holidayName ? `Feriado: ${holidayName}` : ""}
+        >
+          <div className="flex justify-between items-start pointer-events-none">
+            <span className={`text-[14px] font-black ${
+              holidayName ? 'text-red-600' : 
+              isWeekend ? 'text-blue-600' : 
+              'text-black'
+            }`}>
+              {d}
+            </span>
+            {holidayName && (
+              <span className="text-[7px] font-black text-red-500 uppercase tracking-tighter leading-none text-right w-1/2">
+                {holidayName}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col gap-1 mt-1 pointer-events-none">
+            {dayEvents.map(e => (
+              <div 
+                key={e.id} 
+                className={`text-[10px] p-2 rounded-lg font-black truncate uppercase shadow-sm ${
+                  e.event_type === 'Ensaio' ? 'bg-blue-100 text-blue-900' :
+                  e.event_type === 'Reunião' ? 'bg-emerald-100 text-emerald-900' :
+                  e.event_type === 'Reunião de Oração' ? 'bg-purple-100 text-purple-900' :
+                  e.event_type === 'Reunião Festiva' ? 'bg-amber-100 text-amber-900' :
+                  'bg-rose-100 text-rose-900'
+                }`}
+              >
+                {new Date(e.start_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} {e.title}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    
+    return calendarDays;
+  };
+
+  const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+  const currentHolidays = useMemo(() => getBrazilianHolidays(currentDate.getFullYear()), [currentDate]);
+
+  // Unique years list for Year Picker (Extended range)
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    const currentY = new Date().getFullYear();
+    // Margin of 10 years back and forward
+    for (let i = currentY - 10; i <= currentY + 10; i++) {
+      years.add(i);
+    }
+    // Plus from events
+    events.forEach(e => {
+      years.add(new Date(e.start_time).getFullYear());
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [events]);
+
+  return (
+    <Layout title="Calendário" onBack={goBack} onExitImpersonation={onExitImpersonation}>
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mt-4">
+        <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4 border-b">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1 mr-2">
+              <button 
+                onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))}
+                className="p-3 hover:bg-gray-100 rounded-xl transition-colors text-black"
+                title="Mês Anterior"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button 
+                onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))}
+                className="p-3 hover:bg-gray-100 rounded-xl transition-colors text-black"
+                title="Próximo Mês"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => {
+                  setPickerYear(currentDate.getFullYear());
+                  setShowMonthPicker(true);
+                }}
+                className="text-2xl font-black text-black uppercase tracking-widest hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                {monthNames[currentDate.getMonth()]}
+              </button>
+              <button 
+                onClick={() => setShowYearPicker(true)}
+                className="text-2xl font-black text-black uppercase tracking-widest hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                {currentDate.getFullYear()}
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setShowExportModal(true)}
+              className="px-6 py-3 bg-gray-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-gray-700 transition-all flex items-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              PDF
+            </button>
+            {!isReadOnly && (
+              <button 
+                onClick={() => { resetForm(); setShowEventModal(true); }}
+                className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-blue-700 transition-all flex items-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Agendar
+              </button>
+            )}
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-7 text-[12px] font-black uppercase text-black bg-gray-50/50 border-b">
+          {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map(d => (
+            <div key={d} className="p-4 text-center">{d}</div>
+          ))}
+        </div>
+        
+        <div className="grid grid-cols-7 text-sm">
+          {renderCalendar()}
+        </div>
+      </div>
+
+      {/* Month Picker Modal */}
+      {/* Day Details Modal */}
+      {selectedDayData && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedDayData(null)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative p-8 animate-zoom-in max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-start mb-6 border-b pb-4">
+              <div>
+                <h3 className="text-3xl font-black text-black">
+                  {new Date(`${selectedDayData.date}T12:00:00`).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </h3>
+                {selectedDayData.holiday && (
+                  <p className="text-red-600 font-black uppercase text-xs tracking-widest mt-1 italic flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Feriado: {selectedDayData.holiday}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setSelectedDayData(null)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+              {selectedDayData.events.length === 0 ? (
+                <div className="py-12 text-center text-gray-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 opacity-20"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  <p className="font-bold uppercase text-[10px] tracking-widest">Nenhum evento para este dia</p>
+                </div>
+              ) : (
+                selectedDayData.events.map(e => (
+                  <button 
+                    key={e.id}
+                    onClick={() => {
+                      setSelectedEvent(e);
+                      setTitle(e.title);
+                      setDescription(e.description);
+                      setType(e.event_type);
+                      setDate(e.start_time.split('T')[0]);
+                      setTime(e.start_time.split('T')[1].substring(0, 5));
+                      setShowEventModal(true);
+                      setSelectedDayData(null);
+                    }}
+                    className="w-full text-left p-6 bg-gray-50 border border-gray-100 rounded-2xl hover:bg-white hover:shadow-xl hover:-translate-y-1 transition-all group"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[12px] font-black text-black">
+                          {new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <h4 className="text-xl font-black text-black mt-1 uppercase leading-none">{e.title}</h4>
+                        {e.description && <p className="text-[11px] text-gray-500 mt-3 font-medium line-clamp-2">{e.description}</p>}
+                      </div>
+                      <span className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                        e.event_type === 'Ensaio' ? 'bg-blue-600 text-white' :
+                        e.event_type === 'Reunião' ? 'bg-emerald-600 text-white' :
+                        e.event_type === 'Reunião de Oração' ? 'bg-purple-600 text-white' :
+                        e.event_type === 'Reunião Festiva' ? 'bg-amber-600 text-white' :
+                        'bg-rose-600 text-white'
+                      }`}>
+                        {e.event_type}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="mt-8 pt-6 border-t flex flex-col gap-3">
+              {!isReadOnly && (
+                <button 
+                  onClick={() => {
+                    resetForm();
+                    setDate(selectedDayData.date);
+                    setShowEventModal(true);
+                    setSelectedDayData(null);
+                  }}
+                  className="w-full p-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Adicionar Evento
+                </button>
+              )}
+              <button 
+                onClick={() => setSelectedDayData(null)}
+                className="w-full p-4 bg-gray-100 text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMonthPicker && (
+        <div className="fixed inset-0 z-[1300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMonthPicker(false)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative p-8 animate-zoom-in">
+            <div className="flex justify-between items-center mb-8 border-b pb-4">
+              <h3 className="text-xl font-black text-black">SELECIONAR MÊS</h3>
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setPickerYear(prev => prev - 1)}
+                  className="p-2 hover:bg-gray-100 rounded-lg text-black"
+                >
+                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <span className="font-black text-lg text-black">{pickerYear}</span>
+                <button 
+                  onClick={() => setPickerYear(prev => prev + 1)}
+                  className="p-2 hover:bg-gray-100 rounded-lg text-black"
+                >
+                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {monthNames.map((m, idx) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setCurrentDate(new Date(pickerYear, idx, 1));
+                    setShowMonthPicker(false);
+                  }}
+                  className={`p-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${
+                    currentDate.getMonth() === idx && currentDate.getFullYear() === pickerYear
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'hover:bg-gray-100 text-black'
+                  }`}
+                >
+                  {m.substring(0, 3)}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={() => setShowMonthPicker(false)}
+              className="w-full mt-8 p-4 bg-gray-100 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Year Picker Modal */}
+      {showYearPicker && (
+        <div className="fixed inset-0 z-[1300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowYearPicker(false)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm relative p-8 animate-zoom-in">
+            <h3 className="text-xl font-black text-black mb-8 border-b pb-4">SELECIONAR ANO</h3>
+            <div className="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+              {availableYears.map(y => (
+                <button
+                  key={y}
+                  onClick={() => {
+                    setCurrentDate(new Date(y, currentDate.getMonth(), 1));
+                    setShowYearPicker(false);
+                  }}
+                  className={`p-4 rounded-xl font-black text-sm transition-all ${
+                    currentDate.getFullYear() === y
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'hover:bg-gray-100 text-black'
+                  }`}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={() => setShowYearPicker(false)}
+              className="w-full mt-8 p-4 bg-gray-100 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showEventModal && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEventModal(false)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative p-8 animate-zoom-in">
+            <h3 className="text-xl font-black text-black uppercase tracking-widest mb-6 border-b pb-4">
+              {selectedEvent ? 'Editar Evento' : 'Novo Evento'}
+            </h3>
+            <div className="space-y-4">
+              <label className="block">
+                <span className="text-[11px] font-black uppercase text-black block mb-1">Título do Evento</span>
+                <input 
+                  type="text" 
+                  value={title} 
+                  onChange={e => setTitle(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all text-black"
+                  placeholder="Ex: Ensaio de Sopros"
+                />
+              </label>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block">
+                  <span className="text-[11px] font-black uppercase text-black block mb-1">Data</span>
+                  <input 
+                    type="date" 
+                    value={date} 
+                    onChange={e => setDate(e.target.value)}
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all text-sm text-black"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] font-black uppercase text-black block mb-1">Horário</span>
+                  <input 
+                    type="time" 
+                    value={time} 
+                    onChange={e => setTime(e.target.value)}
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all text-sm text-black"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="text-[11px] font-black uppercase text-black block mb-1">Tipo de Evento</span>
+                <select 
+                  value={type} 
+                  onChange={e => setType(e.target.value as any)}
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all appearance-none text-sm text-black"
+                >
+                  <option value="Ensaio">Ensaio</option>
+                  <option value="Reunião">Reunião</option>
+                  <option value="Reunião de Oração">Reunião de Oração</option>
+                  <option value="Reunião Festiva">Reunião Festiva</option>
+                  <option value="Aprimoramento">Aprimoramento</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-[11px] font-black uppercase text-black block mb-1">Observações (Opcional)</span>
+                <textarea 
+                  value={description} 
+                  onChange={e => setDescription(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all h-24 text-sm text-black"
+                  placeholder="Detalhes adicionais..."
+                />
+              </label>
+            </div>
+
+            <div className="flex gap-3 mt-8 pt-6 border-t">
+              <button 
+                onClick={() => setShowEventModal(false)}
+                className="flex-1 px-6 py-4 bg-gray-100 text-gray-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all"
+              >
+                Cancelar
+              </button>
+              {selectedEvent && (
+                <button 
+                  onClick={() => handleDeleteEvent(selectedEvent.id)}
+                  className="p-4 bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-100 transition-all"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                </button>
+              )}
+              <button 
+                onClick={handleSaveEvent}
+                className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
+              >
+                {selectedEvent ? 'Salvar' : 'Agendar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExportModal && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setShowExportModal(false)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm relative p-8 animate-fade-in-up">
+            <h3 className="text-xl font-black text-gray-900 uppercase tracking-widest mb-6 border-b pb-4">Gerar PDF</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block">
+                  <span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Início</span>
+                  <input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="w-full p-4 bg-gray-50 border rounded-2xl font-bold text-xs" />
+                </label>
+                <label className="block">
+                  <span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Fim</span>
+                  <input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="w-full p-4 bg-gray-50 border rounded-2xl font-bold text-xs" />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Filtrar por Tipo</span>
+                <select 
+                  value={exportType} 
+                  onChange={e => setExportType(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border rounded-2xl font-bold text-xs appearance-none"
+                >
+                  <option value="Todos">Todos os Tipos</option>
+                  <option value="Ensaio">Ensaio</option>
+                  <option value="Reunião">Reunião</option>
+                  <option value="Reunião de Oração">Reunião de Oração</option>
+                  <option value="Reunião Festiva">Reunião Festiva</option>
+                  <option value="Aprimoramento">Aprimoramento</option>
+                </select>
+              </label>
+            </div>
+            
+            <div className="flex gap-3 mt-8">
+              <button onClick={() => setShowExportModal(false)} className="flex-1 p-4 bg-gray-100 text-gray-600 rounded-2xl font-black text-[10px] uppercase tracking-widest">Cancelar</button>
+              <button onClick={() => generatePDF(true)} className="flex-1 p-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-md">Visualizar PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {filteredEventsForPreview && (
+        <CalendarPreviewModal 
+          events={filteredEventsForPreview}
+          startDate={exportStartDate}
+          endDate={exportEndDate}
+          exportType={exportType}
+          onClose={() => setFilteredEventsForPreview(null)} 
+          onDownload={() => { 
+            generatePDF(false); 
+            setFilteredEventsForPreview(null); 
+          }} 
+        />
+      )}
+    </Layout>
+  );
+};
 
 const DataManagementScreen = ({ onBackupJSON, isExportingJSON, onBackupCSV, isExportingCSV, onImportJSON, onImportCSV, goBack, isReadOnly, onExitImpersonation, canExportBackups }: any) => {
   const jsonInputRef = useRef<HTMLInputElement>(null);
@@ -557,7 +1411,7 @@ const DataManagementScreen = ({ onBackupJSON, isExportingJSON, onBackupCSV, isEx
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto mt-8">
         {/* Export Section */}
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6 relative overflow-hidden">
-          <h2 className="text-xl font-black text-indigo-900 uppercase tracking-widest border-b pb-4">Exportar Dados</h2>
+          <h2 className="text-xl font-black text-blue-900 uppercase tracking-widest border-b pb-4">Exportar Dados</h2>
           <p className="text-gray-500 text-sm italic">
             {canExportBackups ? "Baixe o backup completo do sistema (Acesso Master)." : "Baixe seus dados para backup ou uso em Excel."}
           </p>
@@ -565,7 +1419,7 @@ const DataManagementScreen = ({ onBackupJSON, isExportingJSON, onBackupCSV, isEx
           <button 
             onClick={onBackupJSON} 
             disabled={isExportingJSON}
-            className="w-full flex items-center justify-between p-4 bg-indigo-50 text-indigo-700 rounded-xl font-bold hover:bg-indigo-100 transition-all active:scale-95 disabled:opacity-50"
+            className="w-full flex items-center justify-between p-4 bg-blue-50 text-blue-700 rounded-xl font-bold hover:bg-blue-100 transition-all active:scale-95 disabled:opacity-50"
           >
             <div className="flex items-center gap-3">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -588,7 +1442,7 @@ const DataManagementScreen = ({ onBackupJSON, isExportingJSON, onBackupCSV, isEx
 
         {/* Import Section */}
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
-          <h2 className="text-xl font-black text-indigo-900 uppercase tracking-widest border-b pb-4">Importar Dados</h2>
+          <h2 className="text-xl font-black text-blue-900 uppercase tracking-widest border-b pb-4">Importar Dados</h2>
           <p className="text-gray-500 text-sm italic">Restaure um backup ou adicione novos registros.</p>
 
           <div className="space-y-4">
@@ -597,7 +1451,7 @@ const DataManagementScreen = ({ onBackupJSON, isExportingJSON, onBackupCSV, isEx
               <button 
                 onClick={() => jsonInputRef.current?.click()}
                 disabled={isReadOnly}
-                className="w-full flex items-center gap-3 p-4 border-2 border-dashed border-gray-200 rounded-xl font-bold text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition-all disabled:opacity-50"
+                className="w-full flex items-center gap-3 p-4 border-2 border-dashed border-gray-200 rounded-xl font-bold text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-all disabled:opacity-50"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 <span>Selecionar Backup (.json)</span>
@@ -657,13 +1511,13 @@ const MusicianReportSelectionScreen = ({ navigate, goBack, onExitImpersonation }
       <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 max-w-md mx-auto mt-12 space-y-6">
         <div>
           <label className="block text-sm font-black text-gray-700 uppercase tracking-widest mb-4">Tipo de Relatório</label>
-          <select className="w-full border-2 border-gray-100 rounded-lg p-3 text-lg font-medium focus:border-indigo-500 outline-none transition-colors" value={type} onChange={e => setType(e.target.value)}>
+          <select className="w-full border-2 border-gray-100 rounded-lg p-3 text-lg font-medium focus:border-blue-500 outline-none transition-colors" value={type} onChange={e => setType(e.target.value)}>
             <option value="Geral em Ordem Alfabética">Geral em Ordem Alfabética</option>
             <option value="Por Voz">Por Voz</option>
             <option value="Por Instrumento">Por Instrumento</option>
           </select>
         </div>
-        <button onClick={handleGenerate} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">Visualizar Relatório</button>
+        <button onClick={handleGenerate} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all">Visualizar Relatório</button>
       </div>
     </Layout>
   );
@@ -684,7 +1538,7 @@ const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
         <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 active:scale-95 transition-all font-bold">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('instruments-report-view', `relatorio-instrumentos.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('instruments-report-view', `relatorio-instrumentos.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
+          <button onClick={() => downloadPDF('instruments-report-view', `relatorio-instrumentos.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
       <div id="instruments-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
@@ -737,7 +1591,7 @@ const MusiciansReportScreen = ({ goBack, ownerEmail }: any) => {
         <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 active:scale-95 transition-all font-bold">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('musician-report-alpha', `musicos-alfabetico.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('musician-report-alpha', `musicos-alfabetico.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
+          <button onClick={() => downloadPDF('musician-report-alpha', `musicos-alfabetico.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
       <div id="musician-report-alpha" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
@@ -780,7 +1634,7 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
         <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('musician-report-voice', `musicos-por-voz.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('musician-report-voice', `musicos-por-voz.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
+          <button onClick={() => downloadPDF('musician-report-voice', `musicos-por-voz.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
       <div id="musician-report-voice" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
@@ -825,14 +1679,14 @@ const MusiciansInstrumentReportScreen = ({ goBack, ownerEmail }: any) => {
         <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('musician-report-instrument', `musicos-por-instrumento.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('musician-report-instrument', `musicos-por-instrumento.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
+          <button onClick={() => downloadPDF('musician-report-instrument', `musicos-por-instrumento.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
       <div id="musician-report-instrument" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Integrantes por Instrumento</h2>
-          <div className="mt-4 text-xs font-bold uppercase italic text-gray-500 border-indigo-900 border-t pt-2">Total: {musicians.length} Integrantes</div>
+        <div className="text-center border-b-4 border-double border-blue-900 pb-6 mb-8">
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-blue-900">Igreja Apostólica</h1>
+          <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Integrantes por Instrumento</h2>
+          <div className="mt-4 text-xs font-bold uppercase italic text-gray-500 border-blue-900 border-t pt-2">Total: {musicians.length} Integrantes</div>
         </div>
 
         <div style={{ columns: '2', columnGap: '30px' }}>
@@ -841,7 +1695,7 @@ const MusiciansInstrumentReportScreen = ({ goBack, ownerEmail }: any) => {
             if (members.length === 0) return null;
             return (
               <div key={inst.id} className="mb-6 break-inside-avoid">
-                <h3 className="bg-indigo-900 text-white px-3 py-1 font-black uppercase text-[10px] mb-2 rounded-sm">{inst.name} ({members.length})</h3>
+                <h3 className="bg-blue-900 text-white px-3 py-1 font-black uppercase text-[10px] mb-2 rounded-sm">{inst.name} ({members.length})</h3>
                 <div className="space-y-1">
                   {members.map(m => (
                     <div key={m.id} className="text-[10px] font-bold text-gray-700 border-b border-gray-100 py-1 uppercase truncate">{m.name}</div>
@@ -892,7 +1746,7 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
         <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('attendance-report-view', `relatorio-presenca.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('attendance-report-view', `relatorio-presenca.pdf`, 'landscape')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
+          <button onClick={() => downloadPDF('attendance-report-view', `relatorio-presenca.pdf`, 'landscape')} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
       <div id="attendance-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[297mm] min-h-[210mm]">
@@ -1014,14 +1868,14 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
         <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('attendance-perc-view', `percentual-participacao.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('attendance-perc-view', `percentual-participacao.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
+          <button onClick={() => downloadPDF('attendance-perc-view', `percentual-participacao.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
       <div id="attendance-perc-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-4 border-double border-indigo-900 pb-6 mb-8">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-indigo-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-2 bg-indigo-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Participação Proporcional</h2>
-          <div className="mt-4 text-[10px] font-bold uppercase italic text-gray-500 border-indigo-900 border-t pt-2 flex justify-between">
+        <div className="text-center border-b-4 border-double border-blue-900 pb-6 mb-8">
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-blue-900">Igreja Apostólica</h1>
+          <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Participação Proporcional</h2>
+          <div className="mt-4 text-[10px] font-bold uppercase italic text-gray-500 border-blue-900 border-t pt-2 flex justify-between">
             <span>Período: {new Date(reportData.s + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(reportData.e + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
             <span>Grupo: {reportData.g || 'Geral'}</span>
             <span>Chamadas: {totalCallsInPeriod}</span>
@@ -1030,12 +1884,12 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
 
         <table className="w-full border-collapse">
             <thead>
-                <tr className="bg-indigo-900 text-white text-left uppercase font-black text-[9px]">
-                    <th className="px-3 py-2 border border-indigo-800">Nome do Componente</th>
-                    <th className="px-3 py-2 border border-indigo-800 text-center">Pres.</th>
-                    <th className="px-3 py-2 border border-indigo-800 text-center">Just.</th>
-                    <th className="px-3 py-2 border border-indigo-800 text-center">AUS.</th>
-                    <th className="px-3 py-2 border border-indigo-800 text-right">Frequência</th>
+                <tr className="bg-blue-900 text-white text-left uppercase font-black text-[9px]">
+                    <th className="px-3 py-2 border border-blue-800">Nome do Componente</th>
+                    <th className="px-3 py-2 border border-blue-800 text-center">Pres.</th>
+                    <th className="px-3 py-2 border border-blue-800 text-center">Just.</th>
+                    <th className="px-3 py-2 border border-blue-800 text-center">AUS.</th>
+                    <th className="px-3 py-2 border border-blue-800 text-right">Frequência</th>
                 </tr>
             </thead>
             <tbody>
@@ -1053,12 +1907,12 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
                     const isBelowThreshold = percentage < 70;
 
                     return (
-                        <tr key={m.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-indigo-50/30'}>
+                        <tr key={m.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/30'}>
                             <td className={`px-3 py-2.5 font-bold text-[10px] border border-gray-100 uppercase ${isBelowThreshold ? 'text-red-600' : 'text-gray-800'}`}>{m.name}</td>
                             <td className="px-3 py-2.5 text-center text-[10px] text-gray-600 border border-gray-100">{presents}</td>
-                            <td className="px-3 py-2.5 text-center text-[10px] text-indigo-600 font-bold border border-gray-100">{justified}</td>
+                            <td className="px-3 py-2.5 text-center text-[10px] text-blue-600 font-bold border border-gray-100">{justified}</td>
                             <td className={`px-3 py-2.5 text-center text-[10px] border border-gray-100 font-bold ${absences > 0 ? 'text-red-500' : 'text-gray-400'}`}>{absences}</td>
-                            <td className={`px-3 py-2.5 text-right font-black text-[11px] border border-gray-100 ${isBelowThreshold ? 'text-red-600' : 'text-indigo-900'}`}>
+                            <td className={`px-3 py-2.5 text-right font-black text-[11px] border border-gray-100 ${isBelowThreshold ? 'text-red-600' : 'text-blue-900'}`}>
                                 {percentage.toFixed(1)}%
                             </td>
                         </tr>
@@ -1106,7 +1960,7 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
         <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('hymn-notebook-report-view', `hinos-${notebook.code}.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('hymn-notebook-report-view', `hinos-${notebook.code}.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
+          <button onClick={() => downloadPDF('hymn-notebook-report-view', `hinos-${notebook.code}.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
       <div id="hymn-notebook-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
@@ -1147,7 +2001,7 @@ const AdminMasterReportView = ({ id, title, columns, data, goBack, orientation =
         </button>
         <button 
           onClick={() => downloadPDF(id, `${id}.pdf`, orientation)} 
-          className="bg-indigo-600 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-indigo-700 active:scale-95 transition-all"
+          className="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all"
         >
           Gerar PDF
         </button>
@@ -1251,8 +2105,8 @@ const AdminCountriesScreen = ({ goBack, navigate }: any) => {
       <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
         <h2 className="font-bold text-gray-700 uppercase">Países Cadastrados</h2>
         <div className="flex gap-2">
-          <button onClick={() => navigate('admin_countries_report', countries)} className="bg-white text-indigo-600 px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-indigo-100 hover:bg-indigo-50 transition-all shadow-sm">Relatório</button>
-          <button onClick={() => { setEditingId(null); setName(''); setShowForm(true); }} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Novo País</button>
+          <button onClick={() => navigate('admin_countries_report', countries)} className="bg-white text-blue-600 px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-blue-100 hover:bg-blue-50 transition-all shadow-sm">Relatório</button>
+          <button onClick={() => { setEditingId(null); setName(''); setShowForm(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">Novo País</button>
         </div>
       </div>
 
@@ -1278,9 +2132,9 @@ const AdminCountriesScreen = ({ goBack, navigate }: any) => {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl animate-scale-up border border-indigo-100">
-            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
-              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editando País' : 'Cadastrando Novo País'}</h3>
+          <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl animate-scale-up border border-blue-100">
+            <div className="flex justify-between items-center mb-6 border-b border-blue-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-blue-900 tracking-widest">{editingId ? 'Editando País' : 'Cadastrando Novo País'}</h3>
               <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
@@ -1288,10 +2142,10 @@ const AdminCountriesScreen = ({ goBack, navigate }: any) => {
             <form onSubmit={prepareSave} className="space-y-6">
               <div className="w-full">
                 <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nome do País</label>
-                <input required autoFocus className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold placeholder:text-gray-300" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Brasil" />
+                <input required autoFocus className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-blue-600 outline-none transition-all font-bold placeholder:text-gray-300" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Brasil" />
               </div>
               <div className="flex gap-4 pt-2">
-                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Salvar Edição' : 'Gravar'}</button>
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all">{editingId ? 'Salvar Edição' : 'Gravar'}</button>
                 <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
               </div>
             </form>
@@ -1301,13 +2155,13 @@ const AdminCountriesScreen = ({ goBack, navigate }: any) => {
 
       <div className="bg-white rounded-xl shadow overflow-hidden">
         {countries.map(c => (
-          <div key={c.id} className="p-4 border-b last:border-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group hover:bg-indigo-50/30">
+          <div key={c.id} className="p-4 border-b last:border-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group hover:bg-blue-50/30">
             <div className="flex items-center flex-1">
-              <span className="font-mono bg-gray-50 px-2 py-1 rounded text-indigo-600 font-bold border">{c.id}</span>
+              <span className="font-mono bg-gray-50 px-2 py-1 rounded text-blue-600 font-bold border">{c.id}</span>
               <span className="ml-4 font-bold text-gray-800 uppercase">{c.name}</span>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => { setEditingId(c.id); setName(c.name); setShowForm(true); }} className="text-indigo-600 font-bold uppercase text-[10px] hover:underline">Editar</button>
+              <button onClick={() => { setEditingId(c.id); setName(c.name); setShowForm(true); }} className="text-blue-600 font-bold uppercase text-[10px] hover:underline">Editar</button>
               <button onClick={() => setConfirmingAction({ type: 'delete', data: c })} className="text-red-500 font-bold uppercase text-[10px] hover:underline">Excluir</button>
             </div>
           </div>
@@ -1374,8 +2228,8 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
       <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
         <h2 className="font-bold text-gray-700 uppercase">Estados Cadastrados</h2>
         <div className="flex gap-2">
-          <button onClick={() => navigate('admin_states_report', states)} className="bg-white text-indigo-600 px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-indigo-100 hover:bg-indigo-50 transition-all shadow-sm">Relatório</button>
-          <button onClick={() => { setEditingId(null); setFormData({name: '', uf: ''}); setShowForm(true); }} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Novo Estado</button>
+          <button onClick={() => navigate('admin_states_report', states)} className="bg-white text-blue-600 px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-blue-100 hover:bg-blue-50 transition-all shadow-sm">Relatório</button>
+          <button onClick={() => { setEditingId(null); setFormData({name: '', uf: ''}); setShowForm(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">Novo Estado</button>
         </div>
       </div>
 
@@ -1401,9 +2255,9 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl animate-scale-up border border-indigo-100">
-            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
-              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editando Estado' : 'Novo Estado'}</h3>
+          <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl animate-scale-up border border-blue-100">
+            <div className="flex justify-between items-center mb-6 border-b border-blue-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-blue-900 tracking-widest">{editingId ? 'Editando Estado' : 'Novo Estado'}</h3>
               <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
@@ -1412,15 +2266,15 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="md:col-span-3">
                   <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nome do Estado</label>
-                  <input required autoFocus className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold placeholder:text-gray-300" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: São Paulo" />
+                  <input required autoFocus className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-blue-600 outline-none transition-all font-bold placeholder:text-gray-300" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: São Paulo" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">UF</label>
-                  <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold text-center uppercase placeholder:text-gray-300" maxLength={2} value={formData.uf} onChange={e => setFormData({...formData, uf: e.target.value.toUpperCase()})} placeholder="SP" />
+                  <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-blue-600 outline-none transition-all font-bold text-center uppercase placeholder:text-gray-300" maxLength={2} value={formData.uf} onChange={e => setFormData({...formData, uf: e.target.value.toUpperCase()})} placeholder="SP" />
                 </div>
               </div>
               <div className="flex gap-4 pt-2">
-                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Salvar Edição' : 'Salvar'}</button>
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all">{editingId ? 'Salvar Edição' : 'Salvar'}</button>
                 <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
               </div>
             </form>
@@ -1430,14 +2284,14 @@ const AdminStatesScreen = ({ goBack, navigate }: any) => {
 
       <div className="bg-white rounded-xl shadow overflow-hidden">
         {states.map(s => (
-          <div key={s.id} className="p-4 border-b last:border-0 flex flex-col sm:flex-row gap-4 items-start sm:items-center group hover:bg-indigo-50/30">
+          <div key={s.id} className="p-4 border-b last:border-0 flex flex-col sm:flex-row gap-4 items-start sm:items-center group hover:bg-blue-50/30">
             <div className="flex items-center flex-1 w-full">
-              <span className="font-mono bg-gray-50 px-2 py-1 rounded text-indigo-600 font-bold border">{s.id}</span>
+              <span className="font-mono bg-gray-50 px-2 py-1 rounded text-blue-600 font-bold border">{s.id}</span>
               <span className="flex-1 ml-4 font-bold text-gray-800 uppercase">{s.name}</span>
               <span className="text-gray-400 font-black text-sm uppercase">{s.uf}</span>
             </div>
             <div className="flex gap-4 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto">
-              <button onClick={() => { setEditingId(s.id); setFormData({name: s.name, uf: s.uf}); setShowForm(true); }} className="text-indigo-600 font-bold uppercase text-[10px] hover:underline">Editar</button>
+              <button onClick={() => { setEditingId(s.id); setFormData({name: s.name, uf: s.uf}); setShowForm(true); }} className="text-blue-600 font-bold uppercase text-[10px] hover:underline">Editar</button>
               <button onClick={() => setConfirmingAction({ type: 'delete', data: s })} className="text-red-500 font-bold uppercase text-[10px] hover:underline">Excluir</button>
             </div>
           </div>
@@ -1559,8 +2413,8 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
       <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
         <h2 className="font-bold text-gray-700 uppercase">Congregações</h2>
         <div className="flex gap-2">
-          <button onClick={() => navigate('admin_congregations_report', getReportData())} className="bg-white text-indigo-600 border-2 border-indigo-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all shadow-sm">Relatório</button>
-          <button onClick={() => { setEditingId(null); setShowForm(true); setFormData({ name: '', country_id: '', state_id: '', address: '', neighborhood: '', address_number: '', cep: '', uf: '' }); setFoundCountryName(''); setFoundStateName(''); }} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Nova Congregação</button>
+          <button onClick={() => navigate('admin_congregations_report', getReportData())} className="bg-white text-blue-600 border-2 border-blue-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-50 transition-all shadow-sm">Relatório</button>
+          <button onClick={() => { setEditingId(null); setShowForm(true); setFormData({ name: '', country_id: '', state_id: '', address: '', neighborhood: '', address_number: '', cep: '', uf: '' }); setFoundCountryName(''); setFoundStateName(''); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">Nova Congregação</button>
         </div>
       </div>
 
@@ -1586,9 +2440,9 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
 
       {showForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-2xl shadow-2xl animate-scale-up border border-indigo-100 overflow-y-auto max-h-[90vh] custom-scrollbar-heavy">
-            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
-              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editando Congregação' : 'Nova Congregação'}</h3>
+          <div className="bg-white p-8 rounded-3xl w-full max-w-2xl shadow-2xl animate-scale-up border border-blue-100 overflow-y-auto max-h-[90vh] custom-scrollbar-heavy">
+            <div className="flex justify-between items-center mb-6 border-b border-blue-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-blue-900 tracking-widest">{editingId ? 'Editando Congregação' : 'Nova Congregação'}</h3>
               <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
@@ -1596,13 +2450,13 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
             <form onSubmit={prepareSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nome da Congregação</label>
-                <input required autoFocus className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold placeholder:text-gray-300" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Sede Central, Bairro Novo..." />
+                <input required autoFocus className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-blue-600 outline-none transition-all font-bold placeholder:text-gray-300" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Sede Central, Bairro Novo..." />
               </div>
               
               <div>
                 <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Cód. País</label>
                 <div className="flex gap-2">
-                  <input required className="w-20 border-2 border-gray-100 rounded-xl p-4 text-center focus:border-indigo-600 outline-none transition-all font-bold" value={formData.country_id} onChange={e => handleCountryCodeChange(e.target.value)} placeholder="01" />
+                  <input required className="w-20 border-2 border-gray-100 rounded-xl p-4 text-center focus:border-blue-600 outline-none transition-all font-bold" value={formData.country_id} onChange={e => handleCountryCodeChange(e.target.value)} placeholder="01" />
                   <input readOnly className="flex-1 bg-gray-50 border-2 border-transparent rounded-xl p-4 italic text-gray-400 font-medium" value={foundCountryName} placeholder="Busca automática..." />
                 </div>
               </div>
@@ -1610,7 +2464,7 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
               <div>
                 <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Cód. Estado</label>
                 <div className="flex gap-2">
-                  <input required className="w-20 border-2 border-gray-100 rounded-xl p-4 text-center focus:border-indigo-600 outline-none transition-all font-bold" value={formData.state_id} onChange={e => handleStateCodeChange(e.target.value)} placeholder="01" />
+                  <input required className="w-20 border-2 border-gray-100 rounded-xl p-4 text-center focus:border-blue-600 outline-none transition-all font-bold" value={formData.state_id} onChange={e => handleStateCodeChange(e.target.value)} placeholder="01" />
                   <input readOnly className="flex-1 bg-gray-50 border-2 border-transparent rounded-xl p-4 italic text-gray-400 font-medium" value={foundStateName} placeholder="Busca automática..." />
                 </div>
               </div>
@@ -1618,33 +2472,33 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
               <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">UF (Automático)</label>
-                  <input readOnly className="w-full border-2 border-transparent bg-gray-50 rounded-xl p-4 text-center uppercase text-indigo-600 font-black shadow-inner" maxLength={2} value={formData.uf} placeholder="--" />
+                  <input readOnly className="w-full border-2 border-transparent bg-gray-50 rounded-xl p-4 text-center uppercase text-blue-600 font-black shadow-inner" maxLength={2} value={formData.uf} placeholder="--" />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">CEP</label>
-                  <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold" value={formData.cep} onChange={e => setFormData({...formData, cep: e.target.value})} placeholder="00000-000" />
+                  <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-blue-600 outline-none transition-all font-bold" value={formData.cep} onChange={e => setFormData({...formData, cep: e.target.value})} placeholder="00000-000" />
                 </div>
               </div>
 
               <div className="md:col-span-2 space-y-6">
                 <div>
                   <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Endereço (Rua/Av)</label>
-                  <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Ex: Rua das Flores" />
+                  <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-blue-600 outline-none transition-all font-bold" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Ex: Rua das Flores" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <div>
                     <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nº</label>
-                    <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold" value={formData.address_number} onChange={e => setFormData({...formData, address_number: e.target.value})} placeholder="123" />
+                    <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-blue-600 outline-none transition-all font-bold" value={formData.address_number} onChange={e => setFormData({...formData, address_number: e.target.value})} placeholder="123" />
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Bairro</label>
-                    <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-indigo-600 outline-none transition-all font-bold" value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})} placeholder="Ex: Centro" />
+                    <input required className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-blue-600 outline-none transition-all font-bold" value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})} placeholder="Ex: Centro" />
                   </div>
                 </div>
               </div>
 
-              <div className="md:col-span-2 flex gap-4 pt-4 border-t border-indigo-50 mt-2">
-                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Confirmar Edição' : 'Salvar Congregação'}</button>
+              <div className="md:col-span-2 flex gap-4 pt-4 border-t border-blue-50 mt-2">
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all">{editingId ? 'Confirmar Edição' : 'Salvar Congregação'}</button>
                 <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
               </div>
             </form>
@@ -1653,19 +2507,19 @@ const AdminCongregationsScreen = ({ goBack, navigate }: any) => {
       )}
       <div className="space-y-4">
         {congre.map(c => (
-          <div key={c.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center group hover:border-indigo-200 transition-colors gap-4">
+          <div key={c.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center group hover:border-blue-200 transition-colors gap-4">
             <div className="flex items-start gap-4 flex-1">
-              <span className="font-mono bg-gray-50 px-2 py-1 rounded text-indigo-600 font-bold border text-sm">{c.id}</span>
+              <span className="font-mono bg-gray-50 px-2 py-1 rounded text-blue-600 font-bold border text-sm">{c.id}</span>
               <div>
-                <h3 className="font-black text-indigo-900 uppercase">{c.name}</h3>
+                <h3 className="font-black text-blue-900 uppercase">{c.name}</h3>
                 <p className="text-xs text-gray-500 mt-1 font-medium italic">
                   {c.address}, {c.address_number} • {states.find(s => s.id === c.state_id)?.name || 'Desconhecida'} / {countries.find(co => co.id === c.country_id)?.name || 'Desconhecido'}
                 </p>
-                <span className="text-[9px] font-black uppercase bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded tracking-tighter mt-2 inline-block">CEP: {c.cep}</span>
+                <span className="text-[9px] font-black uppercase bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded tracking-tighter mt-2 inline-block">CEP: {c.cep}</span>
               </div>
             </div>
             <div className="flex gap-4 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto">
-              <button onClick={() => startEdit(c)} className="text-indigo-600 font-bold uppercase text-[10px] hover:underline">Editar</button>
+              <button onClick={() => startEdit(c)} className="text-blue-600 font-bold uppercase text-[10px] hover:underline">Editar</button>
               <button onClick={() => setConfirmingAction({ type: 'delete', data: c })} className="text-red-500 font-bold uppercase text-[10px] hover:underline">Excluir</button>
             </div>
           </div>
@@ -1745,7 +2599,7 @@ const AdminConductorCertificatesScreen = ({ navigate, goBack, currentUser }: any
         <h2 className="font-bold text-gray-700 uppercase">Lista de Regentes</h2>
         <div className="flex gap-2">
           {canRegister && (
-            <button onClick={() => navigate('admin_new_conductor')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold shadow-md">Novo Registro</button>
+            <button onClick={() => navigate('admin_new_conductor')} className="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow-md">Novo Registro</button>
           )}
         </div>
       </div>
@@ -1763,20 +2617,20 @@ const AdminConductorCertificatesScreen = ({ navigate, goBack, currentUser }: any
 
       <div className="space-y-4">
         {conductors.map(c => (
-          <div key={c.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group hover:border-indigo-200 transition-colors">
+          <div key={c.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group hover:border-blue-200 transition-colors">
             <div className="flex-1">
               <div className="flex items-center gap-3">
-                <span className="bg-indigo-700 text-white px-2 py-0.5 rounded font-black text-xs">{c.registry_number}</span>
-                <h3 className="font-black text-indigo-900 uppercase">{c.name}</h3>
+                <span className="bg-blue-700 text-white px-2 py-0.5 rounded font-black text-xs">{c.registry_number}</span>
+                <h3 className="font-black text-blue-900 uppercase">{c.name}</h3>
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 {ROLE_LABELS[c.role_code]} • {congregations.find(con => con.id === c.congregation_id)?.name || 'Local não identificado'}
               </p>
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
-              <button onClick={() => navigate('admin_crr_card', c)} className="flex-1 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded text-[10px] font-black uppercase border border-indigo-100">Emitir CRR</button>
+              <button onClick={() => navigate('admin_crr_card', c)} className="flex-1 bg-blue-50 text-blue-700 px-3 py-1.5 rounded text-[10px] font-black uppercase border border-blue-100">Emitir CRR</button>
               {canEdit && (
-                <button onClick={() => navigate('admin_edit_conductor', c)} className="flex-1 bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-black uppercase shadow-sm">Editar</button>
+                <button onClick={() => navigate('admin_edit_conductor', c)} className="flex-1 bg-blue-600 text-white px-3 py-1.5 rounded text-[10px] font-black uppercase shadow-sm">Editar</button>
               )}
               {canRegister && (
                 <button onClick={() => setConfirmingDelete(c)} className="bg-red-50 text-red-700 p-2 rounded text-[10px] font-black uppercase border border-red-100">
@@ -1966,11 +2820,11 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
           {!isLinked && (
             <div className="bg-gray-50 p-6 rounded-2xl border-2 border-dashed border-gray-200 mb-8">
               <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-2">Senha Provisória de Acesso</p>
-              <p className="text-4xl font-black text-indigo-700 tracking-[10px]">{tempPassword}</p>
+              <p className="text-4xl font-black text-blue-700 tracking-[10px]">{tempPassword}</p>
             </div>
           )}
 
-          <button onClick={goBack} className="w-full bg-indigo-700 text-white py-4 rounded-2xl font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-800 transition-all">Concluir e Voltar</button>
+          <button onClick={goBack} className="w-full bg-blue-700 text-white py-4 rounded-2xl font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-800 transition-all">Concluir e Voltar</button>
         </div>
       </Layout>
     );
@@ -1979,38 +2833,38 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
   return (
     <Layout title={isEditing ? "Editar Registro" : "Novo Registro de Regente"} onBack={goBack}>
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-3xl mx-auto animate-fade-in">
-        <h3 className="text-xl font-black text-indigo-900 uppercase mb-6 tracking-tighter">{isEditing ? "Atualizar Dados do CRR" : "Inscrição de Regente Oficial"}</h3>
+        <h3 className="text-xl font-black text-blue-900 uppercase mb-6 tracking-tighter">{isEditing ? "Atualizar Dados do CRR" : "Inscrição de Regente Oficial"}</h3>
         
         {linkUserBeingApproved && !isEditing && (
-          <div className="mb-8 bg-indigo-50/50 border-2 border-dashed border-indigo-200 rounded-2xl p-6">
-            <h4 className="text-xs font-black text-indigo-700 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <div className="mb-8 bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-2xl p-6">
+            <h4 className="text-xs font-black text-blue-700 uppercase tracking-widest mb-4 flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
               Informações Auxiliares (Dados da Solicitação)
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6">
               <div>
-                <span className="text-[8px] font-black text-indigo-400 uppercase block">Nome Solicitado</span>
-                <p className="text-xs font-bold text-indigo-900">{linkUserBeingApproved.name}</p>
+                <span className="text-[8px] font-black text-blue-400 uppercase block">Nome Solicitado</span>
+                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.name}</p>
               </div>
               <div>
-                <span className="text-[8px] font-black text-indigo-400 uppercase block">E-mail Informado</span>
-                <p className="text-xs font-bold text-indigo-900">{linkUserBeingApproved.email}</p>
+                <span className="text-[8px] font-black text-blue-400 uppercase block">E-mail Informado</span>
+                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.email}</p>
               </div>
               <div>
-                <span className="text-[8px] font-black text-indigo-400 uppercase block">WhatsApp</span>
-                <p className="text-xs font-bold text-indigo-900">{linkUserBeingApproved.phone || 'Não informado'}</p>
+                <span className="text-[8px] font-black text-blue-400 uppercase block">WhatsApp</span>
+                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.phone || 'Não informado'}</p>
               </div>
               <div>
-                <span className="text-[8px] font-black text-indigo-400 uppercase block">Congregação</span>
-                <p className="text-xs font-bold text-indigo-900">{linkUserBeingApproved.congregation}</p>
+                <span className="text-[8px] font-black text-blue-400 uppercase block">Congregação</span>
+                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.congregation}</p>
               </div>
               <div>
-                <span className="text-[8px] font-black text-indigo-400 uppercase block">Cargo no Ministério</span>
-                <p className="text-xs font-bold text-indigo-900">{linkUserBeingApproved.role}</p>
+                <span className="text-[8px] font-black text-blue-400 uppercase block">Cargo no Ministério</span>
+                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.role}</p>
               </div>
               <div>
-                <span className="text-[8px] font-black text-indigo-400 uppercase block">Data Nasc.</span>
-                <p className="text-xs font-bold text-indigo-900">{linkUserBeingApproved.birth_date ? new Date(linkUserBeingApproved.birth_date + 'T00:00:00').toLocaleDateString('pt-BR') : 'Não informada'}</p>
+                <span className="text-[8px] font-black text-blue-400 uppercase block">Data Nasc.</span>
+                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.birth_date ? new Date(linkUserBeingApproved.birth_date + 'T00:00:00').toLocaleDateString('pt-BR') : 'Não informada'}</p>
               </div>
             </div>
           </div>
@@ -2028,7 +2882,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
               <div className="flex gap-2">
                 <div className="relative">
                   <input required className="w-16 border rounded p-2 text-center font-mono" value={formData.country_id} onChange={e => lookup('country_id', e.target.value)} placeholder="01" />
-                  <button type="button" onClick={() => { setSelectorModal({ type: 'country', list: countries }); setSelectorSearch(''); }} className="absolute -right-2 -top-2 bg-indigo-600 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform">
+                  <button type="button" onClick={() => { setSelectorModal({ type: 'country', list: countries }); setSelectorSearch(''); }} className="absolute -right-2 -top-2 bg-blue-600 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform">
                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   </button>
                 </div>
@@ -2040,7 +2894,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
               <div className="flex gap-2">
                 <div className="relative">
                   <input required className="w-16 border rounded p-2 text-center font-mono" value={formData.state_id} onChange={e => lookup('state_id', e.target.value)} placeholder="01" />
-                  <button type="button" onClick={() => { setSelectorModal({ type: 'state', list: states }); setSelectorSearch(''); }} className="absolute -right-2 -top-2 bg-indigo-600 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform">
+                  <button type="button" onClick={() => { setSelectorModal({ type: 'state', list: states }); setSelectorSearch(''); }} className="absolute -right-2 -top-2 bg-blue-600 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform">
                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   </button>
                 </div>
@@ -2052,7 +2906,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
               <div className="flex gap-2">
                 <div className="relative">
                   <input required className="w-20 border rounded p-2 text-center font-mono" value={formData.congregation_id} onChange={e => lookup('congregation_id', e.target.value)} placeholder="0001" />
-                  <button type="button" onClick={() => { setSelectorModal({ type: 'congre', list: congre }); setSelectorSearch(''); }} className="absolute -right-2 -top-2 bg-indigo-600 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform">
+                  <button type="button" onClick={() => { setSelectorModal({ type: 'congre', list: congre }); setSelectorSearch(''); }} className="absolute -right-2 -top-2 bg-blue-600 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform">
                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   </button>
                 </div>
@@ -2066,7 +2920,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
             <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Data de Nascimento</label>
               <div className="flex gap-3 items-center">
                 <input required type="date" className="flex-1 border rounded p-2" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} />
-                <div className="bg-indigo-50 px-3 py-2 rounded text-indigo-700 font-black text-xs text-center border border-indigo-100 min-w-[60px]">
+                <div className="bg-blue-50 px-3 py-2 rounded text-blue-700 font-black text-xs text-center border border-blue-100 min-w-[60px]">
                   {calculateAge(formData.birth_date)} <br/> ANOS
                 </div>
               </div>
@@ -2083,7 +2937,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
 
           <div className="md:col-span-2">
             <label className="block text-[10px] font-black uppercase text-gray-900 mb-2">Cargo Específico</label>
-            <select required className="w-full border rounded p-3 font-bold bg-indigo-50 border-indigo-100" value={formData.role_code} onChange={e => setFormData({...formData, role_code: e.target.value as any})}>
+            <select required className="w-full border rounded p-3 font-bold bg-blue-50 border-blue-100" value={formData.role_code} onChange={e => setFormData({...formData, role_code: e.target.value as any})}>
               <option value="S">S - Regente da Sede</option>
               <option value="I">I - Regente Itinerante</option>
               <option value="R">R - Regente Regional</option>
@@ -2093,7 +2947,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
           </div>
 
           <div className="md:col-span-2 flex gap-4 mt-4 pt-6 border-t">
-            <button type="submit" disabled={isSaving} className={`flex-1 bg-indigo-700 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-indigo-100 transition-all active:scale-95 ${isSaving ? 'opacity-50' : 'hover:bg-indigo-800'}`}>
+            <button type="submit" disabled={isSaving} className={`flex-1 bg-blue-700 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-blue-100 transition-all active:scale-95 ${isSaving ? 'opacity-50' : 'hover:bg-blue-800'}`}>
               {isSaving ? 'Salvando...' : (isEditing ? 'Salvar Alterações' : 'Concluir Registro')}
             </button>
             <button type="button" onClick={goBack} className="px-8 bg-gray-50 text-gray-400 font-bold uppercase text-[10px] rounded-xl hover:bg-gray-100">Cancelar</button>
@@ -2104,16 +2958,16 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] animate-fade-in">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-scale-up">
               <div className="p-8">
-                <h3 className="text-xl font-black text-indigo-900 uppercase mb-2">Vincular Usuário?</h3>
+                <h3 className="text-xl font-black text-blue-900 uppercase mb-2">Vincular Usuário?</h3>
                 <p className="text-gray-500 text-sm mb-6">Deseja vincular este novo registro a um usuário já cadastrado no sistema ou gerar uma nova conta?</p>
                 
                 <div className="flex flex-col gap-3">
-                  <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
-                    <p className="text-[10px] font-black uppercase text-indigo-400 mb-3">Usuários sem CRR vinculado</p>
+                  <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                    <p className="text-[10px] font-black uppercase text-blue-400 mb-3">Usuários sem CRR vinculado</p>
                     <input 
                       type="text" 
                       placeholder="Buscar por nome ou e-mail..." 
-                      className="w-full border rounded-xl p-3 text-sm mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full border rounded-xl p-3 text-sm mb-4 focus:ring-2 focus:ring-blue-500 outline-none"
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
                     />
@@ -2123,12 +2977,12 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
                         .filter(u => u.email !== 'Admin' && !conductors.some(c => c.email === u.email))
                         .filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase()))
                         .map(u => (
-                          <label key={u.id} className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all cursor-pointer ${selectedUserId === u.id ? 'border-indigo-600 bg-indigo-100/50' : 'border-transparent bg-white hover:bg-gray-50'}`}>
+                          <label key={u.id} className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all cursor-pointer ${selectedUserId === u.id ? 'border-blue-600 bg-blue-100/50' : 'border-transparent bg-white hover:bg-gray-50'}`}>
                             <div className="flex items-center gap-3">
                               <input 
                                 type="radio" 
                                 name="linkUser" 
-                                className="w-4 h-4 text-indigo-600" 
+                                className="w-4 h-4 text-blue-600" 
                                 checked={selectedUserId === u.id}
                                 onChange={() => setSelectedUserId(u.id)}
                               />
@@ -2137,7 +2991,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
                                 <p className="text-[10px] text-gray-400">{u.email}</p>
                               </div>
                             </div>
-                            <span className="text-[9px] font-black uppercase text-indigo-400 bg-indigo-50 px-2 py-1 rounded">{u.congregation}</span>
+                            <span className="text-[9px] font-black uppercase text-blue-400 bg-blue-50 px-2 py-1 rounded">{u.congregation}</span>
                           </label>
                         ))
                       }
@@ -2151,13 +3005,13 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
                     <button 
                       onClick={() => executeRegistration(selectedUserId || undefined)}
                       disabled={!selectedUserId}
-                      className={`py-4 rounded-2xl font-black uppercase text-xs transition-all ${selectedUserId ? 'bg-indigo-700 text-white shadow-lg shadow-indigo-100 hover:bg-indigo-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                      className={`py-4 rounded-2xl font-black uppercase text-xs transition-all ${selectedUserId ? 'bg-blue-700 text-white shadow-lg shadow-blue-100 hover:bg-blue-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                     >
                       Vincular Selecionado
                     </button>
                     <button 
                       onClick={() => executeRegistration()}
-                      className="bg-white border-2 border-indigo-600 text-indigo-600 py-4 rounded-2xl font-black uppercase text-xs hover:bg-indigo-50 transition-all"
+                      className="bg-white border-2 border-blue-600 text-blue-600 py-4 rounded-2xl font-black uppercase text-xs hover:bg-blue-50 transition-all"
                     >
                       Gerar Novo
                     </button>
@@ -2178,7 +3032,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
         {selectorModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99999] animate-fade-in">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
-              <div className="p-6 bg-indigo-600 text-white flex justify-between items-center">
+              <div className="p-6 bg-blue-600 text-white flex justify-between items-center">
                 <h3 className="font-black uppercase tracking-widest text-sm">
                   Selecionar {selectorModal.type === 'country' ? 'País' : selectorModal.type === 'state' ? 'Estado' : 'Congregação'}
                 </h3>
@@ -2191,7 +3045,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
                   autoFocus
                   type="text" 
                   placeholder="Pesquisar..." 
-                  className="w-full border-2 border-indigo-50 rounded-xl p-3 mb-4 focus:border-indigo-600 outline-none font-bold uppercase text-xs"
+                  className="w-full border-2 border-blue-50 rounded-xl p-3 mb-4 focus:border-blue-600 outline-none font-bold uppercase text-xs"
                   value={selectorSearch}
                   onChange={e => setSelectorSearch(e.target.value)}
                 />
@@ -2207,10 +3061,10 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
                           lookup(fieldMap[selectorModal.type], item.id);
                           setSelectorModal(null);
                         }}
-                        className="w-full text-left p-3 rounded-xl hover:bg-indigo-50 transition-colors flex items-center justify-between group"
+                        className="w-full text-left p-3 rounded-xl hover:bg-blue-50 transition-colors flex items-center justify-between group"
                       >
-                        <span className="font-bold text-gray-700 group-hover:text-indigo-700">{item.name}</span>
-                        <span className="bg-gray-100 text-gray-400 px-2 py-0.5 rounded font-mono text-[10px] group-hover:bg-indigo-100 group-hover:text-indigo-600 font-bold">{item.id}</span>
+                        <span className="font-bold text-gray-700 group-hover:text-blue-700">{item.name}</span>
+                        <span className="bg-gray-100 text-gray-400 px-2 py-0.5 rounded font-mono text-[10px] group-hover:bg-blue-100 group-hover:text-blue-600 font-bold">{item.id}</span>
                       </button>
                     ))
                   }
@@ -2249,7 +3103,7 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
       <div className="mb-8 flex gap-4 no-print flex-wrap justify-center">
         <button onClick={goBack} className="bg-gray-700 text-white px-6 py-2 rounded-full font-bold">Voltar</button>
         <button onClick={() => navigate('admin_edit_conductor', conductor)} className="bg-amber-600 text-white px-6 py-2 rounded-full font-bold shadow-lg">Editar Informações</button>
-        <button onClick={() => downloadPDF('crr-card-wrapper', `CRR-${conductor.registry_number}.pdf`, 'landscape')} className="bg-indigo-600 text-white px-8 py-2 rounded-full font-bold shadow-lg">Baixar Cartão (PDF)</button>
+        <button onClick={() => downloadPDF('crr-card-wrapper', `CRR-${conductor.registry_number}.pdf`, 'landscape')} className="bg-blue-600 text-white px-8 py-2 rounded-full font-bold shadow-lg">Baixar Cartão (PDF)</button>
       </div>
 
       {/* Folha A4 de Pré-visualização com o Cartão no Centro */}
@@ -2258,27 +3112,27 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
         <div id="crr-card-body" className="w-[95mm] h-[65mm] bg-white relative overflow-hidden flex flex-col border border-gray-300 rounded-[2mm] font-sans shadow-sm">
         
         {/* Cabeçalho Oficial Centralizado (Sem logos e sem "Sede Mundial") */}
-        <div className="bg-white py-3 border-b border-indigo-100 flex flex-col items-center justify-center">
-          <h4 className="text-[12px] font-black uppercase text-indigo-950 leading-none mb-0.5">Igreja Apostólica</h4>
+        <div className="bg-white py-3 border-b border-blue-100 flex flex-col items-center justify-center">
+          <h4 className="text-[12px] font-black uppercase text-blue-950 leading-none mb-0.5">Igreja Apostólica</h4>
           <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest text-center">Brasil - São Paulo/SP</p>
         </div>
 
         {/* Faixa de Título */}
-        <div className="bg-indigo-900 text-white py-1.5 text-center">
+        <div className="bg-blue-900 text-white py-1.5 text-center">
           <h2 className="text-[11px] font-black uppercase tracking-[2px]">Registro de Regente</h2>
         </div>
 
         {/* Conteúdo Principal */}
         <div className="flex-1 p-4 flex flex-col justify-between">
           <div className="space-y-4">
-            <div className="flex justify-between items-end border-b border-indigo-100 pb-1">
+            <div className="flex justify-between items-end border-b border-blue-100 pb-1">
               <div className="flex-1">
                 <span className="text-[6px] font-black text-gray-900 uppercase block leading-none">Identificação do Regente</span>
                 <p className="text-[12px] font-black uppercase text-gray-900 leading-none">{conductor.name}</p>
               </div>
               <div className="text-right ml-4">
                 <span className="text-[6px] font-black text-gray-900 uppercase block leading-none">Nº Registro (CRR)</span>
-                <p className="text-[12px] font-black text-indigo-950 tracking-[1.5px] leading-none">
+                <p className="text-[12px] font-black text-blue-950 tracking-[1.5px] leading-none">
                   {conductor.registry_number}
                 </p>
               </div>
@@ -2287,7 +3141,7 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
             <div className="grid grid-cols-2 gap-y-3 gap-x-6">
               <div>
                 <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Cargo / Função</span>
-                <p className="text-[9px] font-black uppercase text-indigo-900 leading-tight">{ROLE_LABELS[conductor.role_code] || 'Regente'}</p>
+                <p className="text-[9px] font-black uppercase text-blue-900 leading-tight">{ROLE_LABELS[conductor.role_code] || 'Regente'}</p>
               </div>
               <div className="text-right">
                 <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Data de Nascimento</span>
@@ -2309,7 +3163,7 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
             
             <div className="flex-1 max-w-[60%] flex flex-col items-center">
               <div className="w-full border-t border-gray-400 mt-6 mb-1"></div>
-              <p className="text-[7px] font-black text-indigo-900 uppercase tracking-tighter text-center leading-tight">
+              <p className="text-[7px] font-black text-blue-900 uppercase tracking-tighter text-center leading-tight">
                 Presidente do Conselho Deliberativo
               </p>
             </div>
@@ -2317,9 +3171,9 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
         </div>
 
         {/* Elementos Estéticos de Segurança */}
-        <div className="absolute top-0 right-0 w-1.5 h-full bg-indigo-900 opacity-[0.03]"></div>
-        <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-900 opacity-[0.03]"></div>
-        <div className="absolute bottom-0 left-0 w-full h-1 bg-indigo-900"></div>
+        <div className="absolute top-0 right-0 w-1.5 h-full bg-blue-900 opacity-[0.03]"></div>
+        <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-900 opacity-[0.03]"></div>
+        <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-900"></div>
       </div>
     </div>
       
@@ -2379,12 +3233,12 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
           <div className="flex gap-2">
             <button 
               onClick={() => navigate('instruments_report')} 
-              className="bg-white text-indigo-600 border-2 border-indigo-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all shadow-sm flex items-center gap-2"
+              className="bg-white text-blue-600 border-2 border-blue-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 15h6"/><path d="M9 11h6"/><path d="M9 19h10"/></svg>
               Relatório
             </button>
-            <button onClick={() => { setEditingId(null); setFormData({ name: '', modality: 'Metal', timbre: 'Sol', tuning: '' }); setSaveError(null); setShowForm(true); }} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Novo Instrumento</button>
+            <button onClick={() => { setEditingId(null); setFormData({ name: '', modality: 'Metal', timbre: 'Sol', tuning: '' }); setSaveError(null); setShowForm(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">Novo Instrumento</button>
           </div>
         )}
       </div>
@@ -2393,7 +3247,7 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
           <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-bold mb-6 text-gray-900 leading-tight">Deseja Excluir o Instrumento {instrumentToDelete.name} Permanentemente?</h3>
             <div className="flex gap-4">
-              <button onClick={confirmDelete} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-md">Sim</button>
+              <button onClick={confirmDelete} className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-md">Sim</button>
               <button onClick={() => setInstrumentToDelete(null)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-lg font-bold hover:bg-gray-200 transition-colors">Não</button>
             </div>
           </div>
@@ -2401,9 +3255,9 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
       )}
       {showForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl animate-scale-up border border-indigo-100">
-            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
-              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editar Instrumento' : 'Novo Instrumento'}</h3>
+          <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl animate-scale-up border border-blue-100">
+            <div className="flex justify-between items-center mb-6 border-b border-blue-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-blue-900 tracking-widest">{editingId ? 'Editar Instrumento' : 'Novo Instrumento'}</h3>
               <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
@@ -2417,18 +3271,18 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nome do Instrumento</label>
-                <input required autoFocus placeholder="Nome" className={`w-full border-2 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none transition-all ${saveError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.name} onChange={e => { setFormData({...formData, name: e.target.value}); setSaveError(null); }} />
+                <input required autoFocus placeholder="Nome" className={`w-full border-2 rounded-xl p-4 font-bold focus:border-blue-600 outline-none transition-all ${saveError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.name} onChange={e => { setFormData({...formData, name: e.target.value}); setSaveError(null); }} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Modalidade</label>
-                  <select className="w-full border-2 border-gray-100 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none" value={formData.modality} onChange={e => setFormData({...formData, modality: e.target.value as any})}>
+                  <select className="w-full border-2 border-gray-100 rounded-xl p-4 font-bold focus:border-blue-600 outline-none" value={formData.modality} onChange={e => setFormData({...formData, modality: e.target.value as any})}>
                     <option value="Metal">Metal</option><option value="Palheta">Palheta</option><option value="Cordas">Cordas</option><option value="Outro">Outro</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Clave</label>
-                  <select className="w-full border-2 border-gray-100 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none" value={formData.timbre} onChange={e => setFormData({...formData, timbre: e.target.value as any})}>
+                  <select className="w-full border-2 border-gray-100 rounded-xl p-4 font-bold focus:border-blue-600 outline-none" value={formData.timbre} onChange={e => setFormData({...formData, timbre: e.target.value as any})}>
                     <option value="Sol">Sol</option>
                     <option value="Fá">Fá</option>
                     <option value="Dó">Dó</option>
@@ -2437,10 +3291,10 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
               </div>
               <div>
                 <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Afinação (Sib, Do...)</label>
-                <input required placeholder="Afinação" className={`w-full border-2 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none transition-all ${saveError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.tuning} onChange={e => { setFormData({...formData, tuning: e.target.value}); setSaveError(null); }} />
+                <input required placeholder="Afinação" className={`w-full border-2 rounded-xl p-4 font-bold focus:border-blue-600 outline-none transition-all ${saveError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.tuning} onChange={e => { setFormData({...formData, tuning: e.target.value}); setSaveError(null); }} />
               </div>
-              <div className="flex gap-4 pt-4 border-t border-indigo-50">
-                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Atualizar' : 'Salvar'}</button>
+              <div className="flex gap-4 pt-4 border-t border-blue-50">
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all">{editingId ? 'Atualizar' : 'Salvar'}</button>
                 <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
               </div>
             </form>
@@ -2453,7 +3307,7 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
             <div><p className="font-bold text-gray-800">{i.name}</p><p className="text-xs text-gray-500 uppercase font-bold">{i.modality} • {i.timbre} • {i.tuning}</p></div>
             {!isReadOnly && (
               <div className="flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => handleEdit(i)} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                <button onClick={() => handleEdit(i)} className="text-blue-600 font-bold hover:underline">Editar</button>
                 <button onClick={() => setInstrumentToDelete(i)} className="text-red-500 font-bold hover:underline">Excluir</button>
               </div>
             )}
@@ -2517,12 +3371,12 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
           <div className="flex gap-2">
             <button 
               onClick={() => navigate('musicians_report')} 
-              className="bg-white text-indigo-600 border-2 border-indigo-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all shadow-sm flex items-center gap-2"
+              className="bg-white text-blue-600 border-2 border-blue-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 15h6"/><path d="M9 11h6"/><path d="M9 19h10"/></svg>
               Relatório
             </button>
-            <button onClick={() => { setEditingId(null); setFormData({ name: '', voices: [], instruments: [] }); setSaveError(null); setShowForm(true); }} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Novo Integrante</button>
+            <button onClick={() => { setEditingId(null); setFormData({ name: '', voices: [], instruments: [] }); setSaveError(null); setShowForm(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">Novo Integrante</button>
           </div>
         )}
       </div>
@@ -2531,7 +3385,7 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
           <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-bold mb-6 text-gray-900 leading-tight">Deseja Excluir o Musico {musicianToDelete.name} Permanentemente?</h3>
             <div className="flex gap-4">
-              <button onClick={confirmDelete} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-md">Sim</button>
+              <button onClick={confirmDelete} className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-md">Sim</button>
               <button onClick={() => setMusicianToDelete(null)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-lg font-bold hover:bg-gray-200 transition-colors">Não</button>
             </div>
           </div>
@@ -2539,9 +3393,9 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
       )}
       {showForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl animate-scale-up border border-indigo-100 overflow-y-auto max-h-[90vh] custom-scrollbar-heavy">
-            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
-              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editar Integrante' : 'Novo Integrante'}</h3>
+          <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl animate-scale-up border border-blue-100 overflow-y-auto max-h-[90vh] custom-scrollbar-heavy">
+            <div className="flex justify-between items-center mb-6 border-b border-blue-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-blue-900 tracking-widest">{editingId ? 'Editar Integrante' : 'Novo Integrante'}</h3>
               <button onClick={() => { setShowForm(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
@@ -2555,39 +3409,39 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
             <form onSubmit={handleSubmit} className="space-y-8">
               <div>
                 <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nome Completo</label>
-                <input required autoFocus placeholder="Nome Completo" className="w-full border-2 border-gray-100 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none transition-all" value={formData.name} onChange={e => { setFormData({...formData, name: e.target.value}); setSaveError(null); }} />
+                <input required autoFocus placeholder="Nome Completo" className="w-full border-2 border-gray-100 rounded-xl p-4 font-bold focus:border-blue-600 outline-none transition-all" value={formData.name} onChange={e => { setFormData({...formData, name: e.target.value}); setSaveError(null); }} />
               </div>
               
               <div>
                 <p className="text-[10px] font-black uppercase text-gray-400 mb-4 tracking-widest">Vozes do Integrante</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {['Melodia', 'Contralto', 'Tenor', 'Baixo'].map(v => (
-                    <button key={v} type="button" onClick={() => toggleVoice(v)} className={`px-4 py-3 rounded-xl border-2 transition-all font-bold text-sm ${formData.voices.includes(v) ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' : 'bg-gray-50 border-transparent text-gray-400 hover:border-gray-200'}`}>{v}</button>
+                    <button key={v} type="button" onClick={() => toggleVoice(v)} className={`px-4 py-3 rounded-xl border-2 transition-all font-bold text-sm ${formData.voices.includes(v) ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100' : 'bg-gray-50 border-transparent text-gray-400 hover:border-gray-200'}`}>{v}</button>
                   ))}
                 </div>
               </div>
 
               <div>
                 <p className="text-[10px] font-black uppercase text-gray-400 mb-4 tracking-widest">Selecione os Instrumentos</p>
-                <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-50">
-                  <select className="w-full border-2 border-white rounded-xl p-4 mb-4 font-bold focus:border-indigo-600 outline-none shadow-sm" onChange={e => addInstrument(e.target.value)}>
+                <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-50">
+                  <select className="w-full border-2 border-white rounded-xl p-4 mb-4 font-bold focus:border-blue-600 outline-none shadow-sm" onChange={e => addInstrument(e.target.value)}>
                     <option value="">Adicionar novo instrumento...</option>
                     {instruments.map(i => <option key={i.id} value={i.id}>{i.name} ({i.tuning})</option>)}
                   </select>
                   <div className="flex flex-wrap gap-2">
                     {formData.instruments.map(id => (
-                      <span key={id} className="bg-white px-4 py-2 rounded-full text-[10px] font-black uppercase text-indigo-700 border-2 border-indigo-100 flex items-center gap-2 shadow-sm animate-scale-up">
+                      <span key={id} className="bg-white px-4 py-2 rounded-full text-[10px] font-black uppercase text-blue-700 border-2 border-blue-100 flex items-center gap-2 shadow-sm animate-scale-up">
                         {instruments.find(i => i.id === id)?.name}
                         <button type="button" onClick={() => removeInstrument(id)} className="bg-red-50 text-red-500 rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">×</button>
                       </span>
                     ))}
-                    {formData.instruments.length === 0 && <p className="text-[10px] text-indigo-300 font-bold uppercase italic py-2">Nenhum instrumento selecionado</p>}
+                    {formData.instruments.length === 0 && <p className="text-[10px] text-blue-300 font-bold uppercase italic py-2">Nenhum instrumento selecionado</p>}
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-4 pt-4 border-t border-indigo-50">
-                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Atualizar Integrante' : 'Salvar Cadastro'}</button>
+              <div className="flex gap-4 pt-4 border-t border-blue-50">
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all">{editingId ? 'Atualizar Integrante' : 'Salvar Cadastro'}</button>
                 <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
               </div>
             </form>
@@ -2600,7 +3454,7 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
             <div><p className="font-bold text-gray-800">{m.name}</p><p className="text-sm text-gray-500">{m.voices.join(', ')} • {m.instruments.map(id => instruments.find(i => i.id === id)?.name).join(', ')}</p></div>
             {!isReadOnly && (
               <div className="flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => handleEdit(m)} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                <button onClick={() => handleEdit(m)} className="text-blue-600 font-bold hover:underline">Editar</button>
                 <button onClick={() => setMusicianToDelete(m)} className="text-red-500 font-bold hover:underline">Excluir</button>
               </div>
             )}
@@ -2651,7 +3505,7 @@ const AttendanceReportInputScreen = ({ onGenerate, onCancel, isReadOnly, onExitI
             <option value="Somente Ausentes">Somente Ausentes</option>
             <option value="Somente Justificadas">Somente Justificadas</option>
           </select></div>
-          <div className="flex justify-end gap-2 pt-4"><button onClick={onCancel} className="px-4 py-2 font-bold text-gray-500">Voltar</button><button onClick={() => onGenerate(start, end, type, group)} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">Visualizar Relatório</button></div>
+          <div className="flex justify-end gap-2 pt-4"><button onClick={onCancel} className="px-4 py-2 font-bold text-gray-500">Voltar</button><button onClick={() => onGenerate(start, end, type, group)} className="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow-lg hover:bg-blue-700 active:scale-95 transition-all">Visualizar Relatório</button></div>
         </div>
       </div>
     </Layout>
@@ -2793,12 +3647,12 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
   if (!filterGroup && !editData) {
     return (
       <Layout title="Lista de Chamada" onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
-        <div className="max-w-md mx-auto mt-12 bg-white p-8 rounded-3xl shadow-xl border-t-8 border-indigo-600 animate-slide-up text-center">
-           <h3 className="text-xl font-black text-indigo-900 uppercase mb-8">O que deseja realizar hoje?</h3>
+        <div className="max-w-md mx-auto mt-12 bg-white p-8 rounded-3xl shadow-xl border-t-8 border-blue-600 animate-slide-up text-center">
+           <h3 className="text-xl font-black text-blue-900 uppercase mb-8">O que deseja realizar hoje?</h3>
            <div className="grid grid-cols-1 gap-4 uppercase font-black text-xs">
               <button 
                 onClick={() => setFilterGroup('Coral')}
-                className="bg-indigo-50 text-indigo-700 p-6 rounded-2xl border-2 border-indigo-100 hover:bg-indigo-100 transition-all flex flex-col items-center gap-2"
+                className="bg-blue-50 text-blue-700 p-6 rounded-2xl border-2 border-blue-100 hover:bg-blue-100 transition-all flex flex-col items-center gap-2"
               >
                 <span className="text-2xl">🎶</span>
                 Coral (Somente Vozes)
@@ -2832,13 +3686,13 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
   return (
     <Layout title={editData ? "Editar Chamada" : "Lista de Chamada"} onBack={handleBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
       <div className="bg-white p-6 rounded-lg shadow min-h-[60vh] flex flex-col">
-        <div className="sticky top-[76px] z-30 bg-white shadow-md rounded-xl p-4 mb-6 border border-indigo-50 flex justify-between items-center">
-           <h3 className="text-sm font-black text-indigo-900 uppercase tracking-widest leading-tight">Escolha os Presentes {filterGroup ? `(${filterGroup})` : ''}</h3>
+        <div className="sticky top-[76px] z-30 bg-white shadow-md rounded-xl p-4 mb-6 border border-blue-50 flex justify-between items-center">
+           <h3 className="text-sm font-black text-blue-900 uppercase tracking-widest leading-tight">Escolha os Presentes {filterGroup ? `(${filterGroup})` : ''}</h3>
            <div className="flex gap-2 items-center">
              {filterGroup && !editData && (
-               <button onClick={() => setFilterGroup(null)} className="text-sm font-bold text-indigo-600 bg-indigo-50 px-5 py-2.5 rounded-xl hover:bg-indigo-100 transition-colors border border-indigo-100">Trocar Filtro</button>
+               <button onClick={() => setFilterGroup(null)} className="text-sm font-bold text-blue-600 bg-blue-50 px-5 py-2.5 rounded-xl hover:bg-blue-100 transition-colors border border-blue-100">Trocar Filtro</button>
              )}
-             {!isReadOnly && <button onClick={handleSaveClick} className="bg-indigo-600 text-white px-7 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Salvar Chamada</button>}
+             {!isReadOnly && <button onClick={handleSaveClick} className="bg-blue-600 text-white px-7 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">Salvar Chamada</button>}
            </div>
         </div>
         <div className="grid grid-cols-1 gap-4 flex-1">
@@ -2850,7 +3704,7 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
               <div key={m.id} className="p-4 border rounded bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm relative overflow-hidden">
                 <div className="flex-1">
                     <p className="font-bold text-lg text-gray-800">{m.name}</p>
-                    <p className="text-sm text-indigo-600 font-medium uppercase tracking-wider">{m.voices.join(' / ')}</p>
+                    <p className="text-sm text-blue-600 font-medium uppercase tracking-wider">{m.voices.join(' / ')}</p>
                     {hasJustify && (
                         <button 
                             onClick={() => setViewJustifyId(m.id)}
@@ -2877,25 +3731,25 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
             );
           })}
         </div>
-        {!isReadOnly && <button onClick={handleSaveClick} className="w-full bg-indigo-600 text-white py-3 rounded mt-8 font-bold text-lg shadow-lg active:scale-95 transition-transform">Salvar Chamada</button>}
+        {!isReadOnly && <button onClick={handleSaveClick} className="w-full bg-blue-600 text-white py-3 rounded mt-8 font-bold text-lg shadow-lg active:scale-95 transition-transform">Salvar Chamada</button>}
       </div>
 
       {/* Modal Justificativa (Input) */}
       {activeJustifyId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
             <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in">
-                <h3 className="text-xl font-black text-indigo-900 uppercase mb-4">Informar Justificativa</h3>
+                <h3 className="text-xl font-black text-blue-900 uppercase mb-4">Informar Justificativa</h3>
                 <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Mínimo 10 caracteres</p>
                 {justifyError && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold mb-4 border-l-4 border-red-500">{justifyError}</div>}
                 <textarea 
                     autoFocus
-                    className={`w-full border-2 rounded-xl p-3 h-32 focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${justifyError ? 'border-red-200 bg-red-50' : 'border-gray-100'}`}
+                    className={`w-full border-2 rounded-xl p-3 h-32 focus:ring-2 focus:ring-blue-500 outline-none transition-all ${justifyError ? 'border-red-200 bg-red-50' : 'border-gray-100'}`}
                     placeholder="Escreva aqui o motivo da ausência..."
                     value={justifyInputText}
                     onChange={e => { setJustifyInputText(e.target.value); setJustifyError(null); }}
                 />
                 <div className="flex gap-4 mt-6">
-                    <button onClick={saveJustify} className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">Salvar</button>
+                    <button onClick={saveJustify} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">Salvar</button>
                     <button onClick={() => setActiveJustifyId(null)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase hover:bg-gray-200 transition-all">Cancelar</button>
                 </div>
             </div>
@@ -2906,14 +3760,14 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
       {viewJustifyId && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120] backdrop-blur-sm">
               <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl animate-scale-up">
-                  <h3 className="text-2xl font-black text-indigo-900 uppercase mb-6 border-b pb-4">Detalhamento</h3>
+                  <h3 className="text-2xl font-black text-blue-900 uppercase mb-6 border-b pb-4">Detalhamento</h3>
                   
                   {isEditingJustify ? (
                       <div className="space-y-4">
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Editando justificativa</p>
                           {justifyError && <div className="bg-red-50 text-red-600 p-2 rounded-lg text-xs font-bold mb-4 border-l-4 border-red-500">{justifyError}</div>}
                           <textarea 
-                              className="w-full border-2 border-indigo-100 rounded-2xl p-4 h-40 focus:ring-2 focus:ring-indigo-500 outline-none"
+                              className="w-full border-2 border-blue-100 rounded-2xl p-4 h-40 focus:ring-2 focus:ring-blue-500 outline-none"
                               value={justifyInputText}
                               onChange={e => { setJustifyInputText(e.target.value); setJustifyError(null); }}
                           />
@@ -2924,7 +3778,7 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
                       </div>
                   ) : (
                       <>
-                        <div className="bg-indigo-50/50 p-6 rounded-2xl mb-8 border border-indigo-50 min-h-[120px]">
+                        <div className="bg-blue-50/50 p-6 rounded-2xl mb-8 border border-blue-50 min-h-[120px]">
                             <p className="text-gray-800 leading-relaxed font-medium italic">"{justifications[viewJustifyId]}"</p>
                         </div>
                         <div className="flex gap-4">
@@ -2939,14 +3793,14 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
 
       {/* Confirmação de Edição */}
       {showConfirmEdit && (
-          <div className="fixed inset-0 bg-indigo-900/40 flex items-center justify-center p-4 z-[130] backdrop-blur-md">
+          <div className="fixed inset-0 bg-blue-900/40 flex items-center justify-center p-4 z-[130] backdrop-blur-md">
               <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl text-center">
                   <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-6">
                       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m10.7 18.8 6-6a2 2 0 0 0 0-2.8l-6-6M4.3 12h13.4"/></svg>
                   </div>
                   <h4 className="text-lg font-black text-gray-900 uppercase mb-4 leading-tight">Tem certeza que deseja editar justificativa?</h4>
                   <div className="flex gap-3">
-                      <button onClick={confirmUpdateJustify} className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-black uppercase">Sim, alterar</button>
+                      <button onClick={confirmUpdateJustify} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black uppercase">Sim, alterar</button>
                       <button onClick={() => setShowConfirmEdit(false)} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black uppercase">Não</button>
                   </div>
               </div>
@@ -2958,8 +3812,8 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
           <div className="bg-white rounded-lg p-6 w-full max-sm animate-fade-in shadow-2xl">
             <h3 className="text-xl font-bold mb-4">Informar Data</h3>
             {saveError && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded relative mb-4 text-center text-sm font-bold animate-pulse">{saveError}</div>}
-            <input type="date" className={`w-full border rounded p-2 mb-6 text-lg focus:ring-2 focus:ring-indigo-500 outline-none ${saveError ? 'border-red-500 bg-red-50' : ''}`} value={date} onChange={e => { setDate(e.target.value); setSaveError(null); }} />
-            <div className="flex justify-end gap-3"><button onClick={() => setShowDateModal(false)} className="px-4 py-2 font-semibold text-gray-500">Cancelar</button><button onClick={confirmSave} className="px-6 py-2 bg-indigo-600 text-white rounded font-bold shadow-md hover:bg-indigo-700">Confirmar</button></div>
+            <input type="date" className={`w-full border rounded p-2 mb-6 text-lg focus:ring-2 focus:ring-blue-500 outline-none ${saveError ? 'border-red-500 bg-red-50' : ''}`} value={date} onChange={e => { setDate(e.target.value); setSaveError(null); }} />
+            <div className="flex justify-end gap-3"><button onClick={() => setShowDateModal(false)} className="px-4 py-2 font-semibold text-gray-500">Cancelar</button><button onClick={confirmSave} className="px-6 py-2 bg-blue-600 text-white rounded font-bold shadow-md hover:bg-blue-700">Confirmar</button></div>
           </div>
         </div>
       )}
@@ -2996,13 +3850,13 @@ const AttendanceHistoryScreen = ({ goBack, onEdit, ownerEmail, isReadOnly, onExi
     <Layout title="Registro de Presença" onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
       <div className="space-y-6">
         <div className="sticky top-[60px] z-20 bg-gray-50 shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest">Filtro Rápido</h3>
+          <h3 className="text-xs font-black text-blue-900 uppercase tracking-widest">Filtro Rápido</h3>
           <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide justify-center">
             {['Todos', 'Geral', 'Coral', 'Orquestra'].map((g) => (
               <button
                 key={g}
                 onClick={() => setFilterGroup(g as any)}
-                className={`px-7 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap border-2 ${filterGroup === g ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' : 'bg-white text-gray-400 border-transparent hover:border-gray-200'}`}
+                className={`px-7 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap border-2 ${filterGroup === g ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100' : 'bg-white text-gray-400 border-transparent hover:border-gray-200'}`}
               >
                 {g}
               </button>
@@ -3015,7 +3869,7 @@ const AttendanceHistoryScreen = ({ goBack, onEdit, ownerEmail, isReadOnly, onExi
             <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
               <h3 className="text-xl font-bold mb-6 text-gray-900 leading-tight">Deseja Excluir a Chamada do Dia {new Date(recordToDelete.date + 'T00:00:00').toLocaleDateString('pt-BR')} Permanentemente?</h3>
               <div className="flex gap-4">
-                <button onClick={confirmDelete} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-md">Sim</button>
+                <button onClick={confirmDelete} className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-md">Sim</button>
                 <button onClick={() => setRecordToDelete(null)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-lg font-bold hover:bg-gray-200 transition-colors">Não</button>
               </div>
             </div>
@@ -3035,11 +3889,11 @@ const AttendanceHistoryScreen = ({ goBack, onEdit, ownerEmail, isReadOnly, onExi
           
           return (
             <div key={r.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-              <div className={`absolute top-0 left-0 w-full h-1 ${r.group === 'Coral' ? 'bg-indigo-500' : r.group === 'Orquestra' ? 'bg-amber-500' : 'bg-gray-500'}`}></div>
+              <div className={`absolute top-0 left-0 w-full h-1 ${r.group === 'Coral' ? 'bg-blue-500' : r.group === 'Orquestra' ? 'bg-amber-500' : 'bg-gray-500'}`}></div>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4 gap-4">
                 <div>
-                  <h3 className="font-black text-2xl text-indigo-900">{new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h3>
-                  <span className={`inline-block mt-1 text-sm font-black uppercase px-3 py-1 rounded ${r.group === 'Coral' ? 'bg-indigo-50 text-indigo-600' : r.group === 'Orquestra' ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-600'}`}>
+                  <h3 className="font-black text-2xl text-blue-900">{new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h3>
+                  <span className={`inline-block mt-1 text-sm font-black uppercase px-3 py-1 rounded ${r.group === 'Coral' ? 'bg-blue-50 text-blue-600' : r.group === 'Orquestra' ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-600'}`}>
                     {getGroupLabel(r.group)}
                   </span>
                 </div>
@@ -3087,7 +3941,7 @@ const AttendancePercentageInputScreen = ({ onGenerate, onCancel, isReadOnly, onE
               <option value="Orquestra">Orquestra (Instrumentos)</option>
             </select>
           </div>
-          <div className="flex justify-end gap-2 pt-4"><button onClick={onCancel} className="px-4 py-2 font-bold text-gray-500">Voltar</button><button onClick={() => onGenerate(start, end, group)} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">Gerar Relatório</button></div>
+          <div className="flex justify-end gap-2 pt-4"><button onClick={onCancel} className="px-4 py-2 font-bold text-gray-500">Voltar</button><button onClick={() => onGenerate(start, end, group)} className="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow-lg hover:bg-blue-700 active:scale-95 transition-all">Gerar Relatório</button></div>
         </div>
       </div>
     </Layout>
@@ -3099,7 +3953,7 @@ const HymnsLibraryScreen = ({ navigate, goBack, isReadOnly, onExitImpersonation 
     <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4 mt-4">
       {Object.entries(NOTEBOOKS).map(([code, name]) => (
         <button key={code} onClick={() => navigate('notebook_detail', { code, name })} className="bg-white border p-4 rounded-lg flex flex-col items-center hover:shadow-md transition-shadow h-full">
-          <span className="text-2xl font-bold text-indigo-700">{code}</span><span className="text-[10px] text-center uppercase font-bold mt-1 leading-tight">{name}</span>
+          <span className="text-2xl font-bold text-blue-700">{code}</span><span className="text-[10px] text-center uppercase font-bold mt-1 leading-tight">{name}</span>
         </button>
       ))}
     </div>
@@ -3139,26 +3993,26 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
       <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-gray-100">
         <div className="relative w-full sm:w-64">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input placeholder="Filtrar hinos..." className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-100 rounded-xl font-bold focus:border-indigo-600 outline-none transition-all placeholder:text-gray-300 shadow-sm" value={search} onChange={e => setSearch(e.target.value)} />
+          <input placeholder="Filtrar hinos..." className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-100 rounded-xl font-bold focus:border-blue-600 outline-none transition-all placeholder:text-gray-300 shadow-sm" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <button onClick={() => navigate('hymn_notebook_report', notebook)} className="flex-1 sm:flex-none bg-white text-indigo-600 border-2 border-indigo-100 px-7 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-indigo-50 transition-all">Relatório</button>
-          {!isReadOnly && <button onClick={() => { setEditingId(null); setFormData({ number: '', title: '' }); setValidationError(false); setShowForm(true); }} className="flex-1 sm:flex-none bg-indigo-600 text-white px-7 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Cadastrar Novo</button>}
+          <button onClick={() => navigate('hymn_notebook_report', notebook)} className="flex-1 sm:flex-none bg-white text-blue-600 border-2 border-blue-100 px-7 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:bg-blue-50 transition-all">Relatório</button>
+          {!isReadOnly && <button onClick={() => { setEditingId(null); setFormData({ number: '', title: '' }); setValidationError(false); setShowForm(true); }} className="flex-1 sm:flex-none bg-blue-600 text-white px-7 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">Cadastrar Novo</button>}
         </div>
       </div>
       {hymnToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] animate-fade-in">
           <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-bold mb-6 text-gray-900 leading-tight">Deseja Excluir o Cadastro do Hino {hymnToDelete.number} - {hymnToDelete.title} Permanentemente?</h3>
-            <div className="flex gap-4"><button onClick={confirmDelete} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold shadow-md">Sim</button><button onClick={() => setHymnToDelete(null)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-lg font-bold">Não</button></div>
+            <div className="flex gap-4"><button onClick={confirmDelete} className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold shadow-md">Sim</button><button onClick={() => setHymnToDelete(null)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-lg font-bold">Não</button></div>
           </div>
         </div>
       )}
       {showForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200] backdrop-blur-sm animate-fade-in">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl animate-scale-up border border-indigo-100">
-            <div className="flex justify-between items-center mb-6 border-b border-indigo-50 pb-4">
-              <h3 className="font-black text-xs uppercase text-indigo-900 tracking-widest">{editingId ? 'Editar Hino' : 'Adicionar Hino'}</h3>
+          <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl animate-scale-up border border-blue-100">
+            <div className="flex justify-between items-center mb-6 border-b border-blue-50 pb-4">
+              <h3 className="font-black text-xs uppercase text-blue-900 tracking-widest">{editingId ? 'Editar Hino' : 'Adicionar Hino'}</h3>
               <button onClick={() => { setShowForm(false); setEditingId(null); setValidationError(false); setStartZeroError(false); }} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
@@ -3182,15 +4036,15 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="sm:col-span-1">
                   <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Nº</label>
-                  <input required autoFocus placeholder="Nº" className={`w-full border-2 rounded-xl p-4 font-black text-center text-indigo-600 focus:border-indigo-600 outline-none transition-all ${validationError || startZeroError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.number} onChange={e => { setFormData({...formData, number: e.target.value}); setValidationError(false); setStartZeroError(false); }} />
+                  <input required autoFocus placeholder="Nº" className={`w-full border-2 rounded-xl p-4 font-black text-center text-blue-600 focus:border-blue-600 outline-none transition-all ${validationError || startZeroError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.number} onChange={e => { setFormData({...formData, number: e.target.value}); setValidationError(false); setStartZeroError(false); }} />
                 </div>
                 <div className="sm:col-span-3">
                   <label className="block text-[10px] font-black uppercase text-gray-900 mb-2 tracking-widest">Título do Hino</label>
-                  <input required placeholder="Título" className={`w-full border-2 rounded-xl p-4 font-bold focus:border-indigo-600 outline-none transition-all ${validationError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.title} onChange={e => { setFormData({...formData, title: e.target.value}); setValidationError(false); }} />
+                  <input required placeholder="Título" className={`w-full border-2 rounded-xl p-4 font-bold focus:border-blue-600 outline-none transition-all ${validationError ? 'border-red-500 bg-red-50' : 'border-gray-100'}`} value={formData.title} onChange={e => { setFormData({...formData, title: e.target.value}); setValidationError(false); }} />
                 </div>
               </div>
               <div className="flex gap-4 pt-2">
-                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all">{editingId ? 'Atualizar' : 'Salvar'}</button>
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all">{editingId ? 'Atualizar' : 'Salvar'}</button>
                 <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setValidationError(false); setStartZeroError(false); }} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">Cancelar</button>
               </div>
             </form>
@@ -3200,10 +4054,10 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {filtered.map(h => (
           <div key={h.id} className="flex justify-between items-center p-4 border-b last:border-0 hover:bg-gray-50 group">
-            <div className="flex items-center gap-4"><span className="font-bold text-indigo-700 text-lg w-12">{h.number}</span><span className="font-medium">{h.title}</span></div>
+            <div className="flex items-center gap-4"><span className="font-bold text-blue-700 text-lg w-12">{h.number}</span><span className="font-medium">{h.title}</span></div>
             {!isReadOnly && (
               <div className="flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => { setEditingId(h.id); setFormData({ number: h.number, title: h.title }); setValidationError(false); setShowForm(true); }} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                <button onClick={() => { setEditingId(h.id); setFormData({ number: h.number, title: h.title }); setValidationError(false); setShowForm(true); }} className="text-blue-600 font-bold hover:underline">Editar</button>
                 <button onClick={() => setHymnToDelete(h)} className="text-red-400 font-bold hover:underline">Excluir</button>
               </div>
             )}
@@ -3227,35 +4081,35 @@ const ProgramsScreen = ({ navigate, goBack, isReadOnly, onExitImpersonation }: a
 const GuidelinesScreen = ({ goBack, onExitImpersonation }: any) => (
   <Layout title="Diretrizes de Programação" onBack={goBack} onExitImpersonation={onExitImpersonation}>
     <div className="bg-white p-8 rounded-lg shadow prose max-w-none space-y-8">
-      <h2 className="text-2xl font-bold text-indigo-900 border-b pb-4">Diretrizes da Igreja Apostólica</h2>
+      <h2 className="text-2xl font-bold text-blue-900 border-b pb-4">Diretrizes da Igreja Apostólica</h2>
       
       <section>
-        <h3 className="font-bold text-lg text-indigo-700">Reuniões Normais (1h30min):</h3>
+        <h3 className="font-bold text-lg text-blue-700">Reuniões Normais (1h30min):</h3>
         <p className="text-gray-600">4 hinos: 2 após hinos do hinário, 1 após contribuições e 1 para finalizar.</p>
       </section>
       
       <section>
-        <h3 className="font-bold text-lg text-indigo-700">Reuniões Normais (2h):</h3>
+        <h3 className="font-bold text-lg text-blue-700">Reuniões Normais (2h):</h3>
         <p className="text-gray-600">5 hinos: 2 após hinos do hinário, 2 após contribuições e 1 para finalizar.</p>
       </section>
 
       <section>
-        <h3 className="font-bold text-lg text-indigo-700">Reuniões de Oração:</h3>
+        <h3 className="font-bold text-lg text-blue-700">Reuniões de Oração:</h3>
         <p className="text-gray-600">O pastor deverá iniciar a reunião e antes da oração será cantado o numero 1 do hinário. Após a oração inicial deverá be cantado o hino nº 82 ou 180 do hinário. Na sequencia o coral apresentará 1 ou 2 hinos, o pastor farmá o levantamento das contribuições e o coral cantará mais 1 ou 2 hinos. O pastor fará a leitura e explicação da mensagem, após devera ser cantado um dos hinos nº 83 ou 84, 85, 107, 122, 172, 174, 176, 178, do hinário. Em seguida será a oração individual e após será cantando um dos hinos nº 81 ou 86, 116, 117, 118, 119, 120, 121, 173, 175, 177, 179, 186, 230, do hinário. Então a reunião deverá ser encerrada (não pode passar das 21hrs)</p>
       </section>
 
       <section>
-        <h3 className="font-bold text-lg text-indigo-700">Reuniões Especiais (2h):</h3>
+        <h3 className="font-bold text-lg text-blue-700">Reuniões Especiais (2h):</h3>
         <p className="text-gray-600">Até 6 hinos: 3 após hinos do hinário, 2 após contribuições e 1 para finalizar. (Obs: Reuniões especiais são para dias como primeiro dia do ano, Corpus Christi, etc.)</p>
       </section>
 
       <section>
-        <h3 className="font-bold text-lg text-indigo-700">Reunião festiva (2h):</h3>
+        <h3 className="font-bold text-lg text-blue-700">Reunião festiva (2h):</h3>
         <p className="text-gray-600">Entre 8 e 10 hinos (a depender da extensão dos hinos): 5 á 7 após hinos do hinário, 2 após contribuições e 1 para finalizar.</p>
       </section>
 
       <section>
-        <h3 className="font-bold text-lg text-indigo-700">Santa Comunhão (2h á 2h30min):</h3>
+        <h3 className="font-bold text-lg text-blue-700">Santa Comunhão (2h á 2h30min):</h3>
         <p className="text-gray-600">Entre 10 e 12 hinos (a depender da extensão dos hinos): 8 á 10 após hinos do hinário (1 hora de apresentação), 2 após as contribuições (sendo o segundo exclusivo de comunhão), hinos do hinário para destapar a mesa são obrigatoriamente os nº 87, 90 ou 114 e para finalizar cantar o hino nº 57 do hinário.</p>
       </section>
     </div>
@@ -3294,24 +4148,24 @@ const HymnListScreen = ({ goBack, onCreate, onEdit, ownerEmail, isReadOnly, onEx
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[100] animate-fade-in">
           <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-bold mb-6 text-gray-900 leading-tight">Deseja Excluir a Programação do Dia {new Date(listToDelete.date + 'T00:00:00').toLocaleDateString('pt-BR')} Permanentemente?</h3>
-            <div className="flex gap-4"><button onClick={confirmDelete} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold shadow-md">Sim</button><button onClick={() => setListToDelete(null)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-lg font-bold">Não</button></div>
+            <div className="flex gap-4"><button onClick={confirmDelete} className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold shadow-md">Sim</button><button onClick={() => setListToDelete(null)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-lg font-bold">Não</button></div>
           </div>
         </div>
       )}
       <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
-        <h2 className="text-base font-bold text-indigo-900">Histórico de Programas</h2>
-        {!isReadOnly && <button onClick={onCreate} className="bg-indigo-600 text-white px-7 py-3 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 active:scale-95 transition-all">Nova Lista</button>}
+        <h2 className="text-base font-bold text-blue-900">Histórico de Programas</h2>
+        {!isReadOnly && <button onClick={onCreate} className="bg-blue-600 text-white px-7 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">Nova Lista</button>}
       </div>
       <div className="space-y-4">
         {lists.sort((a,b) => b.date.localeCompare(a.date)).map(l => (
           <div key={l.id} className="bg-white p-4 rounded shadow flex justify-between items-center hover:bg-gray-50 transition-colors">
-            <div><p className="font-bold text-indigo-900">{new Date(l.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p><p className="text-sm text-gray-500">{l.congregation} • {MEETING_TYPES[l.type]}</p></div>
+            <div><p className="font-bold text-blue-900">{new Date(l.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p><p className="text-sm text-gray-500">{l.congregation} • {MEETING_TYPES[l.type]}</p></div>
             <div className="flex gap-4">
               <button onClick={() => shareLink(l)} className="text-green-600 font-bold hover:underline flex items-center gap-1">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
                 Compartilhar
               </button>
-              <button onClick={() => setViewing(l)} className="text-indigo-600 font-bold hover:underline">Ver PDF</button>
+              <button onClick={() => setViewing(l)} className="text-blue-600 font-bold hover:underline">Ver PDF</button>
               <button onClick={() => onEdit(l)} className="text-blue-600 font-bold hover:underline">{isReadOnly ? 'Ver Detalhes' : 'Editar'}</button>
               {!isReadOnly && <button onClick={() => setListToDelete(l)} className="text-red-600 font-bold hover:underline">Excluir</button>}
             </div>
@@ -3554,20 +4408,20 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
             <React.Fragment key={sec}>
               {data.type === 'Oracao' && sec === 'afterIndividualPrayer' && (
                 <div className="flex justify-center my-6">
-                  <span className="bg-white text-indigo-900 border border-indigo-100 px-6 py-2 rounded-full font-black uppercase text-xs shadow-sm tracking-widest animate-fade-in">Oração Individual</span>
+                  <span className="bg-white text-blue-900 border border-blue-100 px-6 py-2 rounded-full font-black uppercase text-xs shadow-sm tracking-widest animate-fade-in">Oração Individual</span>
                 </div>
               )}
               <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8 shadow-sm">
                 <div className="flex flex-col items-center mb-6 gap-3">
                   <div className="flex flex-col sm:flex-row items-center gap-4">
-                    <h4 className="font-black uppercase text-indigo-900 text-lg border-b-2 border-indigo-200 px-8 pb-1.5 tracking-tight">{sectionLabel}</h4>
+                    <h4 className="font-black uppercase text-blue-900 text-lg border-b-2 border-blue-200 px-8 pb-1.5 tracking-tight">{sectionLabel}</h4>
                     {data.type === 'NatalAnoNovo' && (sec === 'contributions' || sec === 'message') && (
-                      <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-indigo-100 shadow-sm">
-                        <label className="text-[9px] font-black uppercase text-indigo-400">Duração:</label>
+                      <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-blue-100 shadow-sm">
+                        <label className="text-[9px] font-black uppercase text-blue-400">Duração:</label>
                         <input 
                           disabled={isReadOnly}
                           placeholder="00:00:00" 
-                          className="border border-indigo-50 rounded-lg px-2 py-1 text-xs w-24 font-mono text-center focus:border-indigo-500 outline-none"
+                          className="border border-blue-50 rounded-lg px-2 py-1 text-xs w-24 font-mono text-center focus:border-blue-500 outline-none"
                           value={data.sectionDurations?.[sec] || ''}
                           onChange={e => setData({...data, sectionDurations: {...data.sectionDurations, [sec]: e.target.value}})}
                         />
@@ -3576,7 +4430,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                   </div>
                   <div className="flex flex-wrap items-center justify-center gap-4">
                     {(data.type === 'Outra' || (data.type === 'NatalAnoNovo' && (sec === 'choir' || sec === 'contributions' || sec === 'message'))) && !isReadOnly && (
-                      <button type="button" onClick={() => addRow(sec)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95">
+                      <button type="button" onClick={() => addRow(sec)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-100 active:scale-95">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         Adicionar Linha
                       </button>
@@ -3588,7 +4442,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                   <div 
                     {...provided.droppableProps} 
                     ref={provided.innerRef} 
-                    className={`space-y-3 min-h-[60px] transition-all duration-200 rounded-xl ${snapshot.isDraggingOver ? 'bg-indigo-50/50 ring-2 ring-indigo-200 ring-dashed' : ''} ${entries.length === 0 ? 'border-2 border-dashed border-gray-200 flex items-center justify-center p-4' : ''}`}
+                    className={`space-y-3 min-h-[60px] transition-all duration-200 rounded-xl ${snapshot.isDraggingOver ? 'bg-blue-50/50 ring-2 ring-blue-200 ring-dashed' : ''} ${entries.length === 0 ? 'border-2 border-dashed border-gray-200 flex items-center justify-center p-4' : ''}`}
                   >
                     {entries.length === 0 && (
                       <div className="flex flex-col items-center gap-2 opacity-40">
@@ -3610,7 +4464,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                             <div 
                               ref={provided.innerRef} 
                               {...provided.draggableProps} 
-                              className={`flex flex-col gap-1 ${snapshot.isDragging ? 'opacity-50 ring-2 ring-indigo-500 rounded-xl bg-indigo-50/50 scale-105 z-50' : ''} transition-all duration-200`}
+                              className={`flex flex-col gap-1 ${snapshot.isDragging ? 'opacity-50 ring-2 ring-blue-500 rounded-xl bg-blue-50/50 scale-105 z-50' : ''} transition-all duration-200`}
                             >
                               {hasNbError && (
                                 <div className="flex animate-bounce-short">
@@ -3619,7 +4473,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                               )}
                               <div className="flex flex-col sm:flex-row gap-2 items-center p-2 rounded relative group">
                                 {!isReadOnly && (
-                                  <div {...provided.dragHandleProps} className="hidden sm:flex items-center justify-center cursor-grab active:cursor-grabbing p-1.5 text-gray-300 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all absolute -left-6 bg-white rounded-l-lg border border-r-0 border-gray-100">
+                                  <div {...provided.dragHandleProps} className="hidden sm:flex items-center justify-center cursor-grab active:cursor-grabbing p-1.5 text-gray-300 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all absolute -left-6 bg-white rounded-l-lg border border-r-0 border-gray-100">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>
                                   </div>
                                 )}
@@ -3671,14 +4525,14 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                               </>
                             )}
                           </select>
-                          <button type="button" onClick={() => openHymnSearch(sec, i, e.notebook)} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="Pesquisar Hino">
+                          <button type="button" onClick={() => openHymnSearch(sec, i, e.notebook)} className="p-2.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Pesquisar Hino">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                           </button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-1">
                           <input disabled={numberLocked} placeholder="Nº" className={`w-full sm:w-20 border rounded p-2 ${validationErrors.includes(`${sec}-${i}-number`) ? 'border-red-500 bg-red-50' : ''}`} value={e.number} onChange={ev => update(sec, i, 'number', ev.target.value)} />
-                          <button type="button" onClick={() => openHymnSearch(sec, i, e.notebook)} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="Pesquisar Hino">
+                          <button type="button" onClick={() => openHymnSearch(sec, i, e.notebook)} className="p-2.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Pesquisar Hino">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                           </button>
                         </div>
@@ -3700,7 +4554,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                             <input disabled={isReadOnly} placeholder="00:00:00" className="border rounded p-2 w-24 text-center font-mono text-sm" value={e.duration || ''} onChange={ev => update(sec, i, 'duration', ev.target.value)} />
                           </div>
                           {progInfo?.markers[sec][i] && (
-                            <div className="flex flex-col items-center bg-indigo-600 text-white px-2 py-1 rounded shadow-sm border border-indigo-700 min-w-[75px]">
+                            <div className="flex flex-col items-center bg-blue-600 text-white px-2 py-1 rounded shadow-sm border border-blue-700 min-w-[75px]">
                               <span className="text-[8px] font-black uppercase opacity-80 leading-none mb-0.5">Término</span>
                               <span className="text-xs font-black tracking-wider leading-none">{progInfo.markers[sec][i]}</span>
                             </div>
@@ -3728,9 +4582,9 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
       })}
         
         {data.type === 'NatalAnoNovo' && progInfo && (
-          <div className="bg-indigo-900 text-white p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border-b-4 border-indigo-950">
+          <div className="bg-blue-900 text-white p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border-b-4 border-blue-950">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-indigo-800 rounded-full">
+              <div className="p-3 bg-blue-800 rounded-full">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               </div>
               <div>
@@ -3745,17 +4599,17 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
           </div>
         )}
 
-        {!isReadOnly && <button type="submit" className="bg-indigo-600 text-white px-10 py-3 rounded-full font-bold shadow-lg w-full sm:w-auto">Finalizar Programa</button>}
+        {!isReadOnly && <button type="submit" className="bg-blue-600 text-white px-10 py-3 rounded-full font-bold shadow-lg w-full sm:w-auto">Finalizar Programa</button>}
       </form>
     </DragDropContext>
 
       {searchModalHymns && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-scale-up">
-            <div className="bg-indigo-600 p-6 flex justify-between items-center shrink-0">
+            <div className="bg-blue-600 p-6 flex justify-between items-center shrink-0">
                <div className="flex flex-col">
                   <h3 className="text-white font-black uppercase tracking-widest text-lg">Pesquisar Hino</h3>
-                  <span className="text-indigo-100 text-[10px] font-bold uppercase">Caderno: {searchModalHymns.notebook}</span>
+                  <span className="text-blue-100 text-[10px] font-bold uppercase">Caderno: {searchModalHymns.notebook}</span>
                </div>
                <button onClick={() => setSearchModalHymns(null)} className="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -3769,7 +4623,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                   autoFocus
                   type="text" 
                   placeholder="Pesquise por número ou título..." 
-                  className="w-full bg-white border-2 border-indigo-50 rounded-2xl py-4 pl-12 pr-6 font-bold outline-none focus:border-indigo-600 transition-all shadow-sm"
+                  className="w-full bg-white border-2 border-blue-50 rounded-2xl py-4 pl-12 pr-6 font-bold outline-none focus:border-blue-600 transition-all shadow-sm"
                   value={hymnSearchTerm}
                   onChange={e => setHymnSearchTerm(e.target.value)}
                 />
@@ -3785,16 +4639,16 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
                   <button 
                     key={h.id} 
                     onClick={() => selectHymnFromSearch(h.number)}
-                    className="w-full text-left p-4 bg-white hover:bg-indigo-50 border border-gray-100 rounded-2xl transition-all group flex items-center gap-4 hover:border-indigo-200 hover:shadow-md"
+                    className="w-full text-left p-4 bg-white hover:bg-blue-50 border border-gray-100 rounded-2xl transition-all group flex items-center gap-4 hover:border-blue-200 hover:shadow-md"
                   >
-                    <div className="w-12 h-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl font-black text-lg shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                    <div className="w-12 h-12 bg-blue-100 text-blue-600 flex items-center justify-center rounded-xl font-black text-lg shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                       {h.number}
                     </div>
                     <div className="flex-1 overflow-hidden">
-                      <p className="font-black text-indigo-950 uppercase truncate tracking-tight">{h.title}</p>
-                      <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">{h.notebook}</p>
+                      <p className="font-black text-blue-950 uppercase truncate tracking-tight">{h.title}</p>
+                      <p className="text-[10px] font-black text-blue-300 uppercase tracking-widest">{h.notebook}</p>
                     </div>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600">
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
                   </button>
@@ -3836,7 +4690,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
         <button onClick={onBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('program-print', `programa-${list.date}.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('program-print', `programa-${list.date}.pdf`, (list.isDetailed || list.type === 'NatalAnoNovo') ? 'landscape' : 'portrait')} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
+          <button onClick={() => downloadPDF('program-print', `programa-${list.date}.pdf`, (list.isDetailed || list.type === 'NatalAnoNovo') ? 'landscape' : 'portrait')} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
       <div id="program-print" className={`bg-white shadow-2xl mx-auto ${(list.isDetailed || list.type === 'NatalAnoNovo') ? 'max-w-[297mm] min-h-[210mm]' : 'max-w-[210mm] min-h-[297mm]'} ${list.type === 'NatalAnoNovo' ? 'p-6' : 'p-12'}`}>
@@ -3973,7 +4827,7 @@ const HymnReportInputScreen = ({ onGenerate, onCancel, onExitImpersonation }: an
             <option value="least_presented">Dos Menos Apresentados Para Mais Apresentados</option>
           </select>
         </div>
-        <button onClick={() => onGenerate(start, end, sortOrder)} className="w-full bg-indigo-600 text-white py-2 rounded font-bold shadow hover:bg-indigo-700 transition-colors">Visualizar</button>
+        <button onClick={() => onGenerate(start, end, sortOrder)} className="w-full bg-blue-600 text-white py-2 rounded font-bold shadow hover:bg-blue-700 transition-colors">Visualizar</button>
       </div>
     </Layout>
   );
@@ -4026,7 +4880,7 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
     generate();
   }, [ownerEmail, start, end]);
 
-  if (loading) return <div className="min-h-screen bg-white flex items-center justify-center font-bold animate-pulse text-indigo-600 uppercase tracking-widest">Calculando Uso de Hinos...</div>;
+  if (loading) return <div className="min-h-screen bg-white flex items-center justify-center font-bold animate-pulse text-blue-600 uppercase tracking-widest">Calculando Uso de Hinos...</div>;
 
   const grouped = report.reduce((acc: any, h) => {
     if (!acc[h.notebook]) acc[h.notebook] = [];
@@ -4055,7 +4909,7 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
         <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML('hymn-usage-report-view', `relatorio-uso-hinos.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('hymn-usage-report-view', `relatorio-uso-hinos.pdf`)} className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
+          <button onClick={() => downloadPDF('hymn-usage-report-view', `relatorio-uso-hinos.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
         </div>
       </div>
       <div id="hymn-usage-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
@@ -4332,12 +5186,12 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
     if (list.length === 0) return null;
     return (
       <div className="mb-8">
-        <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3 px-1">{title} ({list.length})</h3>
+        <h3 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-3 px-1">{title} ({list.length})</h3>
         <div className="space-y-3">
           {list.map(u => (
             <div key={u.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-indigo-900 truncate">{u.name}</p>
+                <p className="font-bold text-blue-900 truncate">{u.name}</p>
                 <p className="text-[10px] text-gray-400 font-bold uppercase truncate">{u.email}</p>
                 <div className="flex gap-1 mt-1 flex-wrap">
                   {u.isAdminUser && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black tracking-widest uppercase italic">Administrador</span>}
@@ -4346,7 +5200,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
               </div>
               <div className="flex gap-1.5 ml-4">
                 {u.status === 'authorized' && (isMaster || currentUser.canViewOthers || currentUser.canReadOnlyMode) && (
-                  <button onClick={() => handleImpersonate(u)} className="bg-indigo-50 text-indigo-600 p-2 rounded-lg hover:bg-indigo-600 hover:text-white transition-all transition-colors">
+                  <button onClick={() => handleImpersonate(u)} className="bg-blue-50 text-blue-600 p-2 rounded-lg hover:bg-blue-600 hover:text-white transition-all transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   </button>
                 )}
@@ -4407,7 +5261,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
               </svg>
             </div>
             <div>
-              <h3 className="text-xl font-black text-indigo-900 uppercase tracking-tight">Confirmar Ação</h3>
+              <h3 className="text-xl font-black text-blue-900 uppercase tracking-tight">Confirmar Ação</h3>
               <p className="text-sm text-gray-500 mt-2">Deseja realmente <strong>{statusConfirmUser.target === 'disabled' ? 'desabilitar' : 'reabilitar'}</strong> o acesso de <strong>{statusConfirmUser.user.name}</strong>?</p>
             </div>
             <div className="flex gap-3">
@@ -4431,7 +5285,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
             </div>
             <div>
-              <h3 className="text-xl font-black text-indigo-900 uppercase tracking-tight text-red-600">Excluir Permanentemente?</h3>
+              <h3 className="text-xl font-black text-blue-900 uppercase tracking-tight text-red-600">Excluir Permanentemente?</h3>
               <div className="mt-3 p-3 bg-red-50 rounded-lg text-left">
                 <p className="text-[10px] text-red-800 font-bold uppercase leading-relaxed">
                   Esta ação é irreversível. Todas as informações alimentadas por <strong>{deleteConfirmUser.name}</strong> serão apagadas:
@@ -4474,7 +5328,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] animate-fade-in backdrop-blur-sm">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-8 border-b bg-white relative z-10">
-              <h3 className="text-xl font-black text-indigo-900 uppercase">Níveis de Acesso: {permissionModalUser.name}</h3>
+              <h3 className="text-xl font-black text-blue-900 uppercase">Níveis de Acesso: {permissionModalUser.name}</h3>
               {permissionError && (
                 <div className="bg-red-50 text-red-600 p-3 rounded-lg text-[10px] font-black uppercase border-l-4 border-red-500 animate-pulse mt-4">
                   {permissionError}
@@ -4484,14 +5338,14 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
             
             <div className="flex-1 overflow-y-auto p-8 pt-6 custom-scrollbar-heavy">
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-xl">
-                  <span className="font-bold text-indigo-900 text-sm uppercase">Tornar Administrador</span>
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
+                  <span className="font-bold text-blue-900 text-sm uppercase">Tornar Administrador</span>
                   <button 
                     onClick={() => {
                       setPermissionError(null);
                       setPermissionModalUser({...permissionModalUser, isAdminUser: !permissionModalUser.isAdminUser});
                     }}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${permissionModalUser.isAdminUser ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${permissionModalUser.isAdminUser ? 'bg-blue-600' : 'bg-gray-300'}`}
                   >
                     <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${permissionModalUser.isAdminUser ? 'left-7' : 'left-1'}`} />
                   </button>
@@ -4551,32 +5405,32 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
                       }
                     ].map(category => (
                       <div key={category.group} className="space-y-2">
-                        <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-50 pb-1">{category.group}</h4>
+                        <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest border-b border-blue-50 pb-1">{category.group}</h4>
                         <div className="space-y-2">
                           {category.opts.map(opt => (
                             <label key={opt.key} className="flex items-center gap-3 cursor-pointer group">
                               <input 
                                 type="checkbox" 
-                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
                                 checked={(permissionModalUser as any)[opt.key]}
                                 onChange={(e) => {
                                   setPermissionError(null);
                                   setPermissionModalUser({...permissionModalUser, [opt.key]: e.target.checked});
                                 }}
                               />
-                              <span className="text-xs font-semibold text-gray-700 group-hover:text-indigo-600 transition-colors uppercase">{opt.label}</span>
+                              <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-600 transition-colors uppercase">{opt.label}</span>
                             </label>
                           ))}
                         </div>
                       </div>
                     ))}
 
-                    <div className="mt-8 pt-4 border-t border-indigo-50">
-                      <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Escopo de Controle</h4>
+                    <div className="mt-8 pt-4 border-t border-blue-50">
+                      <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Escopo de Controle</h4>
                       <p className="text-[9px] text-gray-400 font-bold uppercase mb-3 text-red-500 italic">Necessário para ações do grupo "Gestão de Pessoas Selecionada"</p>
                       <button 
                         onClick={() => setShowScopeSelector(true)}
-                        className="w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-bold uppercase text-[10px] border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                        className="w-full bg-blue-50 text-blue-700 py-3 rounded-xl font-bold uppercase text-[10px] border border-blue-100 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
                         Configurar Usuários Gerenciados ({(permissionModalUser.managedUserEmails || []).length})
@@ -4588,7 +5442,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
             </div>
 
             <div className="p-8 border-t bg-gray-50 flex gap-4">
-              <button onClick={savePermissions} className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all text-xs">Salvar Alterações</button>
+              <button onClick={savePermissions} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all text-xs">Salvar Alterações</button>
               <button onClick={() => setPermissionModalUser(null)} className="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-xl font-black uppercase hover:bg-gray-100 transition-all text-xs">Cancelar</button>
             </div>
           </div>
@@ -4600,7 +5454,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
           <div className="bg-white rounded-3xl p-8 w-full max-w-xl shadow-2xl space-y-6 max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-start border-b pb-4">
               <div>
-                <h3 className="text-xl font-black text-indigo-900 uppercase tracking-tight">Escopo de Controle</h3>
+                <h3 className="text-xl font-black text-blue-900 uppercase tracking-tight">Escopo de Controle</h3>
                 <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Selecione os usuários que {permissionModalUser.name} terá autoridade</p>
               </div>
               <button onClick={() => setShowScopeSelector(false)} className="bg-gray-100 p-2 rounded-full text-gray-400 hover:text-gray-600">
@@ -4608,15 +5462,15 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
               </button>
             </div>
 
-            <div className="flex justify-between items-center bg-indigo-50/50 p-4 rounded-2xl">
-              <span className="text-[10px] font-black text-indigo-900 uppercase">Ações Rápidas:</span>
+            <div className="flex justify-between items-center bg-blue-50/50 p-4 rounded-2xl">
+              <span className="text-[10px] font-black text-blue-900 uppercase">Ações Rápidas:</span>
               <div className="flex gap-4">
                 <button 
                   onClick={() => {
                     const allEmails = users.filter(usr => usr.email !== 'Admin' && usr.id !== permissionModalUser.id).map(usr => usr.email);
                     setPermissionModalUser({...permissionModalUser, managedUserEmails: allEmails});
                   }}
-                  className="text-[10px] font-black text-indigo-600 uppercase hover:underline"
+                  className="text-[10px] font-black text-blue-600 uppercase hover:underline"
                 >
                   Selecionar Todos
                 </button>
@@ -4634,12 +5488,12 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
                 {users.filter(usr => usr.email !== 'Admin' && usr.id !== permissionModalUser.id).map(usr => (
                   <label key={usr.id} className={`flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 transition-all ${
                     (permissionModalUser.managedUserEmails || []).includes(usr.email) 
-                    ? 'border-indigo-600 bg-indigo-50 shadow-sm' 
-                    : 'border-gray-100 hover:border-indigo-200'
+                    ? 'border-blue-600 bg-blue-50 shadow-sm' 
+                    : 'border-gray-100 hover:border-blue-200'
                   }`}>
                     <input 
                       type="checkbox"
-                      className="w-5 h-5 rounded-md text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer"
+                      className="w-5 h-5 rounded-md text-blue-600 focus:ring-blue-500 transition-all cursor-pointer"
                       checked={(permissionModalUser.managedUserEmails || []).includes(usr.email)}
                       onChange={(e) => {
                         const current = permissionModalUser.managedUserEmails || [];
@@ -4649,7 +5503,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
                     />
                     <div className="flex flex-col min-w-0">
                       <span className={`text-[12px] font-black leading-tight truncate uppercase ${
-                        (permissionModalUser.managedUserEmails || []).includes(usr.email) ? 'text-indigo-900' : 'text-gray-700'
+                        (permissionModalUser.managedUserEmails || []).includes(usr.email) ? 'text-blue-900' : 'text-gray-700'
                       }`}>{usr.name}</span>
                       <span className="text-[9px] text-gray-400 font-bold truncate">{usr.email}</span>
                     </div>
@@ -4661,7 +5515,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
             <div className="pt-4 border-t">
               <button 
                 onClick={() => setShowScopeSelector(false)}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all text-xs"
+                className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-100 active:scale-95 transition-all text-xs"
               >
                 Confirmar Seleção ({(permissionModalUser.managedUserEmails || []).length})
               </button>
@@ -4677,7 +5531,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </div>
             <div>
-              <h3 className="text-xl font-black text-indigo-900 uppercase tracking-tight">Alterar Senha?</h3>
+              <h3 className="text-xl font-black text-blue-900 uppercase tracking-tight">Alterar Senha?</h3>
               <p className="text-sm text-gray-500 mt-2">Deseja Realmente Alterar a Senha Deste Usuário (<strong>{passwordConfirmUser.name}</strong>)?</p>
               <p className="text-[10px] text-amber-600 font-bold uppercase mt-2">Uma nova senha será gerada aleatoriamente pelo sistema.</p>
             </div>
@@ -4685,7 +5539,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
               <button 
                 onClick={handleChangePassword}
                 disabled={loading}
-                className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all text-center"
+                className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all text-center"
               >
                 {loading ? 'Processando...' : 'Sim, Alterar'}
               </button>
@@ -4705,13 +5559,13 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
               <h3 className="text-xl font-black text-green-700 uppercase tracking-tight">Senha Alterada!</h3>
               <p className="text-sm text-gray-500 mt-2">A nova senha de <strong>{passwordConfirmUser?.name}</strong> foi gerada com sucesso:</p>
               <div className="mt-4 p-4 bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl font-bold">
-                 <p className="text-2xl font-mono font-black text-indigo-900 tracking-widest selection:bg-indigo-100">{newPasswordGenerated}</p>
+                 <p className="text-2xl font-mono font-black text-blue-900 tracking-widest selection:bg-blue-100">{newPasswordGenerated}</p>
               </div>
               <p className="text-[9px] text-gray-400 font-bold uppercase mt-4">Anote ou copie a senha acima e informe ao usuário.</p>
             </div>
             <button 
               onClick={() => { setPasswordConfirmUser(null); setNewPasswordGenerated(null); }}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all text-center"
+              className="w-full bg-blue-600 text-white py-3 rounded-xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all text-center"
             >
               Concluído
             </button>
@@ -4752,12 +5606,12 @@ const AdminBulletinsScreen = ({ goBack, navigate, currentUser }: any) => {
       <div className="max-w-4xl mx-auto py-8 px-4">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-2xl font-black text-indigo-900 uppercase tracking-tight">Quadro de Avisos</h2>
+            <h2 className="text-2xl font-black text-blue-900 uppercase tracking-tight">Quadro de Avisos</h2>
             <p className="text-xs text-gray-400 font-bold uppercase">Gerencie os avisos oficiais do sistema</p>
           </div>
           <button 
             onClick={() => navigate('admin_bulletin_form')}
-            className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2"
+            className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all flex items-center gap-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Novo Aviso
@@ -4766,8 +5620,8 @@ const AdminBulletinsScreen = ({ goBack, navigate, currentUser }: any) => {
 
         {loading ? (
           <div className="text-center py-20 animate-pulse">
-            <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <span className="text-xs font-black text-indigo-400 uppercase tracking-widest">Carregando Avisos...</span>
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <span className="text-xs font-black text-blue-400 uppercase tracking-widest">Carregando Avisos...</span>
           </div>
         ) : messages.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-100 italic font-bold text-gray-400 uppercase text-xs">
@@ -4776,11 +5630,11 @@ const AdminBulletinsScreen = ({ goBack, navigate, currentUser }: any) => {
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {messages.map(msg => (
-              <div key={msg.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex justify-between items-center group hover:shadow-xl hover:shadow-indigo-50 transition-all duration-300">
+              <div key={msg.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex justify-between items-center group hover:shadow-xl hover:shadow-blue-50 transition-all duration-300">
                 <div className="flex-1 min-w-0 pr-4">
-                  <h3 className="font-black text-indigo-900 uppercase tracking-tight truncate">{(msg.title?.toUpperCase() === 'COMUNICADO CORUS' || !msg.title) ? 'AVISO' : msg.title}</h3>
+                  <h3 className="font-black text-blue-900 uppercase tracking-tight truncate">{(msg.title?.toUpperCase() === 'COMUNICADO CORUS' || !msg.title) ? 'AVISO' : msg.title}</h3>
                   <div className="flex items-center gap-4 mt-1">
-                    <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">
+                    <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">
                       {new Date(msg.created_at).toLocaleDateString('pt-BR')}
                     </span>
                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Por: {msg.created_by}</span>
@@ -4789,7 +5643,7 @@ const AdminBulletinsScreen = ({ goBack, navigate, currentUser }: any) => {
                 <div className="flex gap-2">
                   <button 
                     onClick={() => setSelectedMessageId(msg.id)}
-                    className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2"
+                    className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2"
                     title="Ver Status de Leitura"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -4797,7 +5651,7 @@ const AdminBulletinsScreen = ({ goBack, navigate, currentUser }: any) => {
                   </button>
                   <button 
                     onClick={() => navigate('admin_bulletin_form', msg)}
-                    className="p-3 bg-gray-50 text-gray-400 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all"
+                    className="p-3 bg-gray-50 text-gray-400 rounded-2xl hover:bg-blue-50 hover:text-blue-600 transition-all"
                     title="Editar"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -4862,7 +5716,7 @@ const BulletinReadStatusModal = ({ messageId, onClose }: { messageId: string, on
       <div className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
         <div className="p-8 border-b border-gray-100 flex justify-between items-center">
           <div>
-            <h3 className="text-2xl font-black text-indigo-900 uppercase tracking-tight">Status de Leitura</h3>
+            <h3 className="text-2xl font-black text-blue-900 uppercase tracking-tight">Status de Leitura</h3>
             <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Acompanhamento de engajamento do aviso</p>
           </div>
           <button onClick={onClose} className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:bg-red-50 hover:text-red-600 transition-all">
@@ -4872,15 +5726,15 @@ const BulletinReadStatusModal = ({ messageId, onClose }: { messageId: string, on
 
         {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center py-20 animate-pulse">
-            <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <span className="text-xs font-black text-indigo-400 uppercase tracking-widest">Analisando dados...</span>
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <span className="text-xs font-black text-blue-400 uppercase tracking-widest">Analisando dados...</span>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-4 sm:p-8">
             <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="bg-indigo-50 p-4 rounded-3xl text-center">
-                <span className="text-[9px] font-black text-indigo-400 uppercase block mb-1">Total</span>
-                <p className="text-2xl font-black text-indigo-900">{totalCount}</p>
+              <div className="bg-blue-50 p-4 rounded-3xl text-center">
+                <span className="text-[9px] font-black text-blue-400 uppercase block mb-1">Total</span>
+                <p className="text-2xl font-black text-blue-900">{totalCount}</p>
               </div>
               <div className="bg-emerald-50 p-4 rounded-3xl text-center">
                 <span className="text-[9px] font-black text-emerald-400 uppercase block mb-1">Lidos</span>
@@ -4894,7 +5748,7 @@ const BulletinReadStatusModal = ({ messageId, onClose }: { messageId: string, on
 
             <div className="space-y-6">
               <div>
-                <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                   Já leram ({readCount})
                 </h4>
@@ -4914,7 +5768,7 @@ const BulletinReadStatusModal = ({ messageId, onClose }: { messageId: string, on
               </div>
 
               <div className="pt-6 border-t border-gray-50">
-                <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-amber-500"></div>
                   Pendentes ({pendingCount})
                 </h4>
@@ -5026,20 +5880,20 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
   return (
     <Layout title={initialData ? "Editar Aviso" : "Novo Aviso"} onBack={goBack}>
       <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
-        <div className="bg-white p-8 rounded-[32px] shadow-2xl space-y-6 border-b-8 border-indigo-600">
+        <div className="bg-white p-8 rounded-[32px] shadow-2xl space-y-6 border-b-8 border-blue-600">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block ml-1">Título do Aviso (Opcional)</label>
+            <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest block ml-1">Título do Aviso (Opcional)</label>
             <input 
               type="text" 
               placeholder="Digite o título do aviso..."
-              className="w-full border-2 border-gray-100 rounded-2xl p-4 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 outline-none transition-all font-bold text-indigo-900" 
+              className="w-full border-2 border-gray-100 rounded-2xl p-4 focus:ring-4 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all font-bold text-blue-900" 
               value={title}
               onChange={e => setTitle(e.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block ml-1">Conteúdo do Aviso</label>
+            <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest block ml-1">Conteúdo do Aviso</label>
             <div className="rounded-2xl overflow-hidden border-2 border-gray-100 min-h-[350px] bg-white">
               {typeof window !== 'undefined' && ReactQuill ? (
                 <ReactQuill 
@@ -5060,7 +5914,7 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <button 
               onClick={() => setShowUserSelector(true)}
-              className="flex-1 bg-indigo-50 text-indigo-700 py-4 rounded-2xl font-black uppercase text-xs hover:bg-indigo-600 hover:text-white transition-all shadow-lg shadow-indigo-100/50 flex items-center justify-center gap-2 border-2 border-indigo-100"
+              className="flex-1 bg-blue-50 text-blue-700 py-4 rounded-2xl font-black uppercase text-xs hover:bg-blue-600 hover:text-white transition-all shadow-lg shadow-blue-100/50 flex items-center justify-center gap-2 border-2 border-blue-100"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
               {selectedUserEmails.length > 0 ? `Compartilhar com (${selectedUserEmails.length})` : 'Compartilhar com...'}
@@ -5068,7 +5922,7 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
             <button 
               onClick={handleSave}
               disabled={loading}
-              className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-xs hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 active:scale-95 disabled:opacity-50"
+              className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95 disabled:opacity-50"
             >
               {loading ? 'Processando...' : initialData ? 'Salvar Edição' : 'Confirmar e Enviar'}
             </button>
@@ -5081,7 +5935,7 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
           <div className="bg-white rounded-[40px] p-8 w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-start border-b border-gray-100 pb-6 mb-6">
               <div>
-                <h3 className="text-2xl font-black text-indigo-900 uppercase tracking-tight">Destinatários</h3>
+                <h3 className="text-2xl font-black text-blue-900 uppercase tracking-tight">Destinatários</h3>
                 <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Selecione quem verá este aviso</p>
               </div>
               <button onClick={() => setShowUserSelector(false)} className="bg-gray-100 p-2 rounded-xl text-gray-400 hover:text-red-500 transition-all">
@@ -5089,12 +5943,12 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
               </button>
             </div>
 
-            <div className="flex justify-between items-center bg-indigo-50/50 p-4 rounded-2xl mb-4">
-              <span className="text-[10px] font-black text-indigo-900 uppercase">Ações Rápidas:</span>
+            <div className="flex justify-between items-center bg-blue-50/50 p-4 rounded-2xl mb-4">
+              <span className="text-[10px] font-black text-blue-900 uppercase">Ações Rápidas:</span>
               <div className="flex gap-4">
                 <button 
                   onClick={() => setSelectedUserEmails(users.filter(u => u.email !== 'Admin').map(u => u.email))}
-                  className="text-[10px] font-black text-indigo-600 uppercase hover:underline"
+                  className="text-[10px] font-black text-blue-600 uppercase hover:underline"
                 >
                   Selecionar Todos
                 </button>
@@ -5112,12 +5966,12 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
                 {users.filter(u => u.email !== 'Admin').map(usr => (
                   <label key={usr.id} className={`flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 transition-all ${
                     selectedUserEmails.includes(usr.email) 
-                    ? 'border-indigo-600 bg-indigo-50 shadow-sm' 
-                    : 'border-gray-100 hover:border-indigo-200'
+                    ? 'border-blue-600 bg-blue-50 shadow-sm' 
+                    : 'border-gray-100 hover:border-blue-200'
                   }`}>
                     <input 
                       type="checkbox"
-                      className="w-5 h-5 rounded-md text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer"
+                      className="w-5 h-5 rounded-md text-blue-600 focus:ring-blue-500 transition-all cursor-pointer"
                       checked={selectedUserEmails.includes(usr.email)}
                       onChange={(e) => {
                         const next = e.target.checked 
@@ -5128,7 +5982,7 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
                     />
                     <div className="flex flex-col min-w-0">
                       <span className={`text-[12px] font-black uppercase truncate transition-all ${
-                        selectedUserEmails.includes(usr.email) ? 'text-indigo-900' : 'text-gray-700'
+                        selectedUserEmails.includes(usr.email) ? 'text-blue-900' : 'text-gray-700'
                       }`}>{usr.name}</span>
                       <span className="text-[9px] text-gray-400 font-bold truncate lowercase">{usr.email}</span>
                     </div>
@@ -5140,7 +5994,7 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
             <div className="pt-6 border-t border-gray-100 mt-6">
               <button 
                 onClick={() => setShowUserSelector(false)}
-                className="w-full bg-indigo-600 text-white py-5 rounded-[24px] font-black uppercase shadow-xl shadow-indigo-100 active:scale-95 transition-all text-sm tracking-widest"
+                className="w-full bg-blue-600 text-white py-5 rounded-[24px] font-black uppercase shadow-xl shadow-blue-100 active:scale-95 transition-all text-sm tracking-widest"
               >
                 Confirmar Público ({selectedUserEmails.length})
               </button>
@@ -5190,17 +6044,17 @@ const BulletinDisplayModal = ({ unreadBulletins, onStatusUpdate, onDismiss }: { 
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-2 sm:p-4 z-[1000] animate-fade-in backdrop-blur-md">
       <div className="bg-white rounded-[24px] sm:rounded-[40px] w-full max-w-4xl shadow-2xl overflow-hidden animate-zoom-in flex flex-col max-h-[95vh] border border-white/20">
         
-        <div className="bg-indigo-950 p-4 sm:p-5 text-white relative flex-shrink-0">
+        <div className="bg-blue-950 p-4 sm:p-5 text-white relative flex-shrink-0">
           <div className="absolute top-2 right-4 opacity-10">
              <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>
           <div className="relative z-10">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 text-indigo-300">{currentIndex + 1} / {unreadBulletins.length}</p>
+            <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-1 text-blue-300">{currentIndex + 1} / {unreadBulletins.length}</p>
             <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight leading-none drop-shadow-sm">{(current.title?.toUpperCase() === 'COMUNICADO CORUS' || !current.title) ? 'AVISO' : current.title}</h2>
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 prose prose-indigo max-w-none quill-content bg-white">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 prose prose-blue max-w-none quill-content bg-white">
            <div className="bulletin-content-wrapper text-gray-800 leading-relaxed text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: current.content }} />
            
            <style>{`
@@ -5237,7 +6091,7 @@ const BulletinDisplayModal = ({ unreadBulletins, onStatusUpdate, onDismiss }: { 
            </button>
            <button 
              onClick={() => handleAction('pending', true)}
-             className="flex-1 bg-white text-indigo-900 border-2 border-indigo-100 py-3 sm:py-3.5 rounded-[20px] font-black uppercase text-xs hover:bg-indigo-50 transition-all flex items-center justify-center gap-3 active:scale-95 hover:border-indigo-200"
+             className="flex-1 bg-white text-blue-900 border-2 border-blue-100 py-3 sm:py-3.5 rounded-[20px] font-black uppercase text-xs hover:bg-blue-50 transition-all flex items-center justify-center gap-3 active:scale-95 hover:border-blue-200"
            >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               Lembrar Depois
@@ -5277,8 +6131,8 @@ const BulletinHistoryScreen = ({ goBack, currentUser }: any) => {
       <div className="max-w-4xl mx-auto py-8 px-4">
         {loading ? (
            <div className="text-center py-20 animate-pulse">
-             <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-             <span className="text-xs font-black text-indigo-400 uppercase tracking-widest italic">Buscando histórico...</span>
+             <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+             <span className="text-xs font-black text-blue-400 uppercase tracking-widest italic">Buscando histórico...</span>
            </div>
         ) : history.length === 0 ? (
           <div className="bg-white rounded-3xl p-16 text-center shadow-sm border border-gray-100">
@@ -5288,23 +6142,23 @@ const BulletinHistoryScreen = ({ goBack, currentUser }: any) => {
         ) : (
           <div className="space-y-4">
             {history.map(msg => (
-              <details key={msg.status_id} className="group bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden transition-all hover:shadow-xl hover:shadow-indigo-50">
+              <details key={msg.status_id} className="group bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden transition-all hover:shadow-xl hover:shadow-blue-50">
                 <summary className="p-6 cursor-pointer list-none flex justify-between items-center">
                   <div className="flex-1 min-w-0 pr-4">
                     <div className="flex items-center gap-3 mb-1">
-                       <span className={`w-2 h-2 rounded-full ${msg.status === 'read' ? 'bg-gray-300' : 'bg-indigo-600 animate-pulse'}`}></span>
-                       <h3 className="font-black text-indigo-900 uppercase tracking-tight truncate">{(msg.title?.toUpperCase() === 'COMUNICADO CORUS' || !msg.title) ? 'AVISO' : msg.title}</h3>
+                       <span className={`w-2 h-2 rounded-full ${msg.status === 'read' ? 'bg-gray-300' : 'bg-blue-600 animate-pulse'}`}></span>
+                       <h3 className="font-black text-blue-900 uppercase tracking-tight truncate">{(msg.title?.toUpperCase() === 'COMUNICADO CORUS' || !msg.title) ? 'AVISO' : msg.title}</h3>
                     </div>
                     <div className="flex gap-4 items-center">
                        <span className="text-[9px] font-black text-gray-400 uppercase">Enviado em: {new Date(msg.created_at).toLocaleDateString('pt-BR')}</span>
                        {msg.status === 'read' && <span className="text-[9px] font-black text-green-600 uppercase">Lido em: {new Date(msg.viewed_at).toLocaleDateString('pt-BR')}</span>}
                     </div>
                   </div>
-                  <div className="text-indigo-400 group-open:rotate-180 transition-transform">
+                  <div className="text-blue-400 group-open:rotate-180 transition-transform">
                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                   </div>
                 </summary>
-                <div className="px-8 pb-8 pt-2 prose prose-indigo max-w-none prose-sm quill-content border-t border-gray-50 bg-gray-50/30">
+                <div className="px-8 pb-8 pt-2 prose prose-blue max-w-none prose-sm quill-content border-t border-gray-50 bg-gray-50/30">
                   <div dangerouslySetInnerHTML={{ __html: msg.content }} />
                 </div>
               </details>
@@ -5439,7 +6293,7 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
       <div className="max-w-4xl mx-auto py-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-             <div className="p-4 bg-indigo-900 text-white font-black uppercase text-xs tracking-widest flex justify-between items-center">
+             <div className="p-4 bg-blue-900 text-white font-black uppercase text-xs tracking-widest flex justify-between items-center">
                 <span>Contatos</span>
                 <div className="relative">
                   <input 
@@ -5447,7 +6301,7 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
                     placeholder="Buscar..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="bg-indigo-800 border-none text-[10px] px-3 py-1.5 rounded w-28 outline-none placeholder:text-indigo-400 font-bold"
+                    className="bg-blue-800 border-none text-[10px] px-3 py-1.5 rounded w-28 outline-none placeholder:text-blue-400 font-bold"
                   />
                 </div>
              </div>
@@ -5461,13 +6315,13 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
                     <button 
                       key={email} 
                       onClick={() => setSelectedUserEmail(email)}
-                      className={`w-full p-4 text-left hover:bg-indigo-50 transition-all flex justify-between items-center ${selectedUserEmail === email ? 'bg-indigo-50 border-l-4 border-indigo-600' : ''}`}
+                      className={`w-full p-4 text-left hover:bg-blue-50 transition-all flex justify-between items-center ${selectedUserEmail === email ? 'bg-blue-50 border-l-4 border-blue-600' : ''}`}
                     >
                       <div className="flex flex-col">
-                        <span className={`font-bold text-sm uppercase ${isUnread ? 'text-indigo-600 font-black' : 'text-indigo-900'}`}>{userObj?.name || email}</span>
+                        <span className={`font-bold text-sm uppercase ${isUnread ? 'text-blue-600 font-black' : 'text-blue-900'}`}>{userObj?.name || email}</span>
                         <span className="text-xs text-gray-400 font-bold uppercase truncate max-w-[140px]">{userObj?.congregation ? `Cong: ${userObj.congregation}` : email}</span>
                       </div>
-                      {isUnread && <span className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce shadow-sm"></span>}
+                      {isUnread && <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce shadow-sm"></span>}
                     </button>
                   );
                 })}
@@ -5480,7 +6334,7 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
                <>
                  <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                     <div>
-                      <h4 className="font-black text-indigo-900 uppercase text-sm">{users.find(u => u.email.toLowerCase() === selectedUserEmail?.toLowerCase())?.name || selectedUserEmail}</h4>
+                      <h4 className="font-black text-blue-900 uppercase text-sm">{users.find(u => u.email.toLowerCase() === selectedUserEmail?.toLowerCase())?.name || selectedUserEmail}</h4>
                     </div>
                     {canManage && (
                       <button 
@@ -5519,9 +6373,9 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
                                      setSelectedMsgIds([...selectedMsgIds, m.id]);
                                    }
                                  }}
-                                 className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                 className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                />
-                               <div className={`max-w-[80%] p-4 rounded-2xl shadow-sm text-sm font-medium leading-relaxed relative ${m.sender_id === 'Admin' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-100 text-gray-800'}`}>
+                               <div className={`max-w-[80%] p-4 rounded-2xl shadow-sm text-sm font-medium leading-relaxed relative ${m.sender_id === 'Admin' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-100 text-gray-800'}`}>
                                 {m.deleted_for_everyone ? (
                                    <div className="flex flex-col gap-1">
                                       <p className="italic opacity-50 flex items-center gap-1 font-bold uppercase text-[9px] text-red-500">
@@ -5534,7 +6388,7 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
                                    <p>{m.text}</p>
                                 )}
                                 <div className="flex justify-between items-center gap-4 mt-1">
-                                  <p className={`text-xs font-bold uppercase ${m.sender_id === 'Admin' ? 'text-indigo-200' : 'text-gray-400'}`}>
+                                  <p className={`text-xs font-bold uppercase ${m.sender_id === 'Admin' ? 'text-blue-200' : 'text-gray-400'}`}>
                                     {m.is_edited && <span className="mr-2 italic opacity-70">(Editada)</span>}
                                     {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                   </p>
@@ -5586,7 +6440,7 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </div>
             <div>
-              <h3 className="text-xl font-black text-indigo-900 uppercase">Confirmar Exclusão Total</h3>
+              <h3 className="text-xl font-black text-blue-900 uppercase">Confirmar Exclusão Total</h3>
               <p className="text-sm text-gray-500 mt-2">Isto apagará permanentemente TODO o histórico desta conversa no banco de dados. Digite sua senha Administradora para confirmar:</p>
             </div>
             <input 
@@ -5594,7 +6448,7 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
               placeholder="Sua senha..."
               value={adminPassword}
               onChange={e => setAdminPassword(e.target.value)}
-              className="w-full border-2 border-gray-100 rounded-xl p-3 text-center font-bold focus:border-indigo-600 outline-none transition-all"
+              className="w-full border-2 border-gray-100 rounded-xl p-3 text-center font-bold focus:border-blue-600 outline-none transition-all"
             />
             <div className="flex gap-3">
               <button 
@@ -5617,7 +6471,7 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
             </div>
             <div>
-              <h3 className="text-xl font-black text-indigo-900 uppercase">Excluir Mensagens Selecionadas</h3>
+              <h3 className="text-xl font-black text-blue-900 uppercase">Excluir Mensagens Selecionadas</h3>
               <p className="text-sm text-gray-500 mt-2">Você selecionou {selectedMsgIds.length} mensagens. Isto as removerá permanentemente do banco de dados. Digite sua senha Administradora para confirmar:</p>
             </div>
             <input 
@@ -5625,7 +6479,7 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
               placeholder="Sua senha..."
               value={adminPassword}
               onChange={e => setAdminPassword(e.target.value)}
-              className="w-full border-2 border-gray-100 rounded-xl p-3 text-center font-bold focus:border-indigo-600 outline-none transition-all font-mono"
+              className="w-full border-2 border-gray-100 rounded-xl p-3 text-center font-bold focus:border-blue-600 outline-none transition-all font-mono"
             />
             <div className="flex gap-3">
               <button 
@@ -5853,9 +6707,9 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
   return (
     <div className="fixed bottom-6 right-6 z-[999] flex flex-col items-end gap-3 no-print">
       {isOpen && (
-        <div className={`bg-[#f8fafc] shadow-2xl border border-indigo-100 flex flex-col overflow-hidden animate-slide-up transition-all duration-300 ${isExpanded ? 'fixed inset-0 w-screen h-screen z-[1000] rounded-none' : 'w-96 h-[600px] rounded-3xl'}`}>
+        <div className={`bg-[#f8fafc] shadow-2xl border border-blue-100 flex flex-col overflow-hidden animate-slide-up transition-all duration-300 ${isExpanded ? 'fixed inset-0 w-screen h-screen z-[1000] rounded-none' : 'w-96 h-[600px] rounded-3xl'}`}>
           {/* Header System Style */}
-          <div className={`${isExpanded ? 'p-6' : 'p-4'} bg-indigo-600 text-white flex justify-between items-center shrink-0 shadow-lg z-20`}>
+          <div className={`${isExpanded ? 'p-6' : 'p-4'} bg-blue-600 text-white flex justify-between items-center shrink-0 shadow-lg z-20`}>
             <div className="flex items-center gap-3">
               {isAdmin && activeAdminConvo && (
                 <button onClick={() => { setActiveAdminConvo(null); setShowConvoSearch(false); setConvoSearch(''); }} className="p-2 hover:bg-white/20 rounded-full transition-colors mr-1">
@@ -5863,12 +6717,12 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
                 </button>
               )}
               <div className="relative group">
-                <div className={`bg-indigo-400 rounded-full flex items-center justify-center font-black uppercase text-white shadow-inner border-2 border-indigo-500/50 ${isExpanded ? 'w-14 h-14 text-2xl' : 'w-10 h-10 text-sm'}`}>
+                <div className={`bg-blue-400 rounded-full flex items-center justify-center font-black uppercase text-white shadow-inner border-2 border-blue-500/50 ${isExpanded ? 'w-14 h-14 text-2xl' : 'w-10 h-10 text-sm'}`}>
                   {isAdmin ? (
                     activeAdminConvo ? (userList.find(u => u.email === activeAdminConvo)?.name?.charAt(0) || 'U') : 'A'
                   ) : 'S'}
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 border-2 border-indigo-600 rounded-full"></div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 border-2 border-blue-600 rounded-full"></div>
               </div>
               <div className="flex flex-col">
                 <span className={`font-black tracking-tight leading-none ${isExpanded ? 'text-2xl' : 'text-base'}`}>
@@ -5908,7 +6762,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
                   placeholder="Pesquisar mensagens..."
                   value={convoSearch}
                   onChange={e => setConvoSearch(e.target.value)}
-                  className="w-full bg-gray-50 border-none rounded-xl py-2 px-4 text-xs font-bold outline-none ring-1 ring-gray-100 focus:ring-2 focus:ring-indigo-600 transition-all"
+                  className="w-full bg-gray-50 border-none rounded-xl py-2 px-4 text-xs font-bold outline-none ring-1 ring-gray-100 focus:ring-2 focus:ring-blue-600 transition-all"
                 />
               </div>
             )}
@@ -5922,7 +6776,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
                         placeholder="Procurar contatos..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full bg-gray-100 rounded-2xl py-2.5 pl-10 pr-4 text-xs font-bold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-600 transition-all"
+                        className="w-full bg-gray-100 rounded-2xl py-2.5 pl-10 pr-4 text-xs font-bold outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 transition-all"
                       />
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                     </div>
@@ -5942,23 +6796,23 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
                       const isUnread = messages.some(m => m.sender_id === u.email && !m.read_at && m.receiver_id === 'Admin');
 
                       return (
-                        <button key={u.id} onClick={() => setActiveAdminConvo(u.email)} className="w-full flex items-center gap-4 p-4 hover:bg-indigo-50 transition-all border-b border-gray-50 group">
+                        <button key={u.id} onClick={() => setActiveAdminConvo(u.email)} className="w-full flex items-center gap-4 p-4 hover:bg-blue-50 transition-all border-b border-gray-50 group">
                            <div className="relative">
-                             <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0 uppercase font-black text-xl shadow-sm border border-indigo-200 group-hover:scale-110 transition-transform">
+                             <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 uppercase font-black text-xl shadow-sm border border-blue-200 group-hover:scale-110 transition-transform">
                                 {u.name.charAt(0)}
                              </div>
-                             {isUnread && <div className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-600 border-2 border-white rounded-full"></div>}
+                             {isUnread && <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-600 border-2 border-white rounded-full"></div>}
                            </div>
                            <div className="flex-1 text-left overflow-hidden">
                               <div className="flex justify-between items-center mb-1">
-                                 <span className="font-black text-sm truncate text-indigo-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{u.name}</span>
+                                 <span className="font-black text-sm truncate text-blue-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{u.name}</span>
                                  {lastMsg && <span className="text-[10px] font-black text-gray-400">{new Date(lastMsg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>}
                               </div>
                               <div className="flex justify-between items-center">
-                                 <p className={`text-xs truncate ${isUnread ? 'text-indigo-600 font-black' : 'text-gray-500 font-medium'}`}>
+                                 <p className={`text-xs truncate ${isUnread ? 'text-blue-600 font-black' : 'text-gray-500 font-medium'}`}>
                                     {lastMsg ? lastMsg.text : 'Conversa vazia'}
                                  </p>
-                                 {isUnread && <span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm ml-2">NOVO</span>}
+                                 {isUnread && <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm ml-2">NOVO</span>}
                               </div>
                            </div>
                         </button>
@@ -5986,22 +6840,25 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
                           <div className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
                              <div 
                                onClick={() => setShowMsgOptions(m.id)}
-                               className={`max-w-[85%] relative p-3 shadow-sm rounded-2xl text-sm transition-all cursor-pointer group animate-fade-in ${isMe ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white rounded-tl-none text-gray-800 border border-indigo-50/50'}`}
+                               className={`max-w-[85%] relative p-3 shadow-sm rounded-2xl text-sm transition-all cursor-pointer group animate-fade-in ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white rounded-tl-none text-gray-800 border border-blue-50/50'}`}
                              >
                                 {repliedMsg && (
-                                   <div className={`p-2 rounded-xl mb-2 text-xs opacity-80 border-l-4 overflow-hidden truncate flex flex-col gap-0.5 ${isMe ? 'bg-indigo-700 border-indigo-300' : 'bg-indigo-50 border-indigo-600'}`}>
+                                   <div className={`p-2 rounded-xl mb-2 text-xs opacity-80 border-l-4 overflow-hidden truncate flex flex-col gap-0.5 ${isMe ? 'bg-blue-700 border-blue-300' : 'bg-blue-50 border-blue-600'}`}>
                                       <span className="font-black uppercase text-[8px] tracking-widest">Em resposta a</span>
                                       <p className="truncate italic">"{repliedMsg.text}"</p>
                                    </div>
                                 )}
                                 {m.deleted_for_everyone ? (
-                                   <p className="italic opacity-50 text-[11px] flex items-center gap-2 font-black uppercase tracking-tighter decoration-1 line-through">
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                                      Mensagem removida
-                                   </p>
-                                ) : <p className="leading-relaxed font-bold tracking-tight">{m.text}</p>}
+                                   <p className="italic text-[10px] opacity-60 text-center py-1">Mensagem apagada para todos</p>
+                                ) : (
+                                   <div className="flex flex-col">
+                                      {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
+                                      {m.image_url && <img src={m.image_url} alt="anexo" className="mt-2 rounded-xl border border-white/20 shadow-md max-h-60 object-cover" referrerPolicy="no-referrer" />}
+                                   </div>
+                                )}
+                                
                                 <div className="flex justify-end items-center gap-1.5 mt-1.5">
-                                   <span className={`text-[9px] font-black uppercase tracking-widest ${isMe ? 'text-indigo-200' : 'text-gray-400'}`}>
+                                   <span className={`text-[9px] font-black uppercase tracking-widest ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>
                                       {new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                    </span>
                                    {isMe && !m.deleted_for_everyone && (
@@ -6012,12 +6869,12 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
                                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                                             </div>
                                          ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className="opacity-40 text-indigo-300"><polyline points="20 6 9 17 4 12"/></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className="opacity-40 text-blue-300"><polyline points="20 6 9 17 4 12"/></svg>
                                          )}
                                       </div>
                                    )}
                                 </div>
-                                
+
                                 {/* Overlay hover options indicator */}
                                 <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 bg-black/10 rounded-full">
                                   <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -6026,15 +6883,15 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
                           </div>
                           
                           {showMsgOptions === m.id && (
-                             <div className="fixed inset-0 z-[1100] bg-indigo-900/10 backdrop-blur-[2px]" onClick={() => setShowMsgOptions(null)}>
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl p-3 w-64 animate-zoom-in border border-indigo-50" onClick={e => e.stopPropagation()}>
+                             <div className="fixed inset-0 z-[1100] bg-blue-900/10 backdrop-blur-[2px]" onClick={() => setShowMsgOptions(null)}>
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl p-3 w-64 animate-zoom-in border border-blue-50" onClick={e => e.stopPropagation()}>
                                    <div className="flex justify-between items-center px-4 py-2 border-b border-gray-50 mb-2">
                                       <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Opções da Mensagem</span>
                                       <button onClick={() => setShowMsgOptions(null)} className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-gray-50">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                       </button>
                                    </div>
-                                   <button onClick={() => { setReplyTo(m); setShowMsgOptions(null); setEditingMsg(null); }} className="w-full text-left p-3 hover:bg-indigo-50 rounded-2xl text-xs font-black uppercase text-indigo-600 flex items-center gap-4 transition-colors">
+                                   <button onClick={() => { setReplyTo(m); setShowMsgOptions(null); setEditingMsg(null); }} className="w-full text-left p-3 hover:bg-blue-50 rounded-2xl text-xs font-black uppercase text-blue-600 flex items-center gap-4 transition-colors">
                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
                                      Responder
                                    </button>
@@ -6062,24 +6919,24 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
                   })}
                   {messages.length === 0 && (
                      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 gap-4 grayscale opacity-40">
-                        <div className="w-24 h-24 bg-indigo-100 rounded-full flex items-center justify-center">
-                           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center">
+                           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                         </div>
-                        <p className="text-xs font-black text-indigo-900 uppercase tracking-widest leading-loose">Nenhuma mensagem nesta conversa ainda.<br/>Digite algo para começar!</p>
+                        <p className="text-xs font-black text-blue-900 uppercase tracking-widest leading-loose">Nenhuma mensagem nesta conversa ainda.<br/>Digite algo para começar!</p>
                      </div>
                   )}
                </div>
             )}
           </div>
 
-          <div className="shrink-0 flex flex-col bg-white p-4 border-t border-indigo-50 shadow-inner">
+          <div className="shrink-0 flex flex-col bg-white p-4 border-t border-blue-50 shadow-inner">
             {replyTo && (
-               <div className="bg-indigo-50 p-2.5 rounded-2xl border-l-4 border-indigo-600 flex justify-between items-center animate-slide-up mb-3 shadow-sm">
+               <div className="bg-blue-50 p-2.5 rounded-2xl border-l-4 border-blue-600 flex justify-between items-center animate-slide-up mb-3 shadow-sm">
                   <div className="flex flex-col gap-0.5 overflow-hidden">
-                    <span className="text-[8px] font-black text-indigo-600 uppercase tracking-tighter">Respondendo Mensagem</span>
-                    <div className="truncate text-xs text-indigo-900 font-medium italic">"{replyTo.text}"</div>
+                    <span className="text-[8px] font-black text-blue-600 uppercase tracking-tighter">Respondendo Mensagem</span>
+                    <div className="truncate text-xs text-blue-900 font-medium italic">"{replyTo.text}"</div>
                   </div>
-                  <button onClick={() => setReplyTo(null)} className="text-indigo-300 hover:text-red-500 p-2 bg-white rounded-full shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                  <button onClick={() => setReplyTo(null)} className="text-blue-300 hover:text-red-500 p-2 bg-white rounded-full shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                </div>
             )}
             {editingMsg && (
@@ -6099,10 +6956,10 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
                         placeholder={isAdmin && !activeAdminConvo ? "Selecione um chat..." : "Escreva sua mensagem..."}
                         value={text}
                         onChange={e => setText(e.target.value)}
-                        className="w-full bg-gray-100 border-none rounded-2xl py-3.5 px-6 text-sm font-bold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-600 transition-all shadow-sm placeholder:text-gray-400 disabled:opacity-50"
+                        className="w-full bg-gray-100 border-none rounded-2xl py-3.5 px-6 text-sm font-bold outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 transition-all shadow-sm placeholder:text-gray-400 disabled:opacity-50"
                       />
                     </div>
-                    <button type="submit" disabled={!text.trim() || (isAdmin && !activeAdminConvo)} className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-200 active:scale-90 hover:bg-indigo-700 transition-all disabled:opacity-50 group">
+                    <button type="submit" disabled={!text.trim() || (isAdmin && !activeAdminConvo)} className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-blue-200 active:scale-90 hover:bg-blue-700 transition-all disabled:opacity-50 group">
                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                     </button>
             </form>
@@ -6111,7 +6968,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
       )}
       <button 
         onClick={() => setIsOpen(!isOpen)} 
-        className={`group relative flex items-center justify-center rounded-3xl shadow-2xl transition-all duration-500 active:scale-90 ${isOpen ? 'w-16 h-16 bg-red-500 rotate-90 scale-110' : 'w-20 h-20 bg-indigo-600 hover:scale-110'}`}
+        className={`group relative flex items-center justify-center rounded-3xl shadow-2xl transition-all duration-500 active:scale-90 ${isOpen ? 'w-16 h-16 bg-red-500 rotate-90 scale-110' : 'w-20 h-20 bg-blue-600 hover:scale-110'}`}
       >
         {!isOpen && unreadCount > 0 && (
           <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-black rounded-xl min-w-[28px] h-[28px] flex items-center justify-center p-1 border-4 border-white animate-bounce shadow-xl z-10">
@@ -6123,7 +6980,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
         ) : (
           <div className="flex flex-col items-center">
             <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white mb-0.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-11.4 8.38 8.38 0 0 1 3.8.9L21 3z"/></svg>
-            <span className="text-[8px] font-black text-indigo-100 uppercase tracking-tighter">Chat</span>
+            <span className="text-[8px] font-black text-blue-100 uppercase tracking-tighter">Chat</span>
           </div>
         )}
       </button>
@@ -6246,14 +7103,14 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
         
         {/* Formulário de Informações */}
         <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden max-w-2xl mx-auto">
-          <div className="p-8 border-b border-indigo-50 flex justify-between items-center bg-indigo-50/30">
+          <div className="p-8 border-b border-blue-50 flex justify-between items-center bg-blue-50/30">
             <div>
-              <h3 className="text-xl font-black text-indigo-900 uppercase tracking-tighter">Informações Pessoais</h3>
+              <h3 className="text-xl font-black text-blue-900 uppercase tracking-tighter">Informações Pessoais</h3>
               <p className="text-[10px] text-gray-400 font-bold uppercase mt-1 tracking-widest">Apenas campos autorizados para edição</p>
             </div>
             <button 
               onClick={() => setIsEditing(!isEditing)}
-              className={`p-3 rounded-2xl transition-all ${isEditing ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-indigo-600 border border-indigo-100 shadow-sm'}`}
+              className={`p-3 rounded-2xl transition-all ${isEditing ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-blue-600 border border-blue-100 shadow-sm'}`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
@@ -6265,7 +7122,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
                 <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest block mb-2">Nome Completo</label>
                 <input 
                   disabled={!isEditing}
-                  className={`w-full p-4 rounded-xl font-bold border-2 transition-all ${isEditing ? 'border-indigo-100 bg-white focus:border-indigo-600 outline-none' : 'border-transparent bg-gray-50 text-gray-400'}`}
+                  className={`w-full p-4 rounded-xl font-bold border-2 transition-all ${isEditing ? 'border-blue-100 bg-white focus:border-blue-600 outline-none' : 'border-transparent bg-gray-50 text-gray-400'}`}
                   value={editForm.name}
                   onChange={e => setEditForm({...editForm, name: e.target.value})}
                 />
@@ -6276,7 +7133,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
                 <input 
                   type="email"
                   disabled={!isEditing}
-                  className={`w-full p-4 rounded-xl font-bold border-2 transition-all ${isEditing ? 'border-indigo-100 bg-white focus:border-indigo-600 outline-none' : 'border-transparent bg-gray-50 text-gray-400'}`}
+                  className={`w-full p-4 rounded-xl font-bold border-2 transition-all ${isEditing ? 'border-blue-100 bg-white focus:border-blue-600 outline-none' : 'border-transparent bg-gray-50 text-gray-400'}`}
                   value={editForm.email}
                   onChange={e => setEditForm({...editForm, email: e.target.value})}
                 />
@@ -6286,7 +7143,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
                 <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest block mb-2">Telefone</label>
                 <input 
                   disabled={!isEditing}
-                  className={`w-full p-4 rounded-xl font-bold border-2 transition-all ${isEditing ? 'border-indigo-100 bg-white focus:border-indigo-600 outline-none' : 'border-transparent bg-gray-50 text-gray-400'}`}
+                  className={`w-full p-4 rounded-xl font-bold border-2 transition-all ${isEditing ? 'border-blue-100 bg-white focus:border-blue-600 outline-none' : 'border-transparent bg-gray-50 text-gray-400'}`}
                   value={editForm.phone}
                   onChange={e => setEditForm({...editForm, phone: e.target.value})}
                 />
@@ -6297,7 +7154,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
                 <input 
                   type="date"
                   disabled={!isEditing}
-                  className={`w-full p-4 rounded-xl font-bold border-2 transition-all ${isEditing ? 'border-indigo-100 bg-white focus:border-indigo-600 outline-none' : 'border-transparent bg-gray-50 text-gray-400'}`}
+                  className={`w-full p-4 rounded-xl font-bold border-2 transition-all ${isEditing ? 'border-blue-100 bg-white focus:border-blue-600 outline-none' : 'border-transparent bg-gray-50 text-gray-400'}`}
                   value={editForm.birth_date}
                   onChange={e => setEditForm({...editForm, birth_date: e.target.value})}
                 />
@@ -6305,27 +7162,27 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
 
               {/* Informações Read-Only do CRR */}
               <div className="md:col-span-2 pt-6 border-t border-gray-50">
-                <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4">Informações de Registro (Não Editáveis)</h4>
+                <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4">Informações de Registro (Não Editáveis)</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
                   <div className="bg-gray-50 p-4 rounded-xl">
                     <span className="text-[8px] font-black text-gray-400 uppercase block mb-1">Nº Registro (CRR)</span>
-                    <p className="font-black text-indigo-900">{conductor?.registry_number || 'PENDENTE'}</p>
+                    <p className="font-black text-blue-900">{conductor?.registry_number || 'PENDENTE'}</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-xl">
                     <span className="text-[8px] font-black text-gray-400 uppercase block mb-1">Cargo / Função</span>
-                    <p className="font-black text-indigo-900 uppercase">{user.role}</p>
+                    <p className="font-black text-blue-900 uppercase">{user.role}</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-xl">
                     <span className="text-[8px] font-black text-gray-400 uppercase block mb-1">Congregação</span>
-                    <p className="font-black text-indigo-900 uppercase">{congregationName || user.congregation}</p>
+                    <p className="font-black text-blue-900 uppercase">{congregationName || user.congregation}</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-xl">
                     <span className="text-[8px] font-black text-gray-400 uppercase block mb-1">Estado de Atuação</span>
-                    <p className="font-black text-indigo-900 uppercase">{stateName || '-'}</p>
+                    <p className="font-black text-blue-900 uppercase">{stateName || '-'}</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-xl">
                     <span className="text-[8px] font-black text-gray-400 uppercase block mb-1">Data de Cadastro</span>
-                    <p className="font-black text-indigo-900">{conductor?.created_at ? new Date(conductor.created_at).toLocaleDateString('pt-BR') : '-'}</p>
+                    <p className="font-black text-blue-900">{conductor?.created_at ? new Date(conductor.created_at).toLocaleDateString('pt-BR') : '-'}</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-xl">
                     <span className="text-[8px] font-black text-gray-400 uppercase block mb-1">Status de Validade</span>
@@ -6340,7 +7197,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
                 <button 
                   onClick={handleUpdate}
                   disabled={loading}
-                  className="flex-1 bg-indigo-700 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-lg shadow-indigo-100 active:scale-95 transition-all"
+                  className="flex-1 bg-blue-700 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-lg shadow-blue-100 active:scale-95 transition-all"
                 >
                   {loading ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
@@ -6356,7 +7213,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
             <div className="pt-8 border-t border-gray-100 flex flex-col items-center">
               <button 
                 onClick={() => setShowPasswordModal(true)}
-                className="flex items-center gap-3 text-indigo-600 font-black uppercase text-[11px] tracking-widest hover:text-indigo-800 transition-all group"
+                className="flex items-center gap-3 text-blue-600 font-black uppercase text-[11px] tracking-widest hover:text-blue-800 transition-all group"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:rotate-12 transition-transform"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 Alterar Senha de Acesso
@@ -6377,10 +7234,10 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[500] animate-fade-in">
           <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl space-y-6 animate-scale-up">
             <div className="text-center">
-              <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full mx-auto flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full mx-auto flex items-center justify-center mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3m-3-3l2.5-2.5"/></svg>
               </div>
-              <h3 className="text-xl font-black text-indigo-900 uppercase">Trocar Senha</h3>
+              <h3 className="text-xl font-black text-blue-900 uppercase">Trocar Senha</h3>
             </div>
 
             {passwordError && (
@@ -6394,7 +7251,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Senha Atual</label>
                 <input 
                   type="password"
-                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-600 rounded-xl outline-none font-black text-center tracking-[4px]"
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-blue-600 rounded-xl outline-none font-black text-center tracking-[4px]"
                   value={passwordForm.current}
                   onChange={e => setPasswordForm({...passwordForm, current: e.target.value})}
                 />
@@ -6404,7 +7261,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Nova Senha</label>
                 <input 
                   type="password"
-                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-600 rounded-xl outline-none font-black text-center tracking-[4px]"
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-blue-600 rounded-xl outline-none font-black text-center tracking-[4px]"
                   value={passwordForm.next}
                   onChange={e => setPasswordForm({...passwordForm, next: e.target.value})}
                 />
@@ -6413,7 +7270,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Confirmar Nova Senha</label>
                 <input 
                   type="password"
-                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-600 rounded-xl outline-none font-black text-center tracking-[4px]"
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-blue-600 rounded-xl outline-none font-black text-center tracking-[4px]"
                   value={passwordForm.confirm}
                   onChange={e => setPasswordForm({...passwordForm, confirm: e.target.value})}
                 />
@@ -6424,7 +7281,7 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
               <button 
                 onClick={handlePasswordChange}
                 disabled={loading || !passwordForm.current || !passwordForm.next || !passwordForm.confirm}
-                className="w-full bg-indigo-700 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-lg shadow-indigo-100 disabled:opacity-50 transition-all active:scale-95"
+                className="w-full bg-blue-700 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-lg shadow-blue-100 disabled:opacity-50 transition-all active:scale-95"
               >
                 {loading ? 'Processando...' : 'Confirmar Nova Senha'}
               </button>
@@ -6540,7 +7397,7 @@ const AuthScreen = ({ onLogin }: any) => {
   };
 
   return (
-    <div className="min-h-screen bg-indigo-900 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-blue-900 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Pano de fundo com símbolos musicais - Limpo e Profissional */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
         {/* Nota Dupla - Superior Esquerda */}
@@ -6563,8 +7420,8 @@ const AuthScreen = ({ onLogin }: any) => {
 
       <div className={`bg-white rounded-2xl shadow-2xl p-8 w-full ${mode === 'request' ? 'max-w-md' : 'max-w-sm'} transition-all duration-300 relative z-10`}>
         <div className="text-center mb-8">
-          <h2 className="text-4xl font-black text-indigo-900 uppercase tracking-tighter">CORUS</h2>
-          <p className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mt-1">Gestor de Corais Apostólicos</p>
+          <h2 className="text-4xl font-black text-blue-900 uppercase tracking-tighter">CORUS</h2>
+          <p className="text-blue-400 font-bold uppercase text-[10px] tracking-widest mt-1">Gestor de Corais Apostólicos</p>
         </div>
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold mb-4 border-l-4 border-red-500">{error}</div>}
         
@@ -6574,23 +7431,23 @@ const AuthScreen = ({ onLogin }: any) => {
             {!foundRecoveryUser ? (
               <form onSubmit={handleRecoverySearch} className="space-y-4">
                 <p className="text-xs text-gray-700 text-center italic font-medium">Informe seu e-mail e sua data de nascimento cadastrados para confirmar sua identidade.</p>
-                <input required type="text" placeholder="Seu E-mail" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={recoverySearch.email} onChange={e => setRecoverySearch({...recoverySearch, email: e.target.value})} />
+                <input required type="text" placeholder="Seu E-mail" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={recoverySearch.email} onChange={e => setRecoverySearch({...recoverySearch, email: e.target.value})} />
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-gray-900 uppercase tracking-widest ml-1 block">Sua Data de Nascimento</label>
-                  <input required type="date" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={recoverySearch.birth_date} onChange={e => setRecoverySearch({...recoverySearch, birth_date: e.target.value})} />
+                  <input required type="date" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={recoverySearch.birth_date} onChange={e => setRecoverySearch({...recoverySearch, birth_date: e.target.value})} />
                 </div>
-                <button type="submit" className="w-full bg-indigo-700 text-white py-4 rounded-xl font-black uppercase shadow-lg hover:bg-indigo-800 transition-all active:scale-95">Verificar Dados</button>
+                <button type="submit" className="w-full bg-blue-700 text-white py-4 rounded-xl font-black uppercase shadow-lg hover:bg-blue-800 transition-all active:scale-95">Verificar Dados</button>
               </form>
             ) : (
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <p className="text-xs text-green-600 text-center font-bold">Identidade confirmada! Defina sua nova senha abaixo.</p>
                 <div className="relative">
-                  <input required type={showPassword ? "text" : "password"} placeholder="Nova Senha" title="Mínimo 6 caracteres" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={newPasswordData.password} onChange={e => setNewPasswordData({...newPasswordData, password: e.target.value})} />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-indigo-600">
+                  <input required type={showPassword ? "text" : "password"} placeholder="Nova Senha" title="Mínimo 6 caracteres" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={newPasswordData.password} onChange={e => setNewPasswordData({...newPasswordData, password: e.target.value})} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-blue-600">
                     {showPassword ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>}
                   </button>
                 </div>
-                <input required type={showPassword ? "text" : "password"} placeholder="Confirmar Nova Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={newPasswordData.confirm} onChange={e => setNewPasswordData({...newPasswordData, confirm: e.target.value})} />
+                <input required type={showPassword ? "text" : "password"} placeholder="Confirmar Nova Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={newPasswordData.confirm} onChange={e => setNewPasswordData({...newPasswordData, confirm: e.target.value})} />
                 <button type="submit" className="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase shadow-lg hover:bg-green-700 transition-all active:scale-95">Salvar Nova Senha</button>
               </form>
             )}
@@ -6599,37 +7456,37 @@ const AuthScreen = ({ onLogin }: any) => {
         ) : (
           <>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {mode === 'request' && <input required placeholder="Nome Completo" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />}
-              <input required type="text" placeholder="E-mail" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-              {mode === 'request' && <input required placeholder="Congregação (Ex: Sede /SP)" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.congregation} onChange={e => setFormData({...formData, congregation: e.target.value})} />}
+              {mode === 'request' && <input required placeholder="Nome Completo" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />}
+              <input required type="text" placeholder="E-mail" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+              {mode === 'request' && <input required placeholder="Congregação (Ex: Sede /SP)" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.congregation} onChange={e => setFormData({...formData, congregation: e.target.value})} />}
               {mode === 'request' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-[9px] font-black text-gray-900 uppercase tracking-widest ml-1 mb-1 block">Data de Nascimento</label>
-                    <input required type="date" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} />
+                    <input required type="date" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} />
                   </div>
                   <div>
                     <label className="text-[9px] font-black text-gray-900 uppercase tracking-widest ml-1 mb-1 block">Telefone (WhatsApp)</label>
-                    <input required placeholder="(00) 00000-0000" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                    <input required placeholder="(00) 00000-0000" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                   </div>
                 </div>
               )}
-              {mode === 'request' && <input required placeholder="Cargo no Ministério" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} />}
+              {mode === 'request' && <input required placeholder="Cargo no Ministério" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} />}
               <div className="relative">
-                <input required type={showPassword ? "text" : "password"} placeholder="Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-indigo-600 transition-colors">
+                <input required type={showPassword ? "text" : "password"} placeholder="Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-blue-600 transition-colors">
                   {showPassword ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>}
                 </button>
               </div>
-              {mode === 'request' && <input required type={showPassword ? "text" : "password"} placeholder="Confirmar Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />}
+              {mode === 'request' && <input required type={showPassword ? "text" : "password"} placeholder="Confirmar Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />}
               
-              <button type="submit" className="w-full bg-indigo-700 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-indigo-100 hover:bg-indigo-800 transition-all active:scale-95">{mode === 'login' ? 'Entrar' : 'Solicitar Acesso'}</button>
+              <button type="submit" className="w-full bg-blue-700 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-800 transition-all active:scale-95">{mode === 'login' ? 'Entrar' : 'Solicitar Acesso'}</button>
             </form>
             <div className="flex flex-col gap-4 mt-6">
               {mode === 'login' && (
-                <button onClick={() => { setMode('forgot'); setError(''); }} className="text-indigo-600 text-xs font-black uppercase tracking-widest hover:underline transition-colors text-center w-full bg-indigo-50 py-2 rounded-lg">Esqueci minha senha</button>
+                <button onClick={() => { setMode('forgot'); setError(''); }} className="text-blue-600 text-xs font-black uppercase tracking-widest hover:underline transition-colors text-center w-full bg-blue-50 py-2 rounded-lg">Esqueci minha senha</button>
               )}
-              <button onClick={() => { setMode(mode === 'login' ? 'request' : 'login'); setError(''); setShowPassword(false); }} className="w-full text-indigo-600 text-xs font-bold uppercase tracking-widest">
+              <button onClick={() => { setMode(mode === 'login' ? 'request' : 'login'); setError(''); setShowPassword(false); }} className="w-full text-blue-600 text-xs font-bold uppercase tracking-widest">
                 {mode === 'login' ? 'Solicitar Acesso' : 'Voltar ao Login'}
               </button>
             </div>
@@ -6975,7 +7832,7 @@ const App = () => {
     reader.readAsText(file);
   };
 
-  if (loadingPublic) return <div className="min-h-screen bg-indigo-900 flex items-center justify-center text-white font-bold animate-pulse uppercase tracking-widest">Carregando Programa...</div>;
+  if (loadingPublic) return <div className="min-h-screen bg-blue-900 flex items-center justify-center text-white font-bold animate-pulse uppercase tracking-widest">Carregando Programa...</div>;
   if (publicProgram) return <PrintView list={publicProgram} onBack={() => { setPublicProgram(null); window.history.replaceState({}, '', window.location.pathname); }} />;
 
   if (!currentUser) return <AuthScreen onLogin={setCurrentUser} />;
@@ -6986,6 +7843,7 @@ const App = () => {
         <div className="flex-1">
           {(() => {
             switch (screen) {
+              case 'calendar': return <CalendarScreen goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'profile': return <ProfileScreen user={currentUser} goBack={goBack} onUpdate={setCurrentUser} onExitImpersonation={onExitImpersonation} />;
               case 'admin_menu': return <AdminMenuScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
               case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); setScreen('home'); }} currentUser={currentUser} onAwaitingConductorRegistration={(u: any) => { setEditData(u); setScreen('admin_new_conductor'); }} />;
@@ -7002,6 +7860,7 @@ const App = () => {
               case 'admin_crr_card': return <CRRCardView conductor={editData} goBack={goBack} navigate={navigate} />;
               case 'admin_registrations_summary': return <AdminRegistrationsSummaryScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
               case 'home': return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} onBackup={handleBackup} isExporting={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} />;
+              case 'calendar': return <CalendarScreen goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'components': return <ComponentsScreen navigate={navigate} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
               case 'instruments': return <InstrumentsScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'musicians': return <MusiciansScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
