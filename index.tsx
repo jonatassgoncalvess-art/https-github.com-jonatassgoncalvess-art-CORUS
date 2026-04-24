@@ -2752,8 +2752,10 @@ const AdminConductorCertificatesScreen = ({ navigate, goBack, currentUser }: any
   );
 };
 
-const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: any) => {
+const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit, onApprovalSuccess }: any) => {
   const isEditing = !!conductorToEdit;
+  const isApproving = !!linkUserBeingApproved && !isEditing;
+
   const [formData, setFormData] = useState({ 
     name: conductorToEdit?.name || linkUserBeingApproved?.name || '', 
     country_id: conductorToEdit?.country_id || '', 
@@ -2762,8 +2764,22 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
     birth_date: conductorToEdit?.birth_date || linkUserBeingApproved?.birth_date || '', 
     phone: conductorToEdit?.phone || linkUserBeingApproved?.phone || '', 
     email: conductorToEdit?.email || linkUserBeingApproved?.email || '', 
-    role_code: (conductorToEdit?.role_code || 'T') as any 
+    role_code: (conductorToEdit?.role_code || (linkUserBeingApproved?.role === 'Regente' ? 'T' : 'T')) as any 
   });
+
+  // Sincronização robusta - Força preenchimento automático a partir da solicitação
+  useEffect(() => {
+    if (isApproving && linkUserBeingApproved) {
+      setFormData(prev => ({
+        ...prev,
+        name: linkUserBeingApproved.name || prev.name,
+        birth_date: linkUserBeingApproved.birth_date || prev.birth_date,
+        phone: linkUserBeingApproved.phone || prev.phone,
+        email: linkUserBeingApproved.email || prev.email,
+        role_code: prev.role_code || (linkUserBeingApproved.role === 'Regente' ? 'T' : 'T')
+      }));
+    }
+  }, [linkUserBeingApproved, isApproving]);
   const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
   const [congre, setCongre] = useState<CongregationRecord[]>([]);
@@ -2775,9 +2791,10 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(linkUserBeingApproved?.id || null);
   const [selectorModal, setSelectorModal] = useState<{ type: 'country' | 'state' | 'congre', list: any[] } | null>(null);
   const [selectorSearch, setSelectorSearch] = useState('');
+  const [showApprovalGuide, setShowApprovalGuide] = useState(isApproving);
 
   useEscapeKey(() => {
     if (selectorModal) {
@@ -2824,7 +2841,7 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditing) {
+    if (isEditing || isApproving) {
       executeRegistration();
     } else {
       setShowLinkModal(true);
@@ -2839,6 +2856,16 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
     let newId = conductorToEdit?.id || generateId();
 
     if (!isEditing) {
+      if (linkUserBeingApproved) {
+        // Se for uma aprovação, autoriza o usuário no banco de dados primeiro
+        const { error: authError } = await supabase.from('users').update({ status: 'authorized' }).eq('id', linkUserBeingApproved.id);
+        if (authError) {
+          setIsSaving(false);
+          alert("Erro ao autorizar usuário: " + authError.message);
+          return;
+        }
+      }
+
       const sameLoc = conductors.filter(c => c.country_id === formData.country_id && c.state_id === formData.state_id && c.congregation_id === formData.congregation_id);
       const counter = sameLoc.length + 1;
       regNum = `${formData.role_code}/${formData.country_id}${formData.state_id}${formData.congregation_id}-${counter}`;
@@ -2901,7 +2928,11 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
             congregation: foundNames.congre || 'Sede'
           }).eq('id', linkedUser.id);
         }
-        goBack();
+        if (onApprovalSuccess) {
+           onApprovalSuccess();
+        } else {
+           goBack();
+        }
       }
     } catch (err) {
       alert("Erro ao salvar registro.");
@@ -2930,64 +2961,90 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
             </div>
           )}
 
-          <button onClick={goBack} className="w-full bg-blue-700 text-white py-4 rounded-2xl font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-800 transition-all">Concluir e Voltar</button>
+          <button onClick={() => { if (onApprovalSuccess) onApprovalSuccess(); else goBack(); }} className="w-full bg-blue-700 text-white py-4 rounded-2xl font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-800 transition-all">Concluir e Voltar</button>
         </div>
       </Layout>
     );
   }
 
   return (
-    <Layout title={isEditing ? "Editar Registro" : "Novo Registro de Regente"} onBack={goBack}>
-      <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-3xl mx-auto animate-fade-in">
-        <h3 className="text-xl font-black text-blue-900 uppercase mb-6 tracking-tighter">{isEditing ? "Atualizar Dados do CRR" : "Inscrição de Regente Oficial"}</h3>
-        
-        {linkUserBeingApproved && !isEditing && (
-          <div className="mb-8 bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-2xl p-6">
-            <h4 className="text-xs font-black text-blue-700 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-              Informações Auxiliares (Dados da Solicitação)
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6">
-              <div>
-                <span className="text-[8px] font-black text-blue-400 uppercase block">Nome Solicitado</span>
-                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.name}</p>
+    <Layout title={isEditing ? "Editar Registro" : (isApproving ? "Aprovar Acesso e Cadastro CRR" : "Novo Registro de Regente")} onBack={goBack}>
+      <div className="max-w-4xl mx-auto space-y-6">
+        {isApproving && linkUserBeingApproved && (
+          <div className="sticky top-6 z-30 bg-blue-50 rounded-[32px] p-8 text-black shadow-2xl border-2 border-blue-100 relative overflow-hidden animate-slide-up">
+            {/* Background Decorative Element */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-100/50 rounded-full blur-3xl -mr-32 -mt-32"></div>
+            
+            <div className="relative z-10">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="bg-blue-600 p-3 rounded-2xl shadow-lg shadow-blue-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black uppercase tracking-tight leading-none text-blue-900">Dados da Solicitação</h3>
+                  <p className="text-blue-600/60 text-[10px] font-bold uppercase mt-1 tracking-widest italic">Informações enviadas pelo usuário para preenchimento do CRR</p>
+                </div>
               </div>
-              <div>
-                <span className="text-[8px] font-black text-blue-400 uppercase block">E-mail Informado</span>
-                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.email}</p>
-              </div>
-              <div>
-                <span className="text-[8px] font-black text-blue-400 uppercase block">WhatsApp</span>
-                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.phone || 'Não informado'}</p>
-              </div>
-              <div>
-                <span className="text-[8px] font-black text-blue-400 uppercase block">Congregação</span>
-                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.congregation}</p>
-              </div>
-              <div>
-                <span className="text-[8px] font-black text-blue-400 uppercase block">Cargo no Ministério</span>
-                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.role}</p>
-              </div>
-              <div>
-                <span className="text-[8px] font-black text-blue-400 uppercase block">Data Nasc.</span>
-                <p className="text-xs font-bold text-blue-900">{linkUserBeingApproved.birth_date ? new Date(linkUserBeingApproved.birth_date + 'T00:00:00').toLocaleDateString('pt-BR') : 'Não informada'}</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-sm">
+                  <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest block mb-1">Nome Completo</span>
+                  <p className="text-sm font-black truncate text-black">{linkUserBeingApproved.name}</p>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-sm">
+                  <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest block mb-1">Data de Nasc. (Idade)</span>
+                  <p className="text-sm font-black text-black">
+                    {linkUserBeingApproved.birth_date ? new Date(linkUserBeingApproved.birth_date + 'T00:00:00').toLocaleDateString('pt-BR') : 'N/I'} 
+                    <span className="ml-2 text-[10px] text-blue-500">({calculateAge(linkUserBeingApproved.birth_date)} anos)</span>
+                  </p>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-sm">
+                  <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest block mb-1">WhatsApp / E-mail</span>
+                  <p className="text-sm font-black truncate text-black">{linkUserBeingApproved.phone || linkUserBeingApproved.email}</p>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-sm">
+                  <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest block mb-1">Congregação / Cargo</span>
+                  <p className="text-xs font-bold leading-tight line-clamp-2 text-black">{linkUserBeingApproved.congregation} <br/><span className="text-blue-600 font-black">{linkUserBeingApproved.role}</span></p>
+                </div>
               </div>
             </div>
           </div>
         )}
 
+        <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 animate-fade-in relative">
+          <div className="flex justify-between items-center mb-8">
+            <h3 className="text-xl font-black text-blue-900 uppercase tracking-tighter">
+              {isEditing ? "Atualizar Dados do CRR" : (isApproving ? "Cadastro Obrigatório de CRR" : "Inscrição de Regente Oficial")}
+            </h3>
+            {isApproving && (
+              <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase px-3 py-1 rounded-full animate-pulse border border-amber-200">
+                Aprovação Pendente
+              </span>
+            )}
+          </div>
+
         <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
             <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Nome Completo</label>
-            <input required className="w-full border rounded p-3 font-bold" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: João da Silva" />
+            <input 
+              required 
+              readOnly={isApproving}
+              className={`w-full border rounded p-3 font-bold ${isApproving ? 'bg-gray-100 text-gray-500 cursor-not-allowed opacity-70' : ''}`} 
+              value={formData.name} 
+              onChange={e => setFormData({...formData, name: e.target.value})} 
+              placeholder="Ex: João da Silva" 
+            />
           </div>
 
           <div className="space-y-4">
-            <div>
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">País (Cód)</label>
+            <div className={`p-4 rounded-xl border-2 transition-all ${isApproving ? 'border-blue-500 bg-blue-50/30' : 'border-transparent'}`}>
+              <label className="block text-[10px] font-black uppercase text-blue-900 mb-2 flex items-center gap-2">
+                {isApproving && <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>}
+                País (Cód)
+              </label>
               <div className="flex gap-2">
                 <div className="relative">
-                  <input required className="w-16 border rounded p-2 text-center font-mono" value={formData.country_id} onChange={e => lookup('country_id', e.target.value)} placeholder="01" />
+                  <input required className="w-16 border rounded p-2 text-center font-mono focus:ring-2 focus:ring-blue-500" value={formData.country_id} onChange={e => lookup('country_id', e.target.value)} placeholder="01" />
                   <button type="button" onClick={() => { setSelectorModal({ type: 'country', list: countries }); setSelectorSearch(''); }} className="absolute -right-2 -top-2 bg-blue-600 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform">
                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   </button>
@@ -2995,11 +3052,14 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
                 <input readOnly className="flex-1 bg-gray-50 border rounded p-2 text-xs italic text-gray-400" value={foundNames.country} placeholder="Busca automática..." />
               </div>
             </div>
-            <div>
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Estado (Cód)</label>
+            <div className={`p-4 rounded-xl border-2 transition-all ${isApproving ? 'border-blue-500 bg-blue-50/30' : 'border-transparent'}`}>
+              <label className="block text-[10px] font-black uppercase text-blue-900 mb-2 flex items-center gap-2">
+                {isApproving && <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>}
+                Estado (Cód)
+              </label>
               <div className="flex gap-2">
                 <div className="relative">
-                  <input required className="w-16 border rounded p-2 text-center font-mono" value={formData.state_id} onChange={e => lookup('state_id', e.target.value)} placeholder="01" />
+                  <input required className="w-16 border rounded p-2 text-center font-mono focus:ring-2 focus:ring-blue-500" value={formData.state_id} onChange={e => lookup('state_id', e.target.value)} placeholder="01" />
                   <button type="button" onClick={() => { setSelectorModal({ type: 'state', list: states }); setSelectorSearch(''); }} className="absolute -right-2 -top-2 bg-blue-600 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform">
                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   </button>
@@ -3007,11 +3067,14 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
                 <input readOnly className="flex-1 bg-gray-50 border rounded p-2 text-xs italic text-gray-400" value={foundNames.state} placeholder="Busca automática..." />
               </div>
             </div>
-            <div>
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Congregação (Cód)</label>
+            <div className={`p-4 rounded-xl border-2 transition-all ${isApproving ? 'border-blue-500 bg-blue-50/30' : 'border-transparent'}`}>
+              <label className="block text-[10px] font-black uppercase text-blue-900 mb-2 flex items-center gap-2">
+                {isApproving && <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>}
+                Congregação (Cód)
+              </label>
               <div className="flex gap-2">
                 <div className="relative">
-                  <input required className="w-20 border rounded p-2 text-center font-mono" value={formData.congregation_id} onChange={e => lookup('congregation_id', e.target.value)} placeholder="0001" />
+                  <input required className="w-20 border rounded p-2 text-center font-mono focus:ring-2 focus:ring-blue-500" value={formData.congregation_id} onChange={e => lookup('congregation_id', e.target.value)} placeholder="0001" />
                   <button type="button" onClick={() => { setSelectorModal({ type: 'congre', list: congre }); setSelectorSearch(''); }} className="absolute -right-2 -top-2 bg-blue-600 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform">
                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   </button>
@@ -3023,27 +3086,54 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
 
           <div className="space-y-4">
             <div>
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Data de Nascimento</label>
+              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Data de Nascimento</label>
               <div className="flex gap-3 items-center">
-                <input required type="date" className="flex-1 border rounded p-2" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} />
+                <input 
+                  required 
+                  type="date" 
+                  readOnly={isApproving}
+                  className={`flex-1 border rounded p-2 ${isApproving ? 'bg-gray-100 text-gray-500 cursor-not-allowed opacity-70' : ''}`} 
+                  value={formData.birth_date} 
+                  onChange={e => setFormData({...formData, birth_date: e.target.value})} 
+                />
                 <div className="bg-blue-50 px-3 py-2 rounded text-blue-700 font-black text-xs text-center border border-blue-100 min-w-[60px]">
                   {calculateAge(formData.birth_date)} <br/> ANOS
                 </div>
               </div>
             </div>
             <div>
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Telefone</label>
-              <input required className="w-full border rounded p-2" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="(00) 00000-0000" />
+              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">Telefone</label>
+              <input 
+                required 
+                readOnly={isApproving}
+                className={`w-full border rounded p-2 ${isApproving ? 'bg-gray-100 text-gray-500 cursor-not-allowed opacity-70' : ''}`} 
+                value={formData.phone} 
+                onChange={e => setFormData({...formData, phone: e.target.value})} 
+                placeholder="(00) 00000-0000" 
+              />
             </div>
             <div>
-            <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">E-mail</label>
-              <input required type="email" className="w-full border rounded p-2" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="email@exemplo.com" />
+              <label className="block text-[10px] font-black uppercase text-gray-900 mb-1">E-mail</label>
+              <input 
+                required 
+                type="email" 
+                readOnly={isApproving}
+                className={`w-full border rounded p-2 ${isApproving ? 'bg-gray-100 text-gray-500 cursor-not-allowed opacity-70' : ''}`} 
+                value={formData.email} 
+                onChange={e => setFormData({...formData, email: e.target.value})} 
+                placeholder="email@exemplo.com" 
+              />
             </div>
           </div>
 
           <div className="md:col-span-2">
             <label className="block text-[10px] font-black uppercase text-gray-900 mb-2">Cargo Específico</label>
-            <select required className="w-full border rounded p-3 font-bold bg-blue-50 border-blue-100" value={formData.role_code} onChange={e => setFormData({...formData, role_code: e.target.value as any})}>
+            <select 
+              required 
+              className="w-full border rounded p-3 font-bold bg-blue-50 border-blue-100" 
+              value={formData.role_code} 
+              onChange={e => setFormData({...formData, role_code: e.target.value as any})}
+            >
               <option value="S">S - Regente da Sede</option>
               <option value="I">I - Regente Itinerante</option>
               <option value="R">R - Regente Regional</option>
@@ -3183,8 +3273,9 @@ const AdminConductorForm = ({ goBack, linkUserBeingApproved, conductorToEdit }: 
           </div>
         )}
       </div>
-    </Layout>
-  );
+    </div>
+  </Layout>
+);
 };
 
 const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, goBack: () => void, navigate: any }) => {
@@ -5319,7 +5410,12 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
                   </button>
                 )}
                 {u.status === 'pending' && (isMaster || currentUser.canApprove) && (
-                  <button onClick={() => updateStatus(u.id, 'authorized')} className="bg-green-50 text-green-600 p-2 rounded-lg text-[10px] font-black uppercase px-3">Aceitar</button>
+                  <button 
+                    onClick={() => onAwaitingConductorRegistration(u)} 
+                    className="bg-green-600 text-white p-2 rounded-lg text-[10px] font-black uppercase px-4 shadow-lg shadow-green-100 hover:bg-green-700 active:scale-95 transition-all"
+                  >
+                    Analisar e Aceitar
+                  </button>
                 )}
                 {u.status === 'authorized' && isMaster && (
                   <button onClick={() => { setPermissionModalUser(u); setPermissionError(null); }} className="bg-purple-50 text-purple-600 p-2 rounded-lg">
@@ -7977,7 +8073,7 @@ const App = () => {
               case 'calendar': return <CalendarScreen goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'profile': return <ProfileScreen user={currentUser} goBack={goBack} onUpdate={setCurrentUser} onExitImpersonation={onExitImpersonation} />;
               case 'admin_menu': return <AdminMenuScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
-              case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); navigate('home'); }} currentUser={currentUser} onAwaitingConductorRegistration={(u: any) => { setEditData(u); navigate('admin_new_conductor'); }} />;
+              case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); navigate('home'); }} currentUser={currentUser} onAwaitingConductorRegistration={(u: any) => navigate('admin_new_conductor', u)} />;
               case 'admin_countries': return <AdminCountriesScreen goBack={goBack} navigate={navigate} />;
               case 'admin_states': return <AdminStatesScreen goBack={goBack} navigate={navigate} />;
               case 'admin_congregations': return <AdminCongregationsScreen goBack={goBack} navigate={navigate} />;
@@ -7986,7 +8082,7 @@ const App = () => {
               case 'admin_congregations_report': return <AdminMasterReportView id="relatorio-congre" title="Relatório Geral de Congregações" columns={[{key:'id', label:'Cód.'}, {key:'name', label:'Congregação'}, {key:'state', label:'Estado'}, {key:'uf', label:'UF'}, {key:'country', label:'País'}, {key:'address', label:'Endereço'}, {key:'address_number', label:'Nº'}, {key:'neighborhood', label:'Bairro'}, {key:'cep', label:'CEP'}]} data={reportData} goBack={goBack} orientation="landscape" />;
               case 'admin_conductors_report': return <AdminMasterReportView id="relatorio-regentes" title="Relatório de Regentes (CRR)" columns={[{key:'registry_number', label:'Registro'}, {key:'name', label:'Nome'}, {key:'congregation_name', label:'Congregação'}, {key:'phone', label:'Telefone'}]} data={reportData} goBack={goBack} />;
               case 'admin_conductor_certificates': return <AdminConductorCertificatesScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
-              case 'admin_new_conductor': return <AdminConductorForm goBack={goBack} linkUserBeingApproved={editData} />;
+              case 'admin_new_conductor': return <AdminConductorForm goBack={goBack} linkUserBeingApproved={editData} onApprovalSuccess={() => { setEditData(null); navigate('admin_users'); }} />;
               case 'admin_edit_conductor': return <AdminConductorForm goBack={goBack} conductorToEdit={editData} />;
               case 'admin_crr_card': return <CRRCardView conductor={editData} goBack={goBack} navigate={navigate} />;
               case 'admin_registrations_summary': return <AdminRegistrationsSummaryScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
