@@ -549,11 +549,11 @@ const HomeScreen = ({ navigate, onLogout, isReadOnly, isAdmin, onProfileClick, o
   <Layout title="Menu Principal" onLogout={onLogout} isReadOnly={isReadOnly} onProfileClick={onProfileClick} onExitImpersonation={onExitImpersonation}>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
       {isAdmin && !onExitImpersonation && <MenuCard title="Painel Admin" desc="Gerenciar Usuários e Acessos" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>} onClick={() => navigate('admin_menu')} />}
-      <MenuCard title="Calendário" desc="Ensaios e Reuniões" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>} onClick={() => navigate('calendar')} />
       <MenuCard title="Componentes" desc="Músicos e Instrumentos" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>} onClick={() => navigate('components')} />
       <MenuCard title="Presença" desc="Chamadas e Histórico" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>} onClick={() => navigate('attendance')} />
       <MenuCard title="Biblioteca de Hinos" desc="Cadastro por Caderno" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>} onClick={() => navigate('hymns_library')} />
       <MenuCard title="Programações" desc="Geração de Listas" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>} onClick={() => navigate('programs')} />
+      <MenuCard title="Calendário" desc="Ensaios e Reuniões" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>} onClick={() => navigate('calendar')} />
       <MenuCard title="Meus Avisos" desc="Histórico de Avisos" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>} onClick={() => navigate('bulletin_history')} />
       <MenuCard title="Dados e Backup" desc="Exportar/Importar CSV e JSON" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>} onClick={() => navigate('data_management')} />
     </div>
@@ -6819,9 +6819,9 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
   if (!currentUser) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[999] flex flex-col items-end gap-3 no-print">
+    <div className="fixed bottom-6 right-6 z-[999] flex flex-col items-end gap-3 no-print pointer-events-none">
       {isOpen && (
-        <div className={`bg-[#f8fafc] shadow-2xl border border-blue-100 flex flex-col overflow-hidden animate-slide-up transition-all duration-300 ${isExpanded ? 'fixed inset-0 w-screen h-screen z-[1000] rounded-none' : 'w-96 h-[600px] rounded-3xl'}`}>
+        <div className={`bg-[#f8fafc] shadow-2xl border border-blue-100 flex flex-col overflow-hidden animate-slide-up transition-all duration-300 pointer-events-auto ${isExpanded ? 'fixed inset-0 sm:inset-4 w-auto h-auto z-[2000] rounded-t-3xl sm:rounded-3xl' : 'w-[calc(100vw-3rem)] sm:w-96 h-[500px] max-h-[70vh] rounded-3xl'}`}>
           {/* Header System Style */}
           <div className={`${isExpanded ? 'p-6' : 'p-4'} bg-blue-600 text-white flex justify-between items-center shrink-0 shadow-lg z-20`}>
             <div className="flex items-center gap-3">
@@ -7082,7 +7082,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
       )}
       <button 
         onClick={() => setIsOpen(!isOpen)} 
-        className={`group relative flex items-center justify-center rounded-3xl shadow-2xl transition-all duration-500 active:scale-90 ${isOpen ? 'w-16 h-16 bg-red-500 rotate-90 scale-110' : 'w-20 h-20 bg-blue-600 hover:scale-110'}`}
+        className={`group relative flex items-center justify-center rounded-3xl shadow-2xl transition-all duration-500 active:scale-90 pointer-events-auto ${isOpen ? 'w-16 h-16 bg-red-500 rotate-90 scale-110' : 'w-20 h-20 bg-blue-600 hover:scale-110'}`}
       >
         {!isOpen && unreadCount > 0 && (
           <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-black rounded-xl min-w-[28px] h-[28px] flex items-center justify-center p-1 border-4 border-white animate-bounce shadow-xl z-10">
@@ -7523,12 +7523,13 @@ const AuthScreen = ({ onLogin }: any) => {
       {/* Overlay escuro (melhora leitura) */}
       <div className="absolute inset-0 bg-black/40" />
 
-      <div className={`bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full ${mode === 'request' ? 'max-w-md' : 'max-w-sm'} transition-all duration-300 relative z-10`}>
+      <div className={`bg-white rounded-2xl shadow-2xl p-8 w-full ${mode === 'request' ? 'max-w-md' : 'max-w-sm'} transition-all duration-300 relative z-10`}>
         <div className="text-center mb-6 flex flex-col items-center">
           <img 
             src="https://i.postimg.cc/K8X69mDY/image-removebg-preview.png" 
             alt="CORUS Logo" 
-            className="w-48 sm:w-60 h-auto drop-shadow-lg" 
+            className="w-40 sm:w-52 h-auto contrast-[1.15] saturate-[1.1] opacity-100" 
+            style={{ imageRendering: 'high-quality', transform: 'translateZ(0)' }}
           />
         </div>
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold mb-4 border-l-4 border-red-500">{error}</div>}
@@ -7539,10 +7540,10 @@ const AuthScreen = ({ onLogin }: any) => {
             {!foundRecoveryUser ? (
               <form onSubmit={handleRecoverySearch} className="space-y-4">
                 <p className="text-xs text-gray-700 text-center italic font-medium">Informe seu e-mail e sua data de nascimento cadastrados para confirmar sua identidade.</p>
-                <input required type="text" placeholder="Seu E-mail" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={recoverySearch.email} onChange={e => setRecoverySearch({...recoverySearch, email: e.target.value})} />
+                <input required type="text" placeholder="Seu E-mail" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={recoverySearch.email} onChange={e => setRecoverySearch({...recoverySearch, email: e.target.value})} />
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-gray-900 uppercase tracking-widest ml-1 block">Sua Data de Nascimento</label>
-                  <input required type="date" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={recoverySearch.birth_date} onChange={e => setRecoverySearch({...recoverySearch, birth_date: e.target.value})} />
+                  <input required type="date" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={recoverySearch.birth_date} onChange={e => setRecoverySearch({...recoverySearch, birth_date: e.target.value})} />
                 </div>
                 <button type="submit" className="w-full bg-blue-700 text-white py-4 rounded-xl font-black uppercase shadow-lg hover:bg-blue-800 transition-all active:scale-95">Verificar Dados</button>
               </form>
@@ -7550,12 +7551,12 @@ const AuthScreen = ({ onLogin }: any) => {
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <p className="text-xs text-green-600 text-center font-bold">Identidade confirmada! Defina sua nova senha abaixo.</p>
                 <div className="relative">
-                  <input required type={showPassword ? "text" : "password"} placeholder="Nova Senha" title="Mínimo 6 caracteres" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={newPasswordData.password} onChange={e => setNewPasswordData({...newPasswordData, password: e.target.value})} />
+                  <input required type={showPassword ? "text" : "password"} placeholder="Nova Senha" title="Mínimo 6 caracteres" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={newPasswordData.password} onChange={e => setNewPasswordData({...newPasswordData, password: e.target.value})} />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-blue-600">
                     {showPassword ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>}
                   </button>
                 </div>
-                <input required type={showPassword ? "text" : "password"} placeholder="Confirmar Nova Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={newPasswordData.confirm} onChange={e => setNewPasswordData({...newPasswordData, confirm: e.target.value})} />
+                <input required type={showPassword ? "text" : "password"} placeholder="Confirmar Nova Senha" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={newPasswordData.confirm} onChange={e => setNewPasswordData({...newPasswordData, confirm: e.target.value})} />
                 <button type="submit" className="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase shadow-lg hover:bg-green-700 transition-all active:scale-95">Salvar Nova Senha</button>
               </form>
             )}
@@ -7564,29 +7565,29 @@ const AuthScreen = ({ onLogin }: any) => {
         ) : (
           <>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {mode === 'request' && <input required placeholder="Nome Completo" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />}
-              <input required type="text" placeholder="E-mail" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-              {mode === 'request' && <input required placeholder="Congregação (Ex: Sede /SP)" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.congregation} onChange={e => setFormData({...formData, congregation: e.target.value})} />}
+              {mode === 'request' && <input required placeholder="Nome Completo" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />}
+              <input required type="text" placeholder="E-mail" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+              {mode === 'request' && <input required placeholder="Congregação (Ex: Sede /SP)" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.congregation} onChange={e => setFormData({...formData, congregation: e.target.value})} />}
               {mode === 'request' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-[9px] font-black text-gray-900 uppercase tracking-widest ml-1 mb-1 block">Data de Nascimento</label>
-                    <input required type="date" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} />
+                    <input required type="date" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} />
                   </div>
                   <div>
                     <label className="text-[9px] font-black text-gray-900 uppercase tracking-widest ml-1 mb-1 block">Telefone (WhatsApp)</label>
-                    <input required placeholder="(00) 00000-0000" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                    <input required placeholder="(00) 00000-0000" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                   </div>
                 </div>
               )}
-              {mode === 'request' && <input required placeholder="Cargo no Ministério" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} />}
+              {mode === 'request' && <input required placeholder="Cargo no Ministério" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} />}
               <div className="relative">
-                <input required type={showPassword ? "text" : "password"} placeholder="Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                <input required type={showPassword ? "text" : "password"} placeholder="Senha" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-blue-600 transition-colors">
                   {showPassword ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>}
                 </button>
               </div>
-              {mode === 'request' && <input required type={showPassword ? "text" : "password"} placeholder="Confirmar Senha" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />}
+              {mode === 'request' && <input required type={showPassword ? "text" : "password"} placeholder="Confirmar Senha" className="w-full border border-black rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />}
               
               <button type="submit" className="w-full bg-blue-700 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-800 transition-all active:scale-95">{mode === 'login' ? 'Entrar' : 'Solicitar Acesso'}</button>
             </form>
@@ -7669,18 +7670,17 @@ const App = () => {
     }
 
     const handlePopState = (e: PopStateEvent) => {
-      // Prioridade total para o estado do evento para manter consistência com o navegador
       if (e.state && e.state.screen) {
+        // Apenas atualiza se o estado for diferente para evitar loops com goBack manual
         setScreen(e.state.screen);
         setHistory(e.state.history || []);
         
-        // Restaura dados específicos da tela
         if (e.state.editData !== undefined) setEditData(e.state.editData);
         if (e.state.notebookData !== undefined) setNotebookData(e.state.notebookData);
         if (e.state.reportData !== undefined) setReportData(e.state.reportData);
         if (e.state.attendanceEditData !== undefined) setAttendanceEditData(e.state.attendanceEditData);
-      } else {
-        // Fallback robusto se o estado for perdido por inatividade
+      } else if (screen !== 'home') {
+        // Se voltar para antes do primeiro estado registrado e não estiver na home, força home
         setScreen('home');
         setHistory([]);
       }
@@ -7725,13 +7725,29 @@ const App = () => {
 
   const goBack = useCallback(() => { 
     if (history.length > 0) {
-      window.history.back();
-    } else {
+      const newHistory = [...history];
+      const prev = newHistory.pop() || 'home';
+      
+      // Atualização imediata para garantir responsividade no UI
+      setHistory(newHistory);
+      setScreen(prev);
+      
+      // Sincroniza o browser history se possível
+      try {
+        if (window.history.state && window.history.state.screen) {
+          window.history.back();
+        }
+      } catch (e) {
+        console.warn("Navegação de histórico do browser falhou:", e);
+      }
+    } else if (screen !== 'home') {
       setScreen('home');
       setHistory([]);
-      window.history.pushState({ screen: 'home', history: [] }, '', window.location.pathname);
+      try {
+        window.history.pushState({ screen: 'home', history: [] }, '', window.location.pathname);
+      } catch (e) {}
     }
-  }, [history]);
+  }, [history, screen]);
 
   const onLogout = () => { 
     setCurrentUser(null); 
