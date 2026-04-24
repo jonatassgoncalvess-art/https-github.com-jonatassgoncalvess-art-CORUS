@@ -452,54 +452,67 @@ const Layout = ({ children, title, onBack, onLogout: propLogout, isReadOnly, onP
   const onProfileClick = propProfile || nav?.onProfileClick;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="sticky top-0 z-[100] no-print">
-        {onExitImpersonation && (
-          <div className="bg-amber-600 text-white p-2 text-center shadow-inner animate-fade-in border-b border-amber-500/20">
-            <div className={`mx-auto flex items-center justify-center gap-4 text-[10px] sm:text-xs font-black uppercase tracking-widest ${widthClass}`}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-              Ambiente de Visualização (Modo Leitura)
-              <button 
-                onClick={onExitImpersonation}
-                className="bg-white text-amber-700 px-4 py-1.5 rounded-full font-black hover:bg-amber-50 transition-all shadow-md active:scale-95"
-              >
-                Sair e Voltar ao Admin
-              </button>
-            </div>
-          </div>
-        )}
-        <header className="bg-blue-700 text-white p-4 shadow-md">
-          <div className={`mx-auto flex items-center justify-between ${widthClass}`}>
-            <div className="flex items-center gap-3">
-              {onBack && (
-                <button onClick={onBack} className="p-1 hover:bg-blue-600 rounded cursor-pointer">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    <div className="min-h-screen relative flex flex-col">
+      {/* Fundo global */}
+      <div
+        className="fixed inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage: "url('https://i.postimg.cc/nLGHJXhX/Gemini-Generated-Image-e9746we9746we974.png')"
+        }}
+      />
+
+      {/* Overlay por cima da imagem (sem desfoque para máxima nitidez) */}
+      <div className="fixed inset-0 bg-white/65" />
+
+      <div className="relative z-[10] flex flex-col min-h-screen">
+        <div className="sticky top-0 z-[100] no-print">
+          {onExitImpersonation && (
+            <div className="bg-amber-600 text-white p-2 text-center shadow-inner animate-fade-in border-b border-amber-500/20">
+              <div className={`mx-auto flex items-center justify-center gap-4 text-[10px] sm:text-xs font-black uppercase tracking-widest ${widthClass}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                Ambiente de Visualização (Modo Leitura)
+                <button 
+                  onClick={onExitImpersonation}
+                  className="bg-white text-amber-700 px-4 py-1.5 rounded-full font-black hover:bg-amber-50 transition-all shadow-md active:scale-95"
+                >
+                  Sair e Voltar ao Admin
                 </button>
-              )}
-              <h1 className="text-xl font-bold">{title}</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              {isReadOnly && <span className="bg-yellow-400 text-blue-900 text-[10px] font-black px-2 py-0.5 rounded uppercase">Somente Leitura</span>}
-              <div className="text-sm opacity-80 hidden sm:block">CORUS - Gestor de Corais Apostólicos</div>
-              <div className="flex items-center gap-2">
-                {onProfileClick && (
-                  <button onClick={onProfileClick} className="p-1 hover:bg-blue-600 rounded cursor-pointer" title="Meu Perfil">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  </button>
-                )}
-                {onLogout && (
-                  <button onClick={onLogout} className="p-1 hover:bg-red-600 rounded cursor-pointer" title="Sair">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                  </button>
-                )}
               </div>
             </div>
-          </div>
-        </header>
+          )}
+          <header className="bg-blue-700 text-white p-4 shadow-md sticky top-0 z-[1000]">
+            <div className={`mx-auto flex items-center justify-between ${widthClass}`}>
+              <div className="flex items-center gap-3">
+                {onBack && (
+                  <button onClick={(e) => { e.stopPropagation(); onBack(); }} className="p-2 hover:bg-blue-600 rounded-lg cursor-pointer transition-colors active:scale-90" title="Voltar">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                  </button>
+                )}
+                <h1 className="text-xl font-bold">{title}</h1>
+              </div>
+              <div className="flex items-center gap-4">
+                {isReadOnly && <span className="bg-yellow-400 text-blue-900 text-[10px] font-black px-2 py-0.5 rounded uppercase">Somente Leitura</span>}
+                <div className="text-sm opacity-80 hidden sm:block">CORUS - Gestor de Corais Apostólicos</div>
+                <div className="flex items-center gap-2">
+                  {onProfileClick && (
+                    <button onClick={onProfileClick} className="p-1 hover:bg-blue-600 rounded cursor-pointer" title="Meu Perfil">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </button>
+                  )}
+                  {onLogout && (
+                    <button onClick={onLogout} className="p-1 hover:bg-red-600 rounded cursor-pointer" title="Sair">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </header>
+        </div>
+        <main className={`flex-1 mx-auto w-full p-4 ${widthClass}`}>
+          {children}
+        </main>
       </div>
-      <main className={`flex-1 mx-auto w-full p-4 ${widthClass}`}>
-        {children}
-      </main>
     </div>
   );
 };
@@ -1061,6 +1074,99 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
       </div>
 
       {/* Month Picker Modal */}
+      {/* Day Details Modal */}
+      {selectedDayData && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedDayData(null)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative p-8 animate-zoom-in max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-start mb-6 border-b pb-4">
+              <div>
+                <h3 className="text-3xl font-black text-black">
+                  {new Date(`${selectedDayData.date}T12:00:00`).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </h3>
+                {selectedDayData.holiday && (
+                  <p className="text-red-600 font-black uppercase text-xs tracking-widest mt-1 italic flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Feriado: {selectedDayData.holiday}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setSelectedDayData(null)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+              {selectedDayData.events.length === 0 ? (
+                <div className="py-12 text-center text-gray-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 opacity-20"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  <p className="font-bold uppercase text-[10px] tracking-widest">Nenhum evento para este dia</p>
+                </div>
+              ) : (
+                selectedDayData.events.map(e => (
+                  <button 
+                    key={e.id}
+                    onClick={() => {
+                      setSelectedEvent(e);
+                      setTitle(e.title);
+                      setDescription(e.description);
+                      setType(e.event_type);
+                      setDate(e.start_time.split('T')[0]);
+                      setTime(e.start_time.split('T')[1].substring(0, 5));
+                      setShowEventModal(true);
+                      setSelectedDayData(null);
+                    }}
+                    className="w-full text-left p-6 bg-gray-50 border border-gray-100 rounded-2xl hover:bg-white hover:shadow-xl hover:-translate-y-1 transition-all group"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[12px] font-black text-black">
+                          {new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <h4 className="text-xl font-black text-black mt-1 uppercase leading-none">{e.title}</h4>
+                        {e.description && <p className="text-[11px] text-gray-500 mt-3 font-medium line-clamp-2">{e.description}</p>}
+                      </div>
+                      <span className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                        e.event_type === 'Ensaio' ? 'bg-blue-600 text-white' :
+                        e.event_type === 'Reunião' ? 'bg-emerald-600 text-white' :
+                        e.event_type === 'Reunião de Oração' ? 'bg-purple-600 text-white' :
+                        e.event_type === 'Reunião Festiva' ? 'bg-amber-600 text-white' :
+                        'bg-rose-600 text-white'
+                      }`}>
+                        {e.event_type}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="mt-8 pt-6 border-t flex flex-col gap-3">
+              {!isReadOnly && (
+                <button 
+                  onClick={() => {
+                    resetForm();
+                    setDate(selectedDayData.date);
+                    setShowEventModal(true);
+                    setSelectedDayData(null);
+                  }}
+                  className="w-full p-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Adicionar Evento
+                </button>
+              )}
+              <button 
+                onClick={() => setSelectedDayData(null)}
+                className="w-full p-4 bg-gray-100 text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Day Details Modal */}
       {selectedDayData && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
@@ -3096,8 +3202,6 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
     });
   }, [conductor.state_id, conductor.congregation_id]);
 
-  const registrationDate = conductor.created_at ? new Date(conductor.created_at).toLocaleDateString('pt-BR') : '-';
-
   return (
     <div className="min-h-screen bg-gray-200 p-8 flex flex-col items-center">
       <div className="mb-8 flex gap-4 no-print flex-wrap justify-center">
@@ -3111,10 +3215,13 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
         {/* Carteira Profissional - Formato de Crachá Horizontal Ideal (95mm x 65mm) */}
         <div id="crr-card-body" className="w-[95mm] h-[65mm] bg-white relative overflow-hidden flex flex-col border border-gray-300 rounded-[2mm] font-sans shadow-sm">
         
-        {/* Cabeçalho Oficial Centralizado (Sem logos e sem "Sede Mundial") */}
-        <div className="bg-white py-3 border-b border-blue-100 flex flex-col items-center justify-center">
-          <h4 className="text-[12px] font-black uppercase text-blue-950 leading-none mb-0.5">Igreja Apostólica</h4>
-          <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest text-center">Brasil - São Paulo/SP</p>
+        {/* Cabeçalho Oficial Centralizado com Logo */}
+        <div className="bg-white py-2 border-b border-blue-100 flex items-center justify-center">
+          <img 
+            src="https://i.postimg.cc/jqgVRN03/image-removebg-preview-(1).png" 
+            alt="logo" 
+            className="h-[32px] w-auto object-contain" 
+          />
         </div>
 
         {/* Faixa de Título */}
@@ -3122,53 +3229,60 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
           <h2 className="text-[11px] font-black uppercase tracking-[2px]">Registro de Regente</h2>
         </div>
 
-        {/* Conteúdo Principal */}
-        <div className="flex-1 p-4 flex flex-col justify-between">
-          <div className="space-y-4">
-            <div className="flex justify-between items-end border-b border-blue-100 pb-1">
-              <div className="flex-1">
-                <span className="text-[6px] font-black text-gray-900 uppercase block leading-none">Identificação do Regente</span>
-                <p className="text-[12px] font-black uppercase text-gray-900 leading-none">{conductor.name}</p>
+        {/* CORPO DA CARTEIRINHA: Marca d'água centralizada por baixo dos dados */}
+        <div className="flex-1 relative flex flex-col">
+          {/* Marca D'água Centralizada no Corpo Inteiro (Atrás do texto) */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+            <img 
+              src="https://i.postimg.cc/05VH1sRM/Gemini-Generated-Image-bv56m6bv56m6bv56-removebg-preview.png" 
+              alt="watermark" 
+              className="w-72 opacity-[0.45] pointer-events-none"
+              style={{ transform: 'translateY(-4mm)' }}
+            />
+          </div>
+
+          <div className="flex-1 p-4 flex flex-col justify-between relative z-10 group overflow-hidden">
+            <div className="flex-1 overflow-hidden">
+              <div className="flex justify-between items-end border-b border-blue-100 pb-1 mb-4">
+                <div className="flex-1 min-w-0">
+                  <span className="text-[6px] font-black text-gray-900 uppercase block leading-none">Identificação do Regente</span>
+                  <p className="text-[12px] font-black uppercase text-gray-900 leading-tight break-words">{conductor.name}</p>
+                </div>
+                <div className="text-right ml-4 shrink-0">
+                  <span className="text-[6px] font-black text-gray-900 uppercase block leading-none">Nº Registro (CRR)</span>
+                  <p className="text-[12px] font-black text-blue-950 tracking-[1.5px] leading-none">
+                    {conductor.registry_number}
+                  </p>
+                </div>
               </div>
-              <div className="text-right ml-4">
-                <span className="text-[6px] font-black text-gray-900 uppercase block leading-none">Nº Registro (CRR)</span>
-                <p className="text-[12px] font-black text-blue-950 tracking-[1.5px] leading-none">
-                  {conductor.registry_number}
+
+              <div className="grid grid-cols-2 gap-y-3 gap-x-6">
+                <div>
+                  <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Cargo / Função</span>
+                  <p className="text-[9px] font-black uppercase text-blue-900 leading-tight">{ROLE_LABELS[conductor.role_code] || 'Regente'}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Data de Nascimento</span>
+                  <p className="text-[9px] font-bold text-gray-700">{conductor.birth_date ? new Date(conductor.birth_date).toLocaleDateString('pt-BR') : '-'}</p>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Congregação</span>
+                  <p className="text-[10px] font-bold uppercase text-gray-800 leading-tight">{congregationName}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Rodapé: Assinatura (Fixo no rodapé do container pai flex) */}
+            <div className="shrink-0 mt-auto pt-2 border-t border-gray-100 flex items-end justify-center">
+              <div className="flex-1 max-w-[70%] flex flex-col items-center">
+                <div className="w-full border-t border-gray-400 mt-6 mb-1"></div>
+                <p className="text-[7px] font-black text-blue-900 uppercase tracking-tighter text-center leading-tight">
+                  Presidente do Conselho Deliberativo
                 </p>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-y-3 gap-x-6">
-              <div>
-                <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Cargo / Função</span>
-                <p className="text-[9px] font-black uppercase text-blue-900 leading-tight">{ROLE_LABELS[conductor.role_code] || 'Regente'}</p>
-              </div>
-              <div className="text-right">
-                <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Data de Nascimento</span>
-                <p className="text-[9px] font-bold text-gray-700">{conductor.birth_date ? new Date(conductor.birth_date).toLocaleDateString('pt-BR') : '-'}</p>
-              </div>
-              <div className="col-span-2">
-                <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Congregação / Unidade de Atendimento</span>
-                <p className="text-[10px] font-bold uppercase text-gray-800 leading-tight">{congregationName}</p>
-              </div>
-            </div>
           </div>
-
-          {/* Rodapé: Data e Assinatura */}
-          <div className="flex items-end justify-between mt-auto pt-2 border-t border-gray-100">
-            <div className="mb-2">
-              <span className="text-[6px] font-black text-gray-900 uppercase block leading-none mb-0.5">Data de Cadastro</span>
-              <p className="text-[9px] font-black text-gray-700">{registrationDate}</p>
-            </div>
-            
-            <div className="flex-1 max-w-[60%] flex flex-col items-center">
-              <div className="w-full border-t border-gray-400 mt-6 mb-1"></div>
-              <p className="text-[7px] font-black text-blue-900 uppercase tracking-tighter text-center leading-tight">
-                Presidente do Conselho Deliberativo
-              </p>
-            </div>
-          </div>
-        </div>
+      </div>
 
         {/* Elementos Estéticos de Segurança */}
         <div className="absolute top-0 right-0 w-1.5 h-full bg-blue-900 opacity-[0.03]"></div>
@@ -7397,31 +7511,25 @@ const AuthScreen = ({ onLogin }: any) => {
   };
 
   return (
-    <div className="min-h-screen bg-blue-900 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Pano de fundo com símbolos musicais - Limpo e Profissional */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
-        {/* Nota Dupla - Superior Esquerda */}
-        <div className="absolute top-[10%] left-[10%] -rotate-12 opacity-10 text-white">
-          <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-        </div>
-        {/* Nota Única - Superior Direita */}
-        <div className="absolute top-[15%] right-[12%] rotate-12 opacity-10 text-white">
-          <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-        </div>
-        {/* Nota Única - Inferior Esquerda */}
-        <div className="absolute bottom-[15%] left-[15%] rotate-[20deg] opacity-10 text-white">
-          <svg width="110" height="110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-        </div>
-        {/* Nota Dupla - Inferior Direita */}
-        <div className="absolute bottom-[10%] right-[10%] -rotate-[15deg] opacity-10 text-white">
-          <svg width="130" height="130" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-        </div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Pano de Fundo */}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage: "url('https://i.postimg.cc/wM71bq2V/login-bg-png.png')"
+        }}
+      />
 
-      <div className={`bg-white rounded-2xl shadow-2xl p-8 w-full ${mode === 'request' ? 'max-w-md' : 'max-w-sm'} transition-all duration-300 relative z-10`}>
-        <div className="text-center mb-8">
-          <h2 className="text-4xl font-black text-blue-900 uppercase tracking-tighter">CORUS</h2>
-          <p className="text-blue-400 font-bold uppercase text-[10px] tracking-widest mt-1">Gestor de Corais Apostólicos</p>
+      {/* Overlay escuro (melhora leitura) */}
+      <div className="absolute inset-0 bg-black/40" />
+
+      <div className={`bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full ${mode === 'request' ? 'max-w-md' : 'max-w-sm'} transition-all duration-300 relative z-10`}>
+        <div className="text-center mb-6 flex flex-col items-center">
+          <img 
+            src="https://i.postimg.cc/K8X69mDY/image-removebg-preview.png" 
+            alt="CORUS Logo" 
+            className="w-48 sm:w-60 h-auto drop-shadow-lg" 
+          />
         </div>
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-bold mb-4 border-l-4 border-red-500">{error}</div>}
         
@@ -7547,9 +7655,17 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    // Inicialização da história do navegador
-    if (!window.history.state) {
-      window.history.replaceState({ screen: 'home', history: [] }, '', '');
+    // Sincronização inicial com o histórico do navegador (útil após reloads/mounts)
+    if (window.history.state && window.history.state.screen) {
+      const s = window.history.state;
+      setScreen(s.screen);
+      setHistory(s.history || []);
+      if (s.editData !== undefined) setEditData(s.editData);
+      if (s.notebookData !== undefined) setNotebookData(s.notebookData);
+      if (s.reportData !== undefined) setReportData(s.reportData);
+      if (s.attendanceEditData !== undefined) setAttendanceEditData(s.attendanceEditData);
+    } else {
+      window.history.replaceState({ screen: 'home', history: [] }, '', window.location.pathname);
     }
 
     const handlePopState = (e: PopStateEvent) => {
@@ -7579,42 +7695,41 @@ const App = () => {
 
   const activeEmail = viewingUser ? viewingUser.email : currentUser?.email;
   const isReadOnly = (isMaster || currentUser?.canReadOnlyMode || currentUser?.canViewOthers) && viewingUser !== null;
-  const onExitImpersonation = viewingUser ? () => { setViewingUser(null); setScreen('admin_menu'); } : undefined;
+  const onExitImpersonation = viewingUser ? () => { setViewingUser(null); navigate('admin_menu'); } : undefined;
 
   const navigate = useCallback((next: string, data?: any) => { 
     const newHistory = [...history, screen];
     
-    // Captura o estado atual dos dados para persistência na história
+    // Captura o estado completo para persistência
     const stateData: any = { 
       screen: next, 
       history: newHistory,
-      editData: next === 'create_hymn_list' || next === 'admin_bulletin_form' || ['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next) ? data : editData,
-      notebookData: next === 'notebook_detail' || next === 'hymn_notebook_report' ? data : notebookData,
+      editData: (next === 'create_hymn_list' || next === 'admin_bulletin_form' || ['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next)) ? data : editData,
+      notebookData: (next === 'notebook_detail' || next === 'hymn_notebook_report') ? data : notebookData,
       reportData: ['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next) ? data : reportData,
       attendanceEditData: next === 'roll_call' ? data : attendanceEditData
     };
     
-    window.history.pushState(stateData, '', '');
+    window.history.pushState(stateData, '', window.location.pathname);
     
     setHistory(newHistory); 
     setScreen(next); 
-    if (next === 'create_hymn_list') setEditData(data); 
-    if (next === 'admin_bulletin_form') setEditData(data); 
+    if (next === 'create_hymn_list' || next === 'admin_bulletin_form') setEditData(data); 
     if (next === 'notebook_detail' || next === 'hymn_notebook_report') setNotebookData(data); 
     if (['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next)) setReportData(data); 
     if (next === 'roll_call') setAttendanceEditData(data); 
     if (['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next)) setEditData(data); 
+    
+    window.scrollTo(0, 0);
   }, [history, screen, editData, notebookData, reportData, attendanceEditData]);
 
   const goBack = useCallback(() => { 
-    if (window.history.state && window.history.state.history && window.history.state.history.length > 0) {
+    if (history.length > 0) {
       window.history.back();
-    } else if (history.length > 0) {
-      const prev = history[history.length - 1]; 
-      setHistory(prevHistory => prevHistory.slice(0, -1)); 
-      setScreen(prev); 
     } else {
       setScreen('home');
+      setHistory([]);
+      window.history.pushState({ screen: 'home', history: [] }, '', window.location.pathname);
     }
   }, [history]);
 
@@ -7838,7 +7953,7 @@ const App = () => {
   if (!currentUser) return <AuthScreen onLogin={setCurrentUser} />;
 
   return (
-    <NavigationContext.Provider value={{ onLogout, onProfileClick: () => setScreen('profile') }}>
+    <NavigationContext.Provider value={{ onLogout, onProfileClick: () => navigate('profile') }}>
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <div className="flex-1">
           {(() => {
@@ -7846,7 +7961,7 @@ const App = () => {
               case 'calendar': return <CalendarScreen goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'profile': return <ProfileScreen user={currentUser} goBack={goBack} onUpdate={setCurrentUser} onExitImpersonation={onExitImpersonation} />;
               case 'admin_menu': return <AdminMenuScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
-              case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); setScreen('home'); }} currentUser={currentUser} onAwaitingConductorRegistration={(u: any) => { setEditData(u); setScreen('admin_new_conductor'); }} />;
+              case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); navigate('home'); }} currentUser={currentUser} onAwaitingConductorRegistration={(u: any) => { setEditData(u); navigate('admin_new_conductor'); }} />;
               case 'admin_countries': return <AdminCountriesScreen goBack={goBack} navigate={navigate} />;
               case 'admin_states': return <AdminStatesScreen goBack={goBack} navigate={navigate} />;
               case 'admin_congregations': return <AdminCongregationsScreen goBack={goBack} navigate={navigate} />;
@@ -7859,8 +7974,7 @@ const App = () => {
               case 'admin_edit_conductor': return <AdminConductorForm goBack={goBack} conductorToEdit={editData} />;
               case 'admin_crr_card': return <CRRCardView conductor={editData} goBack={goBack} navigate={navigate} />;
               case 'admin_registrations_summary': return <AdminRegistrationsSummaryScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
-              case 'home': return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} onBackup={handleBackup} isExporting={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} />;
-              case 'calendar': return <CalendarScreen goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'home': return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => navigate('profile')} onExitImpersonation={onExitImpersonation} onBackup={handleBackup} isExporting={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} />;
               case 'components': return <ComponentsScreen navigate={navigate} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
               case 'instruments': return <InstrumentsScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'musicians': return <MusiciansScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
@@ -7890,7 +8004,7 @@ const App = () => {
               case 'create_hymn_list': return <CreateHymnListScreen onSave={goBack} onCancel={goBack} initialData={editData} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'hymn_report_input': return <HymnReportInputScreen onGenerate={(s: any, e: any, t: any) => navigate('hymn_report', {s, e, t})} onCancel={goBack} onExitImpersonation={onExitImpersonation} />;
               case 'data_management': return <DataManagementScreen goBack={goBack} onBackupJSON={handleBackup} isExportingJSON={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} onImportJSON={handleImportJSON} onImportCSV={handleImportCSV} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} canExportBackups={isMaster} />;
-              default: return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => setScreen('profile')} onExitImpersonation={onExitImpersonation} />;
+              default: return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => navigate('profile')} onExitImpersonation={onExitImpersonation} />;
             }
           })()}
         </div>
@@ -7905,5 +8019,7 @@ const App = () => {
   );
 };
 
-const root = ReactDOM.createRoot(document.getElementById('root')!);
+const container = document.getElementById('root')!;
+const root = (window as any)._reactRoot || ReactDOM.createRoot(container);
+(window as any)._reactRoot = root;
 root.render(<React.StrictMode><App /></React.StrictMode>);
