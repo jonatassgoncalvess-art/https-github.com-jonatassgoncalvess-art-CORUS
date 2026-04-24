@@ -1349,16 +1349,17 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEventModal(false)}></div>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative p-8 animate-zoom-in">
             <h3 className="text-xl font-black text-black uppercase tracking-widest mb-6 border-b pb-4">
-              {selectedEvent ? 'Editar Evento' : 'Novo Evento'}
+              {isReadOnly ? 'Detalhes do Evento' : (selectedEvent ? 'Editar Evento' : 'Novo Evento')}
             </h3>
             <div className="space-y-4">
               <label className="block">
                 <span className="text-[11px] font-black uppercase text-black block mb-1">Título do Evento</span>
                 <input 
+                  disabled={isReadOnly}
                   type="text" 
                   value={title} 
                   onChange={e => setTitle(e.target.value)}
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all text-black"
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all text-black disabled:opacity-60"
                   placeholder="Ex: Ensaio de Sopros"
                 />
               </label>
@@ -1367,19 +1368,21 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
                 <label className="block">
                   <span className="text-[11px] font-black uppercase text-black block mb-1">Data</span>
                   <input 
+                    disabled={isReadOnly}
                     type="date" 
                     value={date} 
                     onChange={e => setDate(e.target.value)}
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all text-sm text-black"
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all text-sm text-black disabled:opacity-60"
                   />
                 </label>
                 <label className="block">
                   <span className="text-[11px] font-black uppercase text-black block mb-1">Horário</span>
                   <input 
+                    disabled={isReadOnly}
                     type="time" 
                     value={time} 
                     onChange={e => setTime(e.target.value)}
-                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all text-sm text-black"
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all text-sm text-black disabled:opacity-60"
                   />
                 </label>
               </div>
@@ -1387,9 +1390,10 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
               <label className="block">
                 <span className="text-[11px] font-black uppercase text-black block mb-1">Tipo de Evento</span>
                 <select 
+                  disabled={isReadOnly}
                   value={type} 
                   onChange={e => setType(e.target.value as any)}
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all appearance-none text-sm text-black"
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all appearance-none text-sm text-black disabled:opacity-60"
                 >
                   <option value="Ensaio">Ensaio</option>
                   <option value="Reunião">Reunião</option>
@@ -1402,9 +1406,10 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
               <label className="block">
                 <span className="text-[11px] font-black uppercase text-black block mb-1">Observações (Opcional)</span>
                 <textarea 
+                  disabled={isReadOnly}
                   value={description} 
                   onChange={e => setDescription(e.target.value)}
-                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all h-24 text-sm text-black"
+                  className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold outline-none transition-all h-24 text-sm text-black disabled:opacity-60"
                   placeholder="Detalhes adicionais..."
                 />
               </label>
@@ -1415,9 +1420,9 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
                 onClick={() => setShowEventModal(false)}
                 className="flex-1 px-6 py-4 bg-gray-100 text-gray-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all"
               >
-                Cancelar
+                {isReadOnly ? 'Fechar' : 'Cancelar'}
               </button>
-              {selectedEvent && (
+              {!isReadOnly && selectedEvent && (
                 <button 
                   onClick={() => handleDeleteEvent(selectedEvent.id)}
                   className="p-4 bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-100 transition-all"
@@ -1425,12 +1430,14 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                 </button>
               )}
-              <button 
-                onClick={handleSaveEvent}
-                className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
-              >
-                {selectedEvent ? 'Salvar' : 'Agendar'}
-              </button>
+              {!isReadOnly && (
+                <button 
+                  onClick={handleSaveEvent}
+                  className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
+                >
+                  {selectedEvent ? 'Salvar' : 'Agendar'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1605,7 +1612,7 @@ const ComponentsScreen = ({ navigate, goBack, onExitImpersonation }: any) => (
   </Layout>
 );
 
-const MusicianReportSelectionScreen = ({ navigate, goBack, onExitImpersonation }: any) => {
+const MusicianReportSelectionScreen = ({ navigate, goBack, ownerEmail, onExitImpersonation }: any) => {
   const [type, setType] = useState('Geral em Ordem Alfabética');
   const handleGenerate = () => {
     if (type === 'Geral em Ordem Alfabética') navigate('musicians_report');
@@ -4153,7 +4160,7 @@ const AttendancePercentageInputScreen = ({ onGenerate, onCancel, isReadOnly, onE
   );
 };
 
-const HymnsLibraryScreen = ({ navigate, goBack, isReadOnly, onExitImpersonation }: any) => (
+const HymnsLibraryScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImpersonation }: any) => (
   <Layout title="Biblioteca de Hinos" onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
     <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4 mt-4">
       {Object.entries(NOTEBOOKS).map(([code, name]) => (
@@ -4273,7 +4280,7 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
   );
 };
 
-const ProgramsScreen = ({ navigate, goBack, isReadOnly, onExitImpersonation }: any) => (
+const ProgramsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImpersonation }: any) => (
   <Layout title="Programações" onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
       <MenuCard title="Orientações" desc="Regras de elaboração" icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>} onClick={() => navigate('guidelines')} />
@@ -6216,16 +6223,21 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
   );
 };
 
-const BulletinDisplayModal = ({ unreadBulletins, onStatusUpdate, onDismiss }: { unreadBulletins: (BulletinMessage & { status_id: string })[], onStatusUpdate: () => void, onDismiss: () => void }) => {
+const BulletinDisplayModal = ({ unreadBulletins, onStatusUpdate, onDismiss, isReadOnly }: { unreadBulletins: (BulletinMessage & { status_id: string })[], onStatusUpdate: () => void, onDismiss: () => void, isReadOnly?: boolean }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const current = unreadBulletins[currentIndex];
 
   if (!current) return null;
 
   const handleAction = async (status: 'read' | 'pending', showAgain: boolean) => {
-    // Se for "Lido", atualizamos no banco para não mostrar mais.
-    // Se for "Lembrar Depois", não precisamos atualizar o banco se já estiver como pending/true, 
-    // mas vamos atualizar para garantir e registrar que o usuário interagiu.
+    if (isReadOnly) {
+      if (currentIndex < unreadBulletins.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        onDismiss();
+      }
+      return;
+    }
     const { error } = await supabase.from('bulletin_user_status')
       .update({ 
         status, 
@@ -6312,16 +6324,17 @@ const BulletinDisplayModal = ({ unreadBulletins, onStatusUpdate, onDismiss }: { 
   );
 };
 
-const BulletinHistoryScreen = ({ goBack, currentUser }: any) => {
+const BulletinHistoryScreen = ({ goBack, ownerEmail }: any) => {
   const [history, setHistory] = useState<(BulletinMessage & { status: string, viewed_at: string })[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchHistory = async () => {
+      if (!ownerEmail) return;
       setLoading(true);
       const { data: statuses } = await supabase.from('bulletin_user_status')
         .select(`*, bulletin_messages(*)`)
-        .eq('user_id', currentUser.email)
+        .eq('user_id', ownerEmail)
         .order('viewed_at', { ascending: false });
       
       const formatted = (statuses || []).map((s: any) => ({
@@ -6334,7 +6347,7 @@ const BulletinHistoryScreen = ({ goBack, currentUser }: any) => {
       setLoading(false);
     };
     fetchHistory();
-  }, [currentUser.email]);
+  }, [ownerEmail]);
 
   return (
     <Layout title="Meus Avisos" onBack={goBack}>
@@ -6708,13 +6721,15 @@ const AdminMessagesScreen = ({ goBack, currentUser }: any) => {
   );
 };
 
-const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: UserAccount, isAdmin?: boolean }) => {
+const FloatingChat = ({ currentUser, viewingUser, isAdmin: isAdminProp }: { currentUser: UserAccount, viewingUser?: UserAccount | null, isAdmin?: boolean }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
-  const isAdmin = isAdminProp ?? (currentUser.email === 'Admin' || currentUser.isMasterAdmin || currentUser.canChat);
+  const isReadOnly = !!viewingUser;
+  const activeEmail = viewingUser ? viewingUser.email : currentUser?.email;
+  const isAdmin = isReadOnly ? false : (isAdminProp ?? (currentUser.email === 'Admin' || currentUser.isMasterAdmin || currentUser.canChat));
   const [activeAdminConvo, setActiveAdminConvo] = useState<string | null>(null);
   const [userList, setUserList] = useState<UserAccount[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -6749,7 +6764,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
 
   const fetchMessages = async (isInitial = false) => {
     try {
-      if (!currentUser?.email) return;
+      if (!activeEmail) return;
 
       const otherPerson = isAdmin ? activeAdminConvo : 'Admin';
       
@@ -6773,14 +6788,14 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
       const { data } = await supabase.from('gca_chat_messages')
         .select('*')
         .eq('status', 'Ativa')
-        .or(`and(sender_id.eq.${currentUser.email},receiver_id.eq.${otherPerson}),and(sender_id.eq.${otherPerson},receiver_id.eq.${currentUser.email})`)
+        .or(`and(sender_id.eq.${activeEmail},receiver_id.eq.${otherPerson}),and(sender_id.eq.${otherPerson},receiver_id.eq.${activeEmail})`)
         .order('created_at', { ascending: true });
 
       const newMessages = data || [];
       
       if (!isInitial && newMessages.length > messages.length) {
         const lastNew = newMessages[newMessages.length - 1];
-        if (lastNew.sender_id !== currentUser.email && !isOpen) {
+        if (lastNew.sender_id !== activeEmail && !isOpen) {
           try {
             const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
             audio.volume = 0.4;
@@ -6792,7 +6807,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
       setMessages(newMessages);
 
       if (!isOpen && !isAdmin) {
-        setUnreadCount(newMessages.filter(m => m.receiver_id === currentUser.email && !m.read_at).length);
+        setUnreadCount(newMessages.filter(m => m.receiver_id === activeEmail && !m.read_at).length);
       }
     } catch (err) {
       console.error("Erro ao buscar mensagens:", err);
@@ -6824,7 +6839,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
   }, [isOpen]);
 
   const markAsRead = async () => {
-    if (!isOpen) return;
+    if (isReadOnly || !isOpen) return;
     const otherEmail = isAdmin ? activeAdminConvo : 'Admin';
     if (!otherEmail) return;
 
@@ -6832,7 +6847,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
       await supabase.from('gca_chat_messages')
         .update({ read_at: getBrasiliaISO() })
         .eq('sender_id', otherEmail)
-        .eq('receiver_id', isAdmin ? 'Admin' : currentUser.email)
+        .eq('receiver_id', isAdmin ? 'Admin' : activeEmail)
         .is('read_at', null);
       
       fetchMessages();
@@ -6847,7 +6862,8 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim() || !currentUser?.email) return;
+    if (isReadOnly) return;
+    if (!text.trim() || !activeEmail) return;
 
     const receiver = isAdmin ? activeAdminConvo : 'Admin';
     if (!receiver) return;
@@ -6865,9 +6881,9 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
 
         // 2. Cria uma nova mensagem baseada na antiga, mas com o novo texto
         await supabase.from('gca_chat_messages').insert({
-          sender_id: isAdmin ? 'Admin' : currentUser.email,
+          sender_id: isAdmin ? 'Admin' : activeEmail,
           receiver_id: receiver,
-          sender_name: isAdmin ? 'Administrador' : (currentUser.name || 'Usuário'),
+          sender_name: isAdmin ? 'Administrador' : (viewingUser?.name || currentUser.name || 'Usuário'),
           text: msgText,
           status: 'Ativa',
           is_edited: true,
@@ -6878,9 +6894,9 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
         setEditingMsg(null);
       } else {
         await supabase.from('gca_chat_messages').insert({
-          sender_id: isAdmin ? 'Admin' : currentUser.email,
+          sender_id: isAdmin ? 'Admin' : activeEmail,
           receiver_id: receiver,
-          sender_name: isAdmin ? 'Administrador' : (currentUser.name || 'Usuário'),
+          sender_name: isAdmin ? 'Administrador' : (viewingUser?.name || currentUser.name || 'Usuário'),
           text: msgText,
           status: 'Ativa',
           reply_to_id: replyTo?.id
@@ -6938,7 +6954,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
                 <span className={`font-black tracking-tight leading-none ${isExpanded ? 'text-2xl' : 'text-base'}`}>
                   {isAdmin ? (
                     activeAdminConvo ? (userList.find(u => u.email === activeAdminConvo)?.name || activeAdminConvo) : 'Portal de Suporte'
-                  ) : 'Suporte CORUS'}
+                  ) : (isReadOnly ? `Visão: ${viewingUser?.name || activeEmail}` : 'Suporte CORUS')}
                 </span>
                 <span className="text-[10px] opacity-70 font-black uppercase tracking-widest mt-1">Atendimento Online</span>
               </div>
@@ -7033,7 +7049,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
             ) : (
                <div className="flex flex-col min-h-full px-4 py-6 space-y-4">
                   {messages.filter(m => convoSearch ? m.text.toLowerCase().includes(convoSearch.toLowerCase()) : true).map((m, idx, arr) => {
-                     const isMe = m.sender_id === currentUser.email;
+                     const isMe = m.sender_id === activeEmail;
                      const prevMsg = arr[idx-1];
                      const showDate = !prevMsg || new Date(m.created_at).toLocaleDateString('pt-BR') !== new Date(prevMsg.created_at).toLocaleDateString('pt-BR');
                      const repliedMsg = m.reply_to_id ? messages.find(rm => rm.id === m.reply_to_id) : null;
@@ -7140,8 +7156,13 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
           </div>
 
           <div className="shrink-0 flex flex-col bg-white p-4 border-t border-blue-50 shadow-inner">
+            {isReadOnly && (
+              <div className="bg-amber-50 text-amber-800 text-[10px] font-black uppercase text-center py-2 mb-2 rounded-lg border border-amber-200">
+                Modo Visualização (Somente Leitura)
+              </div>
+            )}
             {replyTo && (
-               <div className="bg-blue-50 p-2.5 rounded-2xl border-l-4 border-blue-600 flex justify-between items-center animate-slide-up mb-3 shadow-sm">
+              <div className="bg-blue-50 p-2.5 rounded-2xl border-l-4 border-blue-600 flex justify-between items-center animate-slide-up mb-3 shadow-sm">
                   <div className="flex flex-col gap-0.5 overflow-hidden">
                     <span className="text-[8px] font-black text-blue-600 uppercase tracking-tighter">Respondendo Mensagem</span>
                     <div className="truncate text-xs text-blue-900 font-medium italic">"{replyTo.text}"</div>
@@ -7161,15 +7182,15 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
             <form onSubmit={handleSend} className="flex items-center gap-3">
                     <div className="flex-1 relative group">
                       <input 
-                        disabled={isAdmin && !activeAdminConvo}
+                        disabled={(isAdmin && !activeAdminConvo) || isReadOnly}
                         type="text" 
-                        placeholder={isAdmin && !activeAdminConvo ? "Selecione um chat..." : "Escreva sua mensagem..."}
+                        placeholder={isReadOnly ? "Apenas leitura..." : (isAdmin && !activeAdminConvo ? "Selecione um chat..." : "Escreva sua mensagem...")}
                         value={text}
                         onChange={e => setText(e.target.value)}
                         className="w-full bg-gray-100 border-none rounded-2xl py-3.5 px-6 text-sm font-bold outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 transition-all shadow-sm placeholder:text-gray-400 disabled:opacity-50"
                       />
                     </div>
-                    <button type="submit" disabled={!text.trim() || (isAdmin && !activeAdminConvo)} className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-blue-200 active:scale-90 hover:bg-blue-700 transition-all disabled:opacity-50 group">
+                    <button type="submit" disabled={!text.trim() || (isAdmin && !activeAdminConvo) || isReadOnly} className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-blue-200 active:scale-90 hover:bg-blue-700 transition-all disabled:opacity-50 group">
                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                     </button>
             </form>
@@ -7198,7 +7219,7 @@ const FloatingChat = ({ currentUser, isAdmin: isAdminProp }: { currentUser: User
   );
 };
 
-const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => {
+const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation, isReadOnly }: any) => {
   const [conductor, setConductor] = useState<Conductor | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: user.name, phone: user.phone, birth_date: '', email: user.email });
@@ -7318,12 +7339,14 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
               <h3 className="text-xl font-black text-blue-900 uppercase tracking-tighter">Informações Pessoais</h3>
               <p className="text-[10px] text-gray-400 font-bold uppercase mt-1 tracking-widest">Apenas campos autorizados para edição</p>
             </div>
-            <button 
-              onClick={() => setIsEditing(!isEditing)}
-              className={`p-3 rounded-2xl transition-all ${isEditing ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-blue-600 border border-blue-100 shadow-sm'}`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            </button>
+            {!isReadOnly && (
+              <button 
+                onClick={() => setIsEditing(!isEditing)}
+                className={`p-3 rounded-2xl transition-all ${isEditing ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-blue-600 border border-blue-100 shadow-sm'}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+            )}
           </div>
 
           <div className="p-8 space-y-6">
@@ -7420,15 +7443,17 @@ const ProfileScreen = ({ user, goBack, onUpdate, onExitImpersonation }: any) => 
               </div>
             )}
             
-            <div className="pt-8 border-t border-gray-100 flex flex-col items-center">
-              <button 
-                onClick={() => setShowPasswordModal(true)}
-                className="flex items-center gap-3 text-blue-600 font-black uppercase text-[11px] tracking-widest hover:text-blue-800 transition-all group"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:rotate-12 transition-transform"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                Alterar Senha de Acesso
-              </button>
-            </div>
+            {!isReadOnly && (
+              <div className="pt-8 border-t border-gray-100 flex flex-col items-center">
+                <button 
+                  onClick={() => setShowPasswordModal(true)}
+                  className="flex items-center gap-3 text-blue-600 font-black uppercase text-[11px] tracking-widest hover:text-blue-800 transition-all group"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:rotate-12 transition-transform"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  Alterar Senha de Acesso
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -7734,12 +7759,6 @@ const App = () => {
   };
 
   useEffect(() => {
-    if (currentUser) {
-      checkUnreadBulletins(currentUser.email);
-    }
-  }, [currentUser]);
-
-  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const programId = params.get('program');
     if (programId) {
@@ -7791,7 +7810,13 @@ const App = () => {
 
   const activeEmail = viewingUser ? viewingUser.email : currentUser?.email;
   const isReadOnly = (isMaster || currentUser?.canReadOnlyMode || currentUser?.canViewOthers) && viewingUser !== null;
-  const onExitImpersonation = viewingUser ? () => { setViewingUser(null); navigate('admin_menu'); } : undefined;
+  const onExitImpersonation = viewingUser ? () => { setViewingUser(null); navigate('admin_users'); } : undefined;
+
+  useEffect(() => {
+    if (activeEmail) {
+      checkUnreadBulletins(activeEmail);
+    }
+  }, [activeEmail]);
 
   const navigate = useCallback((next: string, data?: any) => { 
     const newHistory = [...history, screen];
@@ -7857,13 +7882,14 @@ const App = () => {
     if (!currentUser) return;
     setIsExporting(true);
     const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
-    const emailToFilter = isMaster ? undefined : currentUser.email;
+    // Se estiver personificando e for master/admin, exporta os dados daquele usuário
+    const emailToFilter = isMaster ? (viewingUser ? viewingUser.email : undefined) : currentUser.email;
     
     try {
       const backupData: any = {
         exportDate: getBrasiliaISO(),
-        type: isMaster ? 'MASTER_FULL_BACKUP' : 'USER_DATA_ONLY',
-        user: currentUser,
+        type: (isMaster && !viewingUser) ? 'MASTER_FULL_BACKUP' : 'USER_DATA_ONLY',
+        user: viewingUser || currentUser,
       };
 
       const tablesToExport = [
@@ -7889,7 +7915,7 @@ const App = () => {
         backupData[table.name] = await fetchData(table.name, table.key, emailToFilter);
       }
 
-      const fileName = isMaster ? `backup-SISTEMA-COMPLETO-${getBrasiliaYYYYMMDD()}.json` : `backup-perfil-${currentUser.email}-${getBrasiliaYYYYMMDD()}.json`;
+      const fileName = (isMaster && !viewingUser) ? `backup-SISTEMA-COMPLETO-${getBrasiliaYYYYMMDD()}.json` : `backup-perfil-${activeEmail}-${getBrasiliaYYYYMMDD()}.json`;
       const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -7911,7 +7937,7 @@ const App = () => {
     if (!currentUser) return;
     setIsExportingCSV(true);
     const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
-    const emailToFilter = isMaster ? undefined : currentUser.email;
+    const emailToFilter = isMaster ? (viewingUser ? viewingUser.email : undefined) : currentUser.email;
 
     try {
       const tablesToExport = [
@@ -8071,7 +8097,7 @@ const App = () => {
           {(() => {
             switch (screen) {
               case 'calendar': return <CalendarScreen goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-              case 'profile': return <ProfileScreen user={currentUser} goBack={goBack} onUpdate={setCurrentUser} onExitImpersonation={onExitImpersonation} />;
+              case 'profile': return <ProfileScreen user={viewingUser || currentUser} goBack={goBack} onUpdate={setCurrentUser} onExitImpersonation={onExitImpersonation} isReadOnly={isReadOnly} />;
               case 'admin_menu': return <AdminMenuScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
               case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); navigate('home'); }} currentUser={currentUser} onAwaitingConductorRegistration={(u: any) => navigate('admin_new_conductor', u)} />;
               case 'admin_countries': return <AdminCountriesScreen goBack={goBack} navigate={navigate} />;
@@ -8090,11 +8116,11 @@ const App = () => {
               case 'components': return <ComponentsScreen navigate={navigate} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
               case 'instruments': return <InstrumentsScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'musicians': return <MusiciansScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
-              case 'musician_report_selection': return <MusicianReportSelectionScreen navigate={navigate} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
+              case 'musician_report_selection': return <MusicianReportSelectionScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} onExitImpersonation={onExitImpersonation} />;
               case 'admin_messages': return <AdminMessagesScreen goBack={goBack} currentUser={currentUser} />;
               case 'admin_bulletins': return <AdminBulletinsScreen goBack={goBack} navigate={navigate} currentUser={currentUser} />;
               case 'admin_bulletin_form': return <AdminBulletinForm goBack={goBack} navigate={navigate} initialData={editData} currentUser={currentUser} />;
-              case 'bulletin_history': return <BulletinHistoryScreen goBack={goBack} currentUser={currentUser} />;
+              case 'bulletin_history': return <BulletinHistoryScreen goBack={goBack} ownerEmail={activeEmail} />;
               case 'musicians_report': return <MusiciansReportScreen goBack={goBack} ownerEmail={activeEmail} />;
               case 'instruments_report': return <InstrumentsReportScreen goBack={goBack} ownerEmail={activeEmail} />;
               case 'musicians_voice_report': return <MusiciansVoiceReportScreen goBack={goBack} ownerEmail={activeEmail} />;
@@ -8107,10 +8133,10 @@ const App = () => {
               case 'attendance_percentage_input': return <AttendancePercentageInputScreen onGenerate={(s: any, e: any, g: any) => navigate('attendance_percentage_report', {s, e, g})} onCancel={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'attendance_percentage_report': return <AttendancePercentageReportScreen goBack={goBack} ownerEmail={activeEmail} reportData={reportData} />;
               case 'hymn_report': return <HymnReportScreen goBack={goBack} ownerEmail={activeEmail} reportData={reportData} />;
-              case 'hymns_library': return <HymnsLibraryScreen navigate={navigate} goBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'hymns_library': return <HymnsLibraryScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'notebook_detail': return <NotebookDetailScreen notebook={notebookData} goBack={goBack} navigate={navigate} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'hymn_notebook_report': return <HymnNotebookReportScreen notebook={notebookData} goBack={goBack} ownerEmail={activeEmail} />;
-              case 'programs': return <ProgramsScreen navigate={navigate} goBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'programs': return <ProgramsScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'guidelines': return <GuidelinesScreen goBack={goBack} onExitImpersonation={onExitImpersonation} />;
               case 'hymn_lists': return <HymnListScreen goBack={goBack} onCreate={() => navigate('create_hymn_list')} onEdit={l => navigate('create_hymn_list', l)} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'create_hymn_list': return <CreateHymnListScreen onSave={goBack} onCancel={goBack} initialData={editData} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
@@ -8120,11 +8146,12 @@ const App = () => {
             }
           })()}
         </div>
-        <FloatingChat currentUser={currentUser} isAdmin={isMaster || currentUser?.canChat} />
+        <FloatingChat currentUser={currentUser} viewingUser={viewingUser} isAdmin={isMaster || currentUser?.canChat} />
         <BulletinDisplayModal 
           unreadBulletins={unreadBulletins} 
-          onStatusUpdate={() => checkUnreadBulletins(currentUser.email)} 
+          onStatusUpdate={() => checkUnreadBulletins(activeEmail || currentUser.email)} 
           onDismiss={() => setUnreadBulletins([])}
+          isReadOnly={isReadOnly}
         />
       </div>
     </NavigationContext.Provider>
