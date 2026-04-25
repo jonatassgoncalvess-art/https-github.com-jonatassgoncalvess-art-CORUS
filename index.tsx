@@ -342,106 +342,152 @@ const NOTEBOOKS: Record<string, string> = {
   "MÃES": "Especial Dia das Mães", "HC": "Hinos de Casamento", "H": "Hinos do Hinário", 
   "INST": "Instrumental", "O. CAM": "Orquestra de Câmara", "OV": "Orquestra de Violões", 
   "OC": "Orquestra do Coral", "OH": "Orquestra do Hinário", "OIJA": "Orquestra Infanto Juvenil", 
-  "OJ": "Orquestra Jovem", "SC": "Solos Coral", "SE": "Solos Esp. + Orq.", "SEC": "Solos Esp. + Coral"
+  "OJ": "Orquestra Jovem", "SC": "Solos Coral", "SE": "Solos Esp. + Coral", "SEC": "Solos Esp. + Coral"
 };
 
 const downloadPDF = (
-  elementId: string,
+  elementId: string, 
   filename: string,
   orientation: 'portrait' | 'landscape' = 'portrait'
 ) => {
   const element = document.getElementById(elementId);
   if (!element) return;
 
-  // @ts-ignore
-  if (typeof html2pdf === 'undefined') { 
-    window.print(); 
-    return; 
+  const originalTitle = document.title;
+  document.title = filename.replace('.pdf', '');
+
+  const isReport = element.classList.contains('page-container');
+
+  if (isReport) {
+    window.scrollTo(0, 0);
+
+    setTimeout(() => {
+      window.print();
+      document.title = originalTitle; // ← MOVIDO PRA CÁ
+    }, 400);
+
+  } else {
+    const originalBodyStyles = document.body.className;
+
+    document.body.classList.add('print-isolation');
+
+    const others = Array.from(document.body.children)
+      .filter(el => el.id !== elementId && !el.classList.contains('no-print'));
+
+    others.forEach(el => el.classList.add('print-hidden-temp'));
+
+    setTimeout(() => {
+      window.print();
+
+      // revertendo depois do print
+      others.forEach(el => el.classList.remove('print-hidden-temp'));
+      document.body.className = originalBodyStyles;
+      document.title = originalTitle; // ← MOVIDO PRA CÁ
+
+    }, 300);
   }
-
-  const opt = {
-    margin: 5,
-    filename: filename,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { 
-      scale: 2,
-      useCORS: true,
-      letterRendering: true,
-      logging: false,
-      scrollX: 0,
-      scrollY: 0
-    },
-    jsPDF: { 
-      unit: 'mm',
-      format: 'a4',
-      orientation: orientation,
-      compress: true
-    },
-    pagebreak: { mode: ['css', 'legacy'] }
-  };
-
-  // @ts-ignore
-  window.html2pdf().set(opt).from(element).save();
 };
 
 const downloadHTML = (elementId: string, filename: string) => {
   const element = document.getElementById(elementId);
   if (!element) return;
+
+  const styles = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+    .map(el => el.outerHTML)
+    .join("\n");
+
   const htmlContent = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${filename}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; padding: 20px; }
-        @media print { .no-print { display: none !important; } }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${filename}</title>
+
+  ${styles}
+
+  <style>
+    body {
+      background: #f3f4f6;
+      margin: 0;
+    }
+
+    @media print {
+      body {
+        background: white !important;
+      }
+    }
+  </style>
 </head>
 <body>
-    <div class="max-w-fit mx-auto">
-        ${element.outerHTML}
-    </div>
+  <div class="page-container">
+    ${element.innerHTML}
+  </div>
 </body>
 </html>`;
+
   const blob = new Blob([htmlContent], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
+
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename;
+  a.download = filename.endsWith('.html') ? filename : `${filename}.html`;
   a.click();
+
   URL.revokeObjectURL(url);
 };
 
 const parseTimeToSeconds = (timeStr: string = ''): number => {
   if (!timeStr || typeof timeStr !== 'string') return 0;
-  const cleanStr = timeStr.trim();
-  if (!cleanStr) return 0;
-  
-  const parts = cleanStr.split(':');
+
+  const parts = timeStr.trim().split(':').map(p => Number(p));
+
+  // Se tiver NaN em algum ponto, invalida
+  if (parts.some(isNaN)) return 0;
+
+  let seconds = 0;
+
   if (parts.length === 1) {
-    return (parseInt(parts[0]) || 0) * 60;
+    // mm
+    seconds = parts[0] * 60;
+
   } else if (parts.length === 2) {
-    return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
-  } else if (parts.length >= 3) {
-    return (parseInt(parts[0]) || 0) * 3600 + (parseInt(parts[1]) || 0) * 60 + (parseInt(parts[2]) || 0);
+    const [min, sec] = parts;
+
+    if (sec >= 60) return 0; // validação
+    seconds = min * 60 + sec;
+
+  } else if (parts.length === 3) {
+    const [hour, min, sec] = parts;
+
+    if (min >= 60 || sec >= 60) return 0;
+    seconds = hour * 3600 + min * 60 + sec;
   }
-  return 0;
+
+  return seconds;
 };
 
 const formatSecondsToClockTime = (totalSeconds: number): string => {
-  const hours = Math.floor(totalSeconds / 3600) % 24;
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "00:00:00";
+
+  const total = Math.floor(totalSeconds);
+
+  const hours = Math.floor(total / 3600); // ← REMOVIDO % 24
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
+
 const formatSecondsToDurationString = (totalSeconds: number): string => {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "00h 00min 00seg";
+
+  const total = Math.floor(totalSeconds);
+
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+
   return `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}min ${String(seconds).padStart(2, '0')}seg`;
 };
 
@@ -536,7 +582,9 @@ const PagedReport = ({
   tableHeader,
   goBack,
   title,
-  filename
+  filename,
+  orientation = 'portrait',
+  lastPageFooter
 }: { 
   id: string, 
   header: React.ReactNode, 
@@ -545,155 +593,132 @@ const PagedReport = ({
   tableHeader?: React.ReactNode,
   goBack: () => void,
   title: string,
-  filename: string
+  filename: string,
+  orientation?: 'portrait' | 'landscape',
+  lastPageFooter?: React.ReactNode
 }) => {
   const [pages, setPages] = useState<any[][]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
   const measurementRef = useRef<HTMLDivElement>(null);
+  const isLandscape = orientation === 'landscape';
 
   useEffect(() => {
     const measureAndSplit = () => {
       if (!measurementRef.current) return;
       
-      const PAGE_HEIGHT_MM = 297;
+      const PAGE_HEIGHT_MM = isLandscape ? 210 : 297;
       const PADDING_MM = 40; // 20mm top + 20mm bottom
+      const MM_TO_PX = 3.78;
+      const MAX_HEIGHT_PX = (PAGE_HEIGHT_MM - PADDING_MM) * MM_TO_PX;
       
-      const mmToPx = (mm: number) => (mm * 96) / 25.4;
-      const pxToMm = (px: number) => (px * 25.4) / 96;
+      const container = measurementRef.current;
+      const renderedItems = Array.from(container.querySelectorAll('.measurement-item')) as HTMLElement[];
+      const hEl = container.querySelector('.report-header') as HTMLElement;
+      const thEl = container.querySelector('.table-header') as HTMLElement;
+      const fEl = container.querySelector('.report-footer-measure') as HTMLElement;
       
-      const maxContentHeightMm = PAGE_HEIGHT_MM - PADDING_MM;
+      const hHeight = hEl?.offsetHeight || 0;
+      const thHeight = thEl?.offsetHeight || 0;
+      const lfHeight = fEl?.offsetHeight || 0;
 
-      // Handle empty items case
-      if (items.length === 0) {
-        setPages([[]]); // Render at least one empty page with header
-        return;
-      }
-
-      // Render items to measure
-      const tempContainer = measurementRef.current;
-      tempContainer.style.display = 'block';
-      tempContainer.style.width = '170mm'; 
-      
-      const renderedItems = Array.from(tempContainer.children) as HTMLElement[];
       const newPages: any[][] = [];
       let currentPage: any[] = [];
-      let currentHeightMm = 0;
+      let currentHeight = 0;
       let isFirstPage = true;
 
-      const headerEl = tempContainer.querySelector('.report-header') as HTMLElement;
-      const headerHeightMm = headerEl ? pxToMm(headerEl.offsetHeight) : 0;
-      
-      const itemsToProcess = renderedItems.filter(el => !el.classList.contains('report-header') && !el.classList.contains('table-header'));
-      const tableHeaderEl = tempContainer.querySelector('.table-header') as HTMLElement;
-      const tableHeaderHeightMm = tableHeaderEl ? pxToMm(tableHeaderEl.offsetHeight) : 0;
+      items.forEach((item, idx) => {
+        const itemHeight = renderedItems[idx]?.offsetHeight || 0;
+        const overhead = (currentPage.length === 0 && thHeight) ? thHeight : 0;
+        const availableHeight = isFirstPage ? (MAX_HEIGHT_PX - hHeight) : MAX_HEIGHT_PX;
+        const footerSpaceNeeded = (idx === items.length - 1 && lastPageFooter) ? lfHeight : 0;
 
-      itemsToProcess.forEach((el, idx) => {
-        const itemHeightMm = pxToMm(el.offsetHeight);
-        const limit = isFirstPage ? (maxContentHeightMm - headerHeightMm) : maxContentHeightMm;
-        const overhead = (currentPage.length === 0 && tableHeaderHeightMm) ? tableHeaderHeightMm : 0;
-
-        // Safety check: if a single item is taller than the page, we must still put it in
-        if (currentHeightMm + itemHeightMm + overhead > limit && currentPage.length > 0) {
+        if (currentHeight + itemHeight + overhead + footerSpaceNeeded > availableHeight && currentPage.length > 0) {
           newPages.push(currentPage);
-          currentPage = [items[idx]];
-          currentHeightMm = itemHeightMm;
+          currentPage = [item];
+          currentHeight = itemHeight;
           isFirstPage = false;
         } else {
-          currentPage.push(items[idx]);
-          currentHeightMm += itemHeightMm + (currentPage.length === 1 ? tableHeaderHeightMm : 0);
+          currentPage.push(item);
+          currentHeight += itemHeight + overhead;
         }
       });
 
-      if (currentPage.length > 0) {
-        newPages.push(currentPage);
-      }
-
+      if (currentPage.length > 0) newPages.push(currentPage);
       setPages(newPages);
-      tempContainer.style.display = 'none';
     };
 
-    const timer = setTimeout(measureAndSplit, 200);
+    const timer = setTimeout(measureAndSplit, 300);
     return () => clearTimeout(timer);
-  }, [items, header, tableHeader]);
+  }, [items, header, tableHeader, orientation, lastPageFooter, isLandscape]);
 
   const handlePrint = () => {
+    window.scrollTo(0, 0);
     window.print();
   };
 
   return (
-    <div className="bg-gray-200 min-h-screen pb-20 overflow-x-hidden">
-      <div className="max-w-[800px] mx-auto py-4 px-4 flex justify-between items-center no-print sticky top-0 z-[100] bg-gray-200/80 backdrop-blur-sm">
-        <button onClick={goBack} className="bg-gray-600 text-white px-5 py-2 rounded-xl font-black uppercase text-xs shadow-lg hover:bg-gray-700 transition-all active:scale-95 flex items-center gap-2">
+    <div className="bg-gray-100 min-h-screen">
+      <div className="max-w-[800px] mx-auto py-4 px-4 flex justify-between items-center no-print sticky top-0 z-[100] bg-gray-100/90 backdrop-blur-md border-b border-gray-200">
+        <button onClick={goBack} className="bg-gray-700 text-white px-5 py-2 rounded-xl font-bold uppercase text-xs shadow-md hover:bg-gray-800 transition-all flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-          Sair do Relatório
+          Sair
         </button>
-        <div className="flex gap-2">
-          <button onClick={() => downloadHTML(id, `${filename}.html`)} className="bg-white text-gray-700 border-2 border-gray-100 px-5 py-2 rounded-xl font-black uppercase text-xs hover:bg-gray-50 transition-all flex items-center gap-2">
-             Baixar HTML
-          </button>
-          <button onClick={handlePrint} className="bg-blue-600 text-white px-5 py-2 rounded-xl font-black uppercase text-xs shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 flex items-center gap-2">
-             Imprimir PDF
+        <div className="flex gap-3">
+          <button 
+            onClick={handlePrint} 
+            className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-black uppercase text-xs shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 flex items-center gap-2"
+          >
+             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+             IMPRIMIR / GERAR PDF
           </button>
         </div>
       </div>
 
       <div 
         ref={measurementRef} 
-        style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '170mm', visibility: 'hidden', pointerEvents: 'none' }}
+        className={`measure-container ${isLandscape ? 'landscape' : 'portrait'}`}
       >
         <div className="report-header">{header}</div>
         <div className="table-header">{tableHeader}</div>
         {items.map((item, idx) => (
-          <div key={idx} className="measurement-item">{renderItem(item, idx)}</div>
+          <div key={idx} className="measurement-item avoid-break">{renderItem(item, idx)}</div>
         ))}
+        {lastPageFooter && <div className="report-footer-measure">{lastPageFooter}</div>}
       </div>
 
-      <div id={id} className="page-container flex flex-col items-center">
+      <div className="page-container">
         {pages.length > 0 ? (
           pages.map((pageItems, pageIdx) => (
-            <div key={pageIdx} className="page">
-              {pageIdx === 0 && (
-                <div className="report-header mb-4">
-                  {header}
-                </div>
-              )}
-              
+            <div key={pageIdx} className={`page ${isLandscape ? 'landscape' : 'portrait'}`}>
               <div className="page-content">
-                {tableHeader && (
-                  <div className="table-header w-full">
-                    {tableHeader}
+                {pageIdx === 0 && <div className="report-header">{header}</div>}
+                {tableHeader && <div className="table-header">{tableHeader}</div>}
+                {pageItems.map((item, itemIdx) => (
+                  <div key={itemIdx} className="avoid-break w-full">
+                    {renderItem(item, itemIdx)}
+                  </div>
+                ))}
+                {pageIdx === pages.length - 1 && lastPageFooter && (
+                  <div className="mt-auto pt-8">
+                    {lastPageFooter}
                   </div>
                 )}
-                <div className="flex flex-col">
-                  {pageItems.map((item, itemIdx) => (
-                    <div key={itemIdx} className="avoid-break">
-                      {renderItem(item, itemIdx)}
-                    </div>
-                  ))}
-                </div>
               </div>
-
-              <div className="absolute bottom-6 right-10 text-[10px] font-black text-gray-300 uppercase tracking-widest">
-                Página {pageIdx + 1} de {pages.length}
+              <div className="mt-auto pt-4 text-right text-[9px] text-gray-400 font-mono italic">
+                {title} - Página {pageIdx + 1} de {pages.length}
               </div>
             </div>
           ))
         ) : (
           <div className="flex flex-col items-center justify-center py-40 text-gray-400 gap-6">
-            <div className="relative h-20 w-20">
-              <div className="absolute inset-0 animate-ping rounded-full bg-blue-600/10"></div>
-              <div className="relative animate-spin rounded-full h-20 w-20 border-t-4 border-l-4 border-blue-600"></div>
-            </div>
-            <div className="text-center">
-              <p className="font-black uppercase text-lg tracking-tighter text-gray-800">Organizando Páginas</p>
-              <p className="font-bold uppercase text-[10px] tracking-widest text-gray-400 mt-1">Isso pode levar alguns segundos dependendo do tamanho...</p>
-            </div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+            <p className="font-bold uppercase tracking-widest text-xs">Preparando documento para impressão...</p>
           </div>
         )}
       </div>
     </div>
   );
 };
+
 
 const ConfirmationModal = ({ title, message, onConfirm, onCancel, confirmText = "Confirmar", confirmColor = "bg-blue-600" }: any) => {
   useEscapeKey(onCancel, [onCancel]);
@@ -808,7 +833,8 @@ const CalendarPreviewModal = ({ events, startDate, endDate, exportType, onClose,
       const mmToPx = (mm: number) => (mm * 96) / 25.4;
       const pxToMm = (px: number) => (px * 25.4) / 96;
       
-      const maxContentHeightMm = PAGE_HEIGHT_MM - PADDING_MM;
+      const SAFETY_MARGIN_MM = 6;
+      const maxContentHeightMm = PAGE_HEIGHT_MM - PADDING_MM - SAFETY_MARGIN_MM;
       const firstPageMaxContentHeightMm = maxContentHeightMm - pxToMm(HEADER_HEIGHT_PX);
 
       const itemsToProcess = Array.from(measurementRef.current.querySelectorAll('.measurement-item')) as HTMLElement[];
@@ -817,8 +843,10 @@ const CalendarPreviewModal = ({ events, startDate, endDate, exportType, onClose,
       let currentHeightMm = 0;
       let isFirstPage = true;
 
-      itemsToProcess.forEach((el, idx) => {
-        const itemHeightMm = pxToMm(el.offsetHeight);
+      items.forEach((_, idx) => {
+        const el = itemsToProcess[idx];
+        if (!el) return;
+        const itemHeightMm = pxToMm(el.getBoundingClientRect().height);
         const limit = isFirstPage ? firstPageMaxContentHeightMm : maxContentHeightMm;
         
         if (currentHeightMm + itemHeightMm > limit && currentPage.length > 0) {
@@ -842,17 +870,25 @@ const CalendarPreviewModal = ({ events, startDate, endDate, exportType, onClose,
     setTimeout(measureAndSplit, 100);
   }, [items]);
 
+  const handleDownload = () => {
+    downloadPDF('calendar-export-container', `Calendario-${startDate}-a-${endDate}.pdf`, 'portrait');
+  };
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
       <div className="bg-gray-100 rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden relative animate-zoom-in">
-        <div className="p-6 border-b flex justify-between items-center bg-white shrink-0">
+        <div className="p-6 border-b flex justify-between items-center bg-white shrink-0 no-print">
           <div>
             <h3 className="text-xl font-black text-black uppercase tracking-widest leading-none">Pré-visualização do Calendário</h3>
             <p className="text-xs text-gray-400 uppercase mt-2 font-bold italic">A4 Paginado • Impressão Realista</p>
           </div>
           <div className="flex gap-4">
-            <button onClick={onDownload} className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-200 active:scale-95">
+            <button onClick={handleDownload} className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-200 active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Baixar PDF
+            </button>
+            <button onClick={() => window.print()} className="bg-white border-2 border-gray-100 p-3 rounded-2xl text-black hover:text-blue-600 transition-all active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
             </button>
             <button onClick={onClose} className="bg-white border-2 border-gray-100 p-3 rounded-2xl text-black hover:text-red-500 transition-all active:scale-95">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -889,10 +925,10 @@ const CalendarPreviewModal = ({ events, startDate, endDate, exportType, onClose,
           </div>
 
           {/* Rendered Pages */}
-          <div className="page-container w-full">
+          <div id="calendar-export-container" className="page-container w-full">
             {pages.length > 0 ? (
               pages.map((pageItems, pageIdx) => (
-                <div key={pageIdx} className="page relative">
+                <div key={pageIdx} className={`page relative ${pageIdx === 0 ? 'page-first' : ''}`}>
                   {pageIdx === 0 && (
                     <div className="report-header mb-10 text-center">
                       <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Calendário de Eventos</h1>
@@ -917,8 +953,8 @@ const CalendarPreviewModal = ({ events, startDate, endDate, exportType, onClose,
                     ))}
                   </div>
 
-                  <div className="absolute bottom-6 right-10 text-[10px] font-black text-gray-300 uppercase tracking-widest">
-                    Folha {pageIdx + 1} de {pages.length}
+                  <div className="absolute bottom-6 right-10 text-[10px] font-black text-gray-300 uppercase tracking-widest no-print">
+                    Página {pageIdx + 1} de {pages.length}
                   </div>
                 </div>
               ))
@@ -1768,8 +1804,7 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
           exportType={exportType}
           onClose={() => setFilteredEventsForPreview(null)} 
           onDownload={() => { 
-            generatePDF(false); 
-            setFilteredEventsForPreview(null); 
+            // window.print used inside modal
           }} 
         />
       )}
@@ -2369,12 +2404,12 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
     });
   }, [notebook.code, ownerEmail]);
 
-  const sorted = [...hymns].sort((a, b) => {
+  const sorted = useMemo(() => [...hymns].sort((a, b) => {
     const n1 = parseInt(a.number);
     const n2 = parseInt(b.number);
     if (isNaN(n1) || isNaN(n2)) return a.number.localeCompare(b.number);
     return n1 - n2;
-  });
+  }), [hymns]);
 
   const header = useMemo(() => (
     <div className="text-center border-b-2 border-double border-black pb-2">
@@ -2407,63 +2442,43 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
 // --- Relatórios do Módulo Admin Master ---
 
 const AdminMasterReportView = ({ id, title, columns, data, goBack, orientation = 'portrait' }: any) => {
-  useEscapeKey(goBack, [goBack]);
+  const header = useMemo(() => (
+    <div className="text-center border-b-2 border-double border-black pb-2 mb-4 w-full">
+      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">{title}</h2>
+      <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic text-center">Sistema de Gestão Admin Master</div>
+    </div>
+  ), [title]);
+
+  const tableHeader = useMemo(() => (
+    <div className="flex bg-black text-white text-left uppercase font-black text-[9px] w-full">
+      {columns.map((col: any) => (
+        <div key={col.key} className="px-3 py-2 border border-black/20 flex-1 truncate">{col.label}</div>
+      ))}
+    </div>
+  ), [columns]);
 
   return (
-    <div className="bg-gray-100 p-8 min-h-screen">
-      <div className={`mx-auto mb-4 flex justify-between no-print relative z-30 ${orientation === 'landscape' ? 'max-w-[297mm]' : 'max-w-[210mm]'}`}>
-        <button 
-          onClick={goBack} 
-          className="bg-gray-600 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 active:scale-95 transition-all font-bold cursor-pointer"
-        >
-          Voltar
-        </button>
-        <button 
-          onClick={() => downloadPDF(id, `${id}.pdf`, orientation)} 
-          className="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all"
-        >
-          Gerar PDF
-        </button>
-      </div>
-
-    {/* Folha A4 */}
-    <div 
+    <PagedReport
       id={id}
-      className={`
-        bg-white mx-auto
-        p-[10mm]
-        ${orientation === 'landscape' 
-          ? 'w-[297mm] min-h-[210mm]' 
-          : 'w-[210mm] min-h-[297mm]'}
-        print:shadow-none print:m-0
-      `}
-    >
-      <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
-        <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-        <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">{title}</h2>
-        <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic">Sistema de Gestão Admin Master</div>
-      </div>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-black text-white text-left uppercase font-black text-[10px]">
-            {columns.map((col: any) => <th key={col.key} className="px-3 py-2 border border-gray-800">{col.label}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((item: any, idx: number) => (
-            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-              {columns.map((col: any) => (
-                <td key={col.key} className="px-3 py-2.5 text-[10px] font-bold text-black border border-gray-100 uppercase">
-                  {item[col.key] || '-'}
-                </td>
-              ))}
-            </tr>
+      filename={id}
+      goBack={goBack}
+      items={data}
+      header={header}
+      tableHeader={tableHeader}
+      orientation={orientation}
+      title={title}
+      renderItem={(item, idx) => (
+        <div className={`flex w-full ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+          {columns.map((col: any) => (
+            <div key={col.key} className="px-3 py-2.5 text-[10px] font-bold text-black border border-gray-100 flex-1 truncate uppercase">
+              {item[col.key] || '-'}
+            </div>
           ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
-);
+        </div>
+      )}
+    />
+  );
 };
 
 // --- Telas de Cadastros Admin (País, Estado, Congregação) ---
@@ -3017,6 +3032,7 @@ const AdminConductorCertificatesScreen = ({ navigate, goBack, currentUser }: any
       <div className="flex justify-between items-center mb-6">
         <h2 className="font-bold text-gray-700 uppercase">Lista de Regentes</h2>
         <div className="flex gap-2">
+          <button onClick={() => navigate('admin_conductors_report', conductors.map(c => ({ ...c, congregation_name: congregations.find(con => con.id === c.congregation_id)?.name || '-' })))} className="bg-white text-blue-600 border-2 border-blue-100 px-4 py-2 rounded font-bold shadow-sm hover:bg-blue-50 transition-all">Relatório</button>
           {canRegister && (
             <button onClick={() => navigate('admin_new_conductor')} className="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow-md">Novo Registro</button>
           )}
@@ -3607,17 +3623,24 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
   }, [conductor.state_id, conductor.congregation_id]);
 
   return (
-    <div className="min-h-screen bg-gray-200 p-8 flex flex-col items-center">
-      <div className="mb-8 flex gap-4 no-print flex-wrap justify-center">
-        <button onClick={goBack} className="bg-gray-700 text-white px-6 py-2 rounded-full font-bold">Voltar</button>
-        <button onClick={() => navigate('admin_edit_conductor', conductor)} className="bg-amber-600 text-white px-6 py-2 rounded-full font-bold shadow-lg">Editar Informações</button>
-        <button onClick={() => downloadPDF('crr-card-wrapper', `CRR-${conductor.registry_number}.pdf`, 'landscape')} className="bg-blue-600 text-white px-8 py-2 rounded-full font-bold shadow-lg">Baixar Cartão (PDF)</button>
+    <div className="min-h-screen bg-gray-200 pb-20 no-print flex flex-col items-center">
+      <div className="mb-4 mt-8 flex gap-4 no-print flex-wrap justify-center sticky top-4 z-[100] bg-gray-200/80 backdrop-blur-sm p-4 rounded-3xl shadow-sm">
+        <button onClick={goBack} className="bg-gray-700 text-white px-6 py-2 rounded-full font-bold transition-all hover:bg-gray-800 active:scale-95">Voltar</button>
+        <button onClick={() => navigate('admin_edit_conductor', conductor)} className="bg-amber-600 text-white px-6 py-2 rounded-full font-bold shadow-lg transition-all hover:bg-amber-700 active:scale-95">Editar Informações</button>
+        <button onClick={() => downloadPDF('crr-card-mirror', `CRR-${conductor.registry_number}.pdf`, 'landscape')} className="bg-blue-600 text-white px-8 py-2 rounded-full font-bold shadow-lg transition-all hover:bg-blue-700 active:scale-95 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Baixar Cartão (PDF)
+        </button>
       </div>
 
-      {/* Folha A4 de Pré-visualização com o Cartão no Centro */}
-      <div id="crr-card-wrapper" className="bg-white shadow-2xl mx-auto max-w-[297mm] min-h-[210mm] flex items-center justify-center p-12">
-        {/* Carteira Profissional - Formato de Crachá Horizontal Ideal (95mm x 65mm) */}
-        <div id="crr-card-body" className="w-[95mm] h-[65mm] bg-white relative overflow-hidden flex flex-col border border-gray-300 rounded-[2mm] font-sans shadow-sm">
+      <div id="crr-card-mirror" className="page-container">
+        {/* Folha A4 Landscape */}
+        <div className="page landscape flex items-center justify-center relative">
+          <div className="absolute top-10 left-10 text-[8px] font-bold text-gray-300 uppercase tracking-widest">
+            Ficha de Identificação Individual • Documento Gerado via CORUS
+          </div>
+
+          <div id="crr-card-body" className="w-[95mm] h-[65mm] bg-white relative overflow-hidden flex flex-col border border-gray-400 rounded-[2mm] font-sans shadow-2xl">
         
         {/* Cabeçalho Oficial Centralizado com Logo */}
         <div className="bg-white py-2 border-b border-blue-100 flex items-center justify-center">
@@ -3640,7 +3663,7 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
             <img 
               src="https://i.postimg.cc/05VH1sRM/Gemini-Generated-Image-bv56m6bv56m6bv56-removebg-preview.png" 
               alt="watermark" 
-              className="w-72 opacity-[0.45] pointer-events-none"
+              className="w-72 opacity-[0.25] pointer-events-none"
               style={{ transform: 'translateY(-4mm)' }}
             />
           </div>
@@ -3692,10 +3715,14 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
         <div className="absolute top-0 right-0 w-1.5 h-full bg-blue-900 opacity-[0.03]"></div>
         <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-900 opacity-[0.03]"></div>
         <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-900"></div>
+          <div className="absolute bottom-10 right-10 text-[8px] font-black text-blue-900/40 uppercase tracking-widest text-right">
+            Validado Digitalmente<br/>Pelo Gestor CORUS
+          </div>
+        </div>
       </div>
     </div>
-      
-      <p className="mt-8 text-xs text-gray-500 max-w-sm text-center font-medium">
+
+      <p className="mt-8 text-xs text-gray-500 max-w-sm text-center font-medium no-print">
         Tamanho final sugerido: 9,5cm x 6,5cm.<br/>
         Ideal para crachás de identificação oficial e plastificação.
       </p>
@@ -5301,131 +5328,151 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
     return labelsMap[sec] || sec;
   };
 
-  let startTimeSeconds = parseTimeToSeconds(list.startTime || '19:00:00');
-  let runningSeconds = startTimeSeconds;
-  let totalPresentationSeconds = 0;
+  const { items, totalPresentationSeconds, finalRunningSeconds } = useMemo(() => {
+    let currentRunning = parseTimeToSeconds(list.startTime || '19:00:00');
+    let totalPres = 0;
+    const result: any[] = [];
 
-  return (
-    <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[1200px] mx-auto mb-4 flex justify-between no-print relative z-20">
-        <button onClick={onBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
-        <div className="flex gap-2">
-          <button onClick={() => downloadHTML('program-print', `programa-${list.date}.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('program-print', `programa-${list.date}.pdf`, (list.isDetailed || list.type === 'NatalAnoNovo') ? 'landscape' : 'portrait')} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
-        </div>
-      </div>
-      <div id="program-print" className={`bg-white shadow-2xl mx-auto ${(list.isDetailed || list.type === 'NatalAnoNovo') ? 'max-w-[297mm] min-h-[210mm]' : 'max-w-[210mm] min-h-[297mm]'} ${list.type === 'NatalAnoNovo' ? 'p-6' : 'p-12'}`}>
-        <div className={`text-center border-b-2 border-double border-black pb-2 ${list.type === 'NatalAnoNovo' ? 'mb-2' : 'mb-4'}`} style={{ fontSize: '14px' }}>
-          <h1 className="font-black uppercase tracking-tighter">Igreja Apostólica</h1>
-          <h2 className="font-bold mt-1 border border-black inline-block px-4 py-0.5 uppercase">{MEETING_TYPES[list.type]}</h2>
-          <div className={`${list.type === 'NatalAnoNovo' ? 'mt-2' : 'mt-4'} flex justify-between px-2 font-bold uppercase italic border-black border-t-2 pt-2 text-black`}>
-            <span>Data: {new Date(list.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-            {list.type === 'NatalAnoNovo' && <span>Início: {list.startTime || '19:00:00'}</span>}
-            <span>Congregação: {list.congregation}</span>
-          </div>
-        </div>
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="border-b-2 border-black text-left uppercase font-black text-[10px]">
-              <th className="px-2 py-2">Cad.</th>
-              <th className="px-2 py-2">Nº</th>
-              <th className="px-2 py-2">Hino</th>
-              {list.isDetailed && (
-                <>
-                  <th className="px-2 py-2">Regente</th>
-                  <th className="px-2 py-2">Solista</th>
-                  <th className="px-2 py-2">Tecladista</th>
-                  <th className="px-2 py-2">Violonista</th>
-                </>
-              )}
-              <th className="px-2 py-2">Execução</th>
-              {list.type === 'NatalAnoNovo' ? (
-                <th className="px-2 py-1 text-center">Cronometro</th>
-              ) : null}
-            </tr>
-          </thead>
-          <tbody>
-            {sectionOrder.map(sec => {
-              const sectionLabel = getSectionLabel(sec);
-              if (list.sectionDurations?.[sec]) {
-                runningSeconds += parseTimeToSeconds(list.sectionDurations[sec]);
-              }
-              const isOracaoExecutionHide = list.type === 'Oracao' && (sec === 'hymnal' || sec === 'message' || sec === 'afterIndividualPrayer');
-              const hideExecution = sectionLabel === 'Hinário' || sectionLabel === 'Hinos do Hinário' || isOracaoExecutionHide;
-              const isDetailedRow = sectionLabel === 'Apresentação do Coral' || sectionLabel === 'Contribuições' || sectionLabel === 'Mensagem';
-              const entries = list.sections[sec] || [];
-              if (entries.length === 0) return null;
-              
-              const isNatal = list.type === 'NatalAnoNovo';
-              const colSpanValue = list.isDetailed ? (isNatal ? 9 : 8) : (isNatal ? 5 : 4);
+    sectionOrder.forEach(sec => {
+      const sectionLabel = getSectionLabel(sec);
+      const entries = list.sections[sec] || [];
+      
+      if (list.sectionDurations?.[sec]) {
+        currentRunning += parseTimeToSeconds(list.sectionDurations[sec]);
+      }
 
-              const cellPadding = isNatal ? 'px-1 py-1' : 'px-2 py-3';
+      if (entries.length === 0) return;
 
-              return (
-                <React.Fragment key={sec}>
-                  {list.type === 'Oracao' && sec === 'afterIndividualPrayer' && (
-                    <tr className="bg-white">
-                      <td colSpan={colSpanValue} className="px-2 py-4 text-center font-black uppercase text-black italic tracking-widest border-y border-gray-100" style={{ fontSize: '13px' }}>
-                        Oração Individual
-                      </td>
-                    </tr>
-                  )}
-                  <tr className="bg-gray-50">
-                    <td 
-                      colSpan={colSpanValue} 
-                      className={`px-2 py-1 font-black uppercase text-black border-b border-gray-300 text-center`}
-                      style={{ fontSize: '14px' }}
-                    >
-                      {sectionLabel}
-                    </td>
-                  </tr>
-                  {entries.map((e: any, i: number) => {
-                    const itemDurSec = parseTimeToSeconds(e.duration);
-                    runningSeconds += itemDurSec;
-                    totalPresentationSeconds += itemDurSec;
-                    
-                    return (
-                      <tr key={sec + i} className="border-b border-gray-200" style={{ fontSize: isNatal ? '10px' : '12px' }}>
-                        <td className={`${cellPadding} font-bold text-black`}>{e.notebook}</td>
-                        <td className={`${cellPadding} font-black text-black`}>{e.number}</td>
-                        <td className={`${cellPadding} font-bold text-black uppercase`}>{e.title}</td>
-                        {list.isDetailed && (
-                          <>
-                            <td className={`${cellPadding} text-[11px] italic text-black`}>{isDetailedRow ? (e.conductor || '-') : ''}</td>
-                            <td className={`${cellPadding} text-[11px] italic text-black`}>{isDetailedRow ? (e.soloist || '-') : ''}</td>
-                            <td className={`${cellPadding} text-[11px] italic text-black`}>{isDetailedRow ? (e.keyboardist || '-') : ''}</td>
-                            <td className={`${cellPadding} text-[11px] italic text-black`}>{isDetailedRow ? (e.guitarist || '-') : ''}</td>
-                          </>
-                        )}
-                        <td className={`${cellPadding} text-black italic`}>{!hideExecution ? (e.execution || '-') : ''}</td>
-                        {isNatal && (
-                          <td className={`${cellPadding} text-black font-black text-center font-mono`} style={{ fontSize: '13px' }}>{formatSecondsToClockTime(runningSeconds)}</td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+      if (list.type === 'Oracao' && sec === 'afterIndividualPrayer') {
+        result.push({ type: 'special', label: 'Oração Individual' });
+      }
 
-        {list.type === 'NatalAnoNovo' && (
-          <div className="mt-4 pt-2 border-t-2 border-black flex justify-between items-start">
-            <div className="flex gap-4">
-              <div className="flex flex-col text-black">
-                <span className="text-[8px] font-black uppercase">Tempo Total</span>
-                <span className="text-sm font-black">{formatSecondsToDurationString(totalPresentationSeconds)}</span>
-              </div>
-            </div>
-            <div className="text-right flex flex-col text-black">
-              <span className="text-[8px] font-black uppercase">Encerramento Previsto</span>
-              <span className="text-lg font-black">{formatSecondsToClockTime(runningSeconds)}</span>
-            </div>
-          </div>
-        )}
+      result.push({ type: 'section', label: sectionLabel });
+
+      entries.forEach((e: any, i: number) => {
+        const itemDurSec = parseTimeToSeconds(e.duration);
+        currentRunning += itemDurSec;
+        totalPres += itemDurSec;
+
+        const isOracaoExecutionHide = list.type === 'Oracao' && (sec === 'hymnal' || sec === 'message' || sec === 'afterIndividualPrayer');
+        const hideExecution = sectionLabel === 'Hinário' || sectionLabel === 'Hinos do Hinário' || isOracaoExecutionHide;
+        const isDetailedRow = sectionLabel === 'Apresentação do Coral' || sectionLabel === 'Contribuições' || sectionLabel === 'Mensagem';
+
+        result.push({
+          type: 'row',
+          data: e,
+          hideExecution,
+          isDetailedRow,
+          runningClock: formatSecondsToClockTime(currentRunning)
+        });
+      });
+    });
+
+    return { items: result, totalPresentationSeconds: totalPres, finalRunningSeconds: currentRunning };
+  }, [list]);
+
+  const isNatal = list.type === 'NatalAnoNovo';
+  const orientation = (list.isDetailed || isNatal) ? 'landscape' : 'portrait';
+
+  const header = useMemo(() => (
+    <div className="text-center border-b-2 border-double border-black pb-2 items-center flex flex-col w-full">
+      <h1 className="text-2xl font-black uppercase tracking-tighter">Igreja Apostólica</h1>
+      <h2 className="text-base font-bold mt-1 border border-black inline-block px-4 py-0.5 uppercase mb-2">{MEETING_TYPES[list.type]}</h2>
+      <div className="w-full flex justify-between px-2 font-black uppercase italic border-black border-t pt-2 text-[10px] text-black">
+        <span>Data: {new Date(list.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+        {isNatal && <span>Início: {list.startTime || '19:00:00'}</span>}
+        <span>Congregação: {list.congregation}</span>
       </div>
     </div>
+  ), [list.type, list.date, list.startTime, list.congregation, isNatal]);
+
+  const tableHeader = useMemo(() => (
+    <div className="flex border-b-2 border-black bg-black text-white uppercase font-black text-[9px] w-full">
+      <div className="px-2 py-2 w-10 shrink-0">Cad.</div>
+      <div className="px-2 py-2 w-12 shrink-0">Nº</div>
+      <div className="px-2 py-2 flex-1">Hino</div>
+      {list.isDetailed && (
+        <>
+          <div className="px-2 py-2 w-24 shrink-0">Regente</div>
+          <div className="px-2 py-2 w-24 shrink-0">Solista</div>
+          <div className="px-2 py-2 w-24 shrink-0">Tecladista</div>
+          <div className="px-2 py-2 w-24 shrink-0">Violonista</div>
+        </>
+      )}
+      <div className="px-2 py-2 w-24 shrink-0">Execução</div>
+      {isNatal && <div className="px-2 py-2 w-20 shrink-0 text-center">Cronometro</div>}
+    </div>
+  ), [list.isDetailed, isNatal]);
+
+  const lastPageFooter = isNatal ? (
+    <div className="mt-4 pt-2 border-t-2 border-black flex justify-between items-start w-full">
+      <div className="flex gap-4">
+        <div className="flex flex-col text-black">
+          <span className="text-[8px] font-black uppercase opacity-60">Tempo Total</span>
+          <span className="text-sm font-black">{formatSecondsToDurationString(totalPresentationSeconds)}</span>
+        </div>
+      </div>
+      <div className="text-right flex flex-col text-black">
+        <span className="text-[8px] font-black uppercase opacity-60">Encerramento Previsto</span>
+        <span className="text-lg font-black text-blue-900">{formatSecondsToClockTime(finalRunningSeconds)}</span>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <PagedReport
+      id="program-print-view"
+      filename={`programa-${list.date}`}
+      goBack={onBack}
+      items={items}
+      header={header}
+      tableHeader={tableHeader}
+      orientation={orientation}
+      lastPageFooter={lastPageFooter}
+      title="Programa de Culto"
+      renderItem={(item) => {
+        if (item.type === 'special') {
+          return (
+            <div className="px-2 py-3 text-center font-black uppercase text-black italic tracking-widest border-y border-gray-100 bg-white" style={{ fontSize: '12px' }}>
+              {item.label}
+            </div>
+          );
+        }
+        if (item.type === 'section') {
+          return (
+            <div className="px-2 py-1 font-black uppercase text-black border-b border-gray-300 text-center bg-gray-50/50" style={{ fontSize: '13px' }}>
+              {item.label}
+            </div>
+          );
+        }
+
+        const e = item.data;
+        const cellPadding = isNatal ? 'px-1 py-1.5' : 'px-2 py-2.5';
+        const fontSize = isNatal ? '10px' : '11px';
+
+        return (
+          <div className="flex border-b border-gray-100 items-center w-full bg-white transition-colors hover:bg-gray-50/30" style={{ fontSize }}>
+            <div className={`${cellPadding} w-10 shrink-0 font-bold text-gray-400`}>{e.notebook}</div>
+            <div className={`${cellPadding} w-12 shrink-0 font-black text-black border-r border-gray-50`}>{e.number}</div>
+            <div className={`${cellPadding} flex-1 font-bold text-black uppercase truncate`}>{e.title}</div>
+            {list.isDetailed && (
+              <>
+                <div className={`${cellPadding} w-24 shrink-0 text-[10px] italic text-gray-600 truncate border-l border-gray-50`}>{item.isDetailedRow ? (e.conductor || '-') : ''}</div>
+                <div className={`${cellPadding} w-24 shrink-0 text-[10px] italic text-gray-600 truncate border-l border-gray-50`}>{item.isDetailedRow ? (e.soloist || '-') : ''}</div>
+                <div className={`${cellPadding} w-24 shrink-0 text-[10px] italic text-gray-600 truncate border-l border-gray-50`}>{item.isDetailedRow ? (e.keyboardist || '-') : ''}</div>
+                <div className={`${cellPadding} w-24 shrink-0 text-[10px] italic text-gray-600 truncate border-l border-gray-50`}>{item.isDetailedRow ? (e.guitarist || '-') : ''}</div>
+              </>
+            )}
+            <div className={`${cellPadding} w-24 shrink-0 text-gray-500 italic truncate border-l border-gray-50`}>{!item.hideExecution ? (e.execution || '-') : ''}</div>
+            {isNatal && (
+              <div className={`${cellPadding} w-20 shrink-0 text-black font-black text-center font-mono border-l border-gray-50`} style={{ fontSize: '12px' }}>
+                {item.runningClock}
+              </div>
+            )}
+          </div>
+        );
+      }}
+    />
   );
 };
 

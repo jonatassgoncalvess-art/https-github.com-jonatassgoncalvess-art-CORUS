@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+* {
+  box-sizing: border-box;
+}
+
 @theme {
   --animate-fade-in: fade-in 0.2s ease-out;
   --animate-scale-up: scale-up 0.2s cubic-bezier(0.165, 0.84, 0.44, 1);
@@ -74,27 +78,50 @@
   color: #6b7280;
 }
 
-/* Pagination Styles */
-@media screen {
-  .page-container {
-    background-color: #f3f4f6;
-    padding: 40px 20px;
-    min-height: 100vh;
-  }
+/* ===== CONFIGURAÇÃO DE IMPRESSÃO A4 REAL ===== */
+@page {
+  size: A4;
+  margin: 20mm;
+}
+
+.page-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  background: #e5e7eb;
+  padding: 40px 0;
+  width: 100%;
+  min-height: 100vh;
 }
 
 .page {
-  width: 210mm;
-  height: 297mm;
-  padding: 20mm;
-  margin: 0 auto 30px auto;
   background: white;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-  position: relative;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
   box-sizing: border-box;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: visible;
+  page-break-after: always;
+  break-after: page;
+}
+
+.page.portrait {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm;
+}
+
+.page.landscape {
+  width: 297mm;
+  min-height: 210mm;
+  padding: 20mm;
+}
+
+.page:last-child {
+  page-break-after: auto !important;
+  break-after: auto !important;
 }
 
 .page-content {
@@ -107,28 +134,77 @@
   page-break-inside: avoid;
 }
 
+/* Área Oculta de Medição */
+.measure-container {
+  position: absolute;
+  top: -10000px;
+  left: -10000px;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+  background: white;
+}
+
+.measure-container.portrait { width: 210mm; padding: 20mm; }
+.measure-container.landscape { width: 297mm; padding: 20mm; }
+
+/* Isolamento de Impressão para Elementos Avulsos (ex: Carteirinha) */
 @media print {
-  @page {
-    size: A4;
-    margin: 0;
-  }
-  body {
+  body.print-isolation {
+    visibility: hidden;
     background: white !important;
-    padding: 0 !important;
   }
-  .no-print {
+  
+  body.print-isolation #root {
     display: none !important;
   }
+
+  /* Mostrar apenas o elemento alvo */
+  .print-isolation #crr-card-mirror,
+  .print-isolation #crr-card-mirror * {
+    visibility: visible;
+  }
+
+  .print-isolation #crr-card-mirror {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .print-hidden-temp {
+    display: none !important;
+  }
+}
+
+@media print {
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .page-container {
+    background: none !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    display: block !important;
+  }
+
   .page {
     margin: 0 !important;
     box-shadow: none !important;
-    page-break-after: always;
-    break-after: page;
-    width: 210mm;
-    height: 297mm;
+    border: none !important;
   }
-  .page-container {
-    padding: 0 !important;
-    background: none !important;
+
+  .no-print {
+    display: none !important;
   }
 }
+
