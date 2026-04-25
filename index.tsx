@@ -133,7 +133,8 @@ type AttendanceRecord = {
   date: string;
   presentMusicianIds: string[];
   justifications?: Record<string, string>; // { musicianId: text }
-  group?: 'Coral' | 'Orquestra' | 'Geral';
+  group?: 'Coral' | 'Orquestra' | 'Geral' | 'Outro';
+  subset_ids?: string[];
   owner_email?: string;
 };
 
@@ -527,6 +528,172 @@ const MenuCard = ({ title, desc, icon, onClick }: any) => (
   </button>
 );
 
+const PagedReport = ({ 
+  id, 
+  header, 
+  items, 
+  renderItem, 
+  tableHeader,
+  goBack,
+  title,
+  filename
+}: { 
+  id: string, 
+  header: React.ReactNode, 
+  items: any[], 
+  renderItem: (item: any, index: number) => React.ReactNode,
+  tableHeader?: React.ReactNode,
+  goBack: () => void,
+  title: string,
+  filename: string
+}) => {
+  const [pages, setPages] = useState<any[][]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const measurementRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const measureAndSplit = () => {
+      if (!measurementRef.current) return;
+      
+      const PAGE_HEIGHT_MM = 297;
+      const PADDING_MM = 40; // 20mm top + 20mm bottom
+      const HEADER_ESTIMATED_HEIGHT_MM = 45; // Just a starting point if needed, but we measure
+      
+      const mmToPx = (mm: number) => (mm * 96) / 25.4;
+      const pxToMm = (px: number) => (px * 25.4) / 96;
+      
+      const maxContentHeightMm = PAGE_HEIGHT_MM - PADDING_MM;
+      const firstPageMaxContentHeightMm = maxContentHeightMm - HEADER_ESTIMATED_HEIGHT_MM;
+
+      // Temporary render all items to measure them
+      const tempContainer = measurementRef.current;
+      tempContainer.style.display = 'block';
+      tempContainer.style.width = '170mm'; // 210 - 40
+      
+      const renderedItems = Array.from(tempContainer.children) as HTMLElement[];
+      const newPages: any[][] = [];
+      let currentPage: any[] = [];
+      let currentHeightMm = 0;
+      let isFirstPage = true;
+
+      // Measure header height if present
+      const headerEl = tempContainer.querySelector('.report-header') as HTMLElement;
+      const headerHeightMm = headerEl ? pxToMm(headerEl.offsetHeight) : 0;
+      
+      const itemsToProcess = renderedItems.filter(el => !el.classList.contains('report-header') && !el.classList.contains('table-header'));
+      const tableHeaderEl = tempContainer.querySelector('.table-header') as HTMLElement;
+      const tableHeaderHeightMm = tableHeaderEl ? pxToMm(tableHeaderEl.offsetHeight) : 0;
+
+      const getLimit = (first: boolean) => first ? (maxContentHeightMm - headerHeightMm) : maxContentHeightMm;
+
+      itemsToProcess.forEach((el, idx) => {
+        const itemHeightMm = pxToMm(el.offsetHeight);
+        const limit = getLimit(isFirstPage);
+        
+        // Include table header height if it's the start of a new page or first page
+        const overhead = (currentPage.length === 0 && tableHeaderHeightMm) ? tableHeaderHeightMm : 0;
+
+        if (currentHeightMm + itemHeightMm + overhead > limit && currentPage.length > 0) {
+          newPages.push(currentPage);
+          currentPage = [items[idx]];
+          currentHeightMm = itemHeightMm;
+          isFirstPage = false;
+        } else {
+          currentPage.push(items[idx]);
+          currentHeightMm += itemHeightMm + (currentPage.length === 1 ? tableHeaderHeightMm : 0);
+        }
+      });
+
+      if (currentPage.length > 0) {
+        newPages.push(currentPage);
+      }
+
+      setPages(newPages);
+      tempContainer.style.display = 'none';
+    };
+
+    // Small timeout to ensure DOM is ready
+    const timer = setTimeout(measureAndSplit, 100);
+    return () => clearTimeout(timer);
+  }, [items, header]);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="bg-gray-200 min-h-screen pb-20">
+      {/* Control Bar */}
+      <div className="max-w-[800px] mx-auto py-4 px-4 flex justify-between items-center no-print sticky top-0 z-[100] bg-gray-200/80 backdrop-blur-sm">
+        <button onClick={goBack} className="bg-gray-600 text-white px-5 py-2 rounded-xl font-black uppercase text-xs shadow-lg hover:bg-gray-700 transition-all active:scale-95 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Voltar
+        </button>
+        <div className="flex gap-2">
+          <button onClick={() => downloadHTML(id, `${filename}.html`)} className="bg-white text-gray-700 border-2 border-gray-100 px-5 py-2 rounded-xl font-black uppercase text-xs hover:bg-gray-50 transition-all flex items-center gap-2">
+             Salvar HTML
+          </button>
+          <button onClick={handlePrint} className="bg-blue-600 text-white px-5 py-2 rounded-xl font-black uppercase text-xs shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 flex items-center gap-2">
+             Imprimir / PDF
+          </button>
+        </div>
+      </div>
+
+      {/* Measurement Container (Hidden) */}
+      <div 
+        ref={measurementRef} 
+        style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '170mm', visibility: 'hidden' }}
+      >
+        <div className="report-header">{header}</div>
+        <div className="table-header">{tableHeader}</div>
+        {items.map((item, idx) => (
+          <div key={idx} className="measurement-item">{renderItem(item, idx)}</div>
+        ))}
+      </div>
+
+      {/* Rendered Pages */}
+      <div id={id} className="page-container">
+        {pages.length > 0 ? (
+          pages.map((pageItems, pageIdx) => (
+            <div key={pageIdx} className="page">
+              {pageIdx === 0 && (
+                <div className="report-header mb-4">
+                  {header}
+                </div>
+              )}
+              
+              <div className="page-content">
+                {tableHeader && (
+                  <div className="table-header w-full">
+                    {tableHeader}
+                  </div>
+                )}
+                <div className="flex flex-col">
+                  {pageItems.map((item, itemIdx) => (
+                    <div key={itemIdx} className="avoid-break">
+                      {renderItem(item, itemIdx)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Page Footer */}
+              <div className="absolute bottom-6 right-10 text-[10px] font-black text-gray-300 uppercase tracking-widest">
+                Página {pageIdx + 1} de {pages.length}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600/20 border-t-blue-600"></div>
+            <p className="font-black uppercase text-xs tracking-widest">Organizando páginas...</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const ConfirmationModal = ({ title, message, onConfirm, onCancel, confirmText = "Confirmar", confirmColor = "bg-blue-600" }: any) => {
   useEscapeKey(onCancel, [onCancel]);
   return (
@@ -611,83 +778,190 @@ const CalendarPreviewModal = ({ events, startDate, endDate, exportType, onClose,
   
   // Group events by Month/Year
   const groupedEvents: Record<string, CalendarEvent[]> = {};
-  events.forEach(event => {
+  events.sort((a,b) => a.start_time.localeCompare(b.start_time)).forEach(event => {
     const d = new Date(event.start_time);
     const key = `${monthNamesPT[d.getMonth()]} de ${d.getFullYear()}`;
     if (!groupedEvents[key]) groupedEvents[key] = [];
     groupedEvents[key].push(event);
   });
 
+  const items: any[] = [];
+  Object.entries(groupedEvents).forEach(([monthYear, monthEvents]) => {
+    items.push({ type: 'month_header', label: monthYear });
+    monthEvents.forEach(event => {
+      items.push({ type: 'event', event });
+    });
+  });
+
+  const [pages, setPages] = useState<any[][]>([]);
+  const measurementRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const measureAndSplit = () => {
+      if (!measurementRef.current) return;
+      
+      const PAGE_HEIGHT_MM = 297;
+      const PADDING_MM = 40; 
+      const HEADER_HEIGHT_PX = measurementRef.current.querySelector('.report-header')?.clientHeight || 0;
+      
+      const mmToPx = (mm: number) => (mm * 96) / 25.4;
+      const pxToMm = (px: number) => (px * 25.4) / 96;
+      
+      const maxContentHeightMm = PAGE_HEIGHT_MM - PADDING_MM;
+      const firstPageMaxContentHeightMm = maxContentHeightMm - pxToMm(HEADER_HEIGHT_PX);
+
+      const itemsToProcess = Array.from(measurementRef.current.querySelectorAll('.measurement-item')) as HTMLElement[];
+      const newPages: any[][] = [];
+      let currentPage: any[] = [];
+      let currentHeightMm = 0;
+      let isFirstPage = true;
+
+      itemsToProcess.forEach((el, idx) => {
+        const itemHeightMm = pxToMm(el.offsetHeight);
+        const limit = isFirstPage ? firstPageMaxContentHeightMm : maxContentHeightMm;
+        
+        if (currentHeightMm + itemHeightMm > limit && currentPage.length > 0) {
+          newPages.push(currentPage);
+          currentPage = [items[idx]];
+          currentHeightMm = itemHeightMm;
+          isFirstPage = false;
+        } else {
+          currentPage.push(items[idx]);
+          currentHeightMm += itemHeightMm;
+        }
+      });
+
+      if (currentPage.length > 0) {
+        newPages.push(currentPage);
+      }
+
+      setPages(newPages);
+    };
+
+    setTimeout(measureAndSplit, 100);
+  }, [items]);
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl h-[95vh] flex flex-col overflow-hidden relative animate-zoom-in">
-        <div className="p-4 border-b flex justify-between items-center bg-gray-50 shrink-0">
+      <div className="bg-gray-100 rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden relative animate-zoom-in">
+        <div className="p-6 border-b flex justify-between items-center bg-white shrink-0">
           <div>
-            <h3 className="text-base font-black text-black uppercase tracking-widest leading-none">Pré-visualização do Calendário</h3>
-            <p className="text-[10px] text-black uppercase mt-1 font-bold">Verifique os dados abaixo antes de gerar o arquivo</p>
+            <h3 className="text-xl font-black text-black uppercase tracking-widest leading-none">Pré-visualização do Calendário</h3>
+            <p className="text-xs text-gray-400 uppercase mt-2 font-bold italic">A4 Paginado • Impressão Realista</p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={onDownload} className="bg-blue-600 text-white px-5 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-200">
-              Gerar e Baixar PDF
+          <div className="flex gap-4">
+            <button onClick={onDownload} className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-200 active:scale-95">
+              Baixar PDF
             </button>
-            <button onClick={onClose} className="p-2 text-black hover:text-red-500 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <button onClick={onClose} className="bg-white border-2 border-gray-100 p-3 rounded-2xl text-black hover:text-red-500 transition-all active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
         </div>
         
-        <div className="flex-1 bg-gray-100 overflow-y-auto p-4 sm:p-8 flex justify-center">
-          {/* Simulated PDF Page */}
-          <div className="bg-white w-full max-w-[800px] min-h-full shadow-lg p-10 sm:p-14 font-sans text-black">
-            <div className="text-center mb-12">
-              <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Calendário de Eventos</h1>
-              <div className="flex flex-col gap-1 mt-3 text-[11px] text-black font-bold uppercase tracking-widest">
-                <p>Período: {new Date(`${startDate}T00:00:00`).toLocaleDateString()} a {new Date(`${endDate}T00:00:00`).toLocaleDateString()}</p>
-                <p>Filtro: {exportType}</p>
-              </div>
-            </div>
-
-            {Object.entries(groupedEvents).map(([monthYear, monthEvents]) => (
-              <div key={monthYear} className="mb-10">
-                <h2 className="text-lg font-black text-black uppercase tracking-widest border-b-4 border-black/10 pb-1 mb-6">{monthYear}</h2>
-                <div className="flex flex-col gap-4">
-                  {monthEvents.map((event, idx) => {
-                    const dateObj = new Date(event.start_time);
-                    const day = String(dateObj.getDate()).padStart(2, '0');
-                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                    const weekday = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][dateObj.getDay()];
-                    const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                    const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
-                    const holidayName = getBrazilianHolidays(dateObj.getFullYear())[dateStr];
-                    const dayOfWeekIdx = dateObj.getDay();
-                    const isWeekend = dayOfWeekIdx === 0 || dayOfWeekIdx === 6;
-
-                    return (
-                      <div key={event.id} className="flex items-baseline gap-6 border-b border-gray-100 pb-3">
-                        <div className="w-40 shrink-0">
-                          <p className={`text-[13px] font-black ${
-                            holidayName ? 'text-red-600' : isWeekend ? 'text-blue-600' : 'text-black'
-                          }`}>
-                            {day}/{month} ({weekday}){holidayName ? ` - ${holidayName}` : ''}
-                          </p>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-[14px] font-bold text-black">{timeStr} - {event.title}</p>
-                        </div>
-                        <div className="shrink-0">
-                          <p className="text-[10px] font-black text-white uppercase tracking-tighter bg-black px-3 py-1 rounded-full">{event.event_type}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+        <div className="flex-1 overflow-y-auto p-10 flex flex-col items-center custom-scrollbar-heavy">
+          {/* Measurement Container (Hidden) */}
+          <div 
+            ref={measurementRef} 
+            style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '170mm', visibility: 'hidden' }}
+          >
+            <div className="report-header pb-10">
+              <div className="text-center">
+                <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Calendário de Eventos</h1>
+                <div className="flex flex-col gap-1 mt-3 text-[11px] text-black font-bold uppercase tracking-widest border-t border-black/10 pt-4">
+                  <p>Período: {new Date(`${startDate}T00:00:00`).toLocaleDateString()} a {new Date(`${endDate}T00:00:00`).toLocaleDateString()}</p>
+                  <p>Filtro: {exportType}</p>
                 </div>
               </div>
+            </div>
+            {items.map((item, idx) => (
+              <div key={idx} className="measurement-item">
+                {item.type === 'month_header' ? (
+                  <h2 className="text-lg font-black text-black uppercase tracking-widest border-b-4 border-black/10 pb-1 mt-10 mb-6">{item.label}</h2>
+                ) : (
+                  <div className="flex items-baseline gap-6 border-b border-gray-100 pb-3 mb-3">
+                    <CalendarEventRow event={item.event} />
+                  </div>
+                )}
+              </div>
             ))}
+          </div>
+
+          {/* Rendered Pages */}
+          <div className="page-container w-full">
+            {pages.length > 0 ? (
+              pages.map((pageItems, pageIdx) => (
+                <div key={pageIdx} className="page relative">
+                  {pageIdx === 0 && (
+                    <div className="report-header mb-10 text-center">
+                      <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Calendário de Eventos</h1>
+                      <div className="flex flex-col gap-1 mt-3 text-[11px] text-black font-bold uppercase tracking-widest border-t border-black/10 pt-4">
+                        <p>Período: {new Date(`${startDate}T00:00:00`).toLocaleDateString()} a {new Date(`${endDate}T00:00:00`).toLocaleDateString()}</p>
+                        <p>Filtro: {exportType}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="page-content">
+                    {pageItems.map((item, itemIdx) => (
+                      <div key={itemIdx} className="avoid-break w-full">
+                        {item.type === 'month_header' ? (
+                          <h2 className={`text-lg font-black text-black uppercase tracking-widest border-b-4 border-black/10 pb-1 mb-6 ${itemIdx > 0 || pageIdx > 0 ? 'mt-8' : ''}`}>{item.label}</h2>
+                        ) : (
+                          <div className="flex items-baseline gap-6 border-b border-gray-100 pb-3 mb-3">
+                            <CalendarEventRow event={item.event} />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="absolute bottom-6 right-10 text-[10px] font-black text-gray-300 uppercase tracking-widest">
+                    Folha {pageIdx + 1} de {pages.length}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[60vh] text-gray-400 gap-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600/20 border-t-blue-600"></div>
+                <p className="font-black uppercase text-xs tracking-widest animate-pulse">Gerando Visualização...</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
+  );
+};
+
+const CalendarEventRow = ({ event }: { event: CalendarEvent }) => {
+  const dateObj = new Date(event.start_time);
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const weekday = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][dateObj.getDay()];
+  const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+  const holidayName = getBrazilianHolidays(dateObj.getFullYear())[dateStr];
+  const dayOfWeekIdx = dateObj.getDay();
+  const isWeekend = dayOfWeekIdx === 0 || dayOfWeekIdx === 6;
+
+  return (
+    <>
+      <div className="w-40 shrink-0">
+        <p className={`text-[13px] font-black ${
+          holidayName ? 'text-red-600' : isWeekend ? 'text-blue-600' : 'text-black'
+        }`}>
+          {day}/{month} ({weekday}){holidayName ? ` - ${holidayName}` : ''}
+        </p>
+      </div>
+      <div className="flex-1">
+        <p className="text-[14px] font-bold text-black">{timeStr} - {event.title}</p>
+      </div>
+      <div className="shrink-0">
+        <p className="text-[10px] font-black text-white uppercase tracking-tighter bg-black px-3 py-1 rounded-full">{event.event_type}</p>
+      </div>
+    </>
   );
 };
 
@@ -1644,52 +1918,42 @@ const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   useEffect(() => { fetchData('instruments', 'gca_instruments', ownerEmail).then(setInstruments); }, [ownerEmail]);
   const sorted = [...instruments].sort((a, b) => a.name.localeCompare(b.name));
-
+  
   return (
-    <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print relative z-50">
-        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 active:scale-95 transition-all font-bold">Voltar</button>
-        <div className="flex gap-2">
-          <button onClick={() => downloadHTML('instruments-report-view', `relatorio-instrumentos.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('instruments-report-view', `relatorio-instrumentos.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
-        </div>
-      </div>
-      <div id="instruments-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+    <PagedReport
+      id="instruments-report-view"
+      title="Relatório de Instrumentos"
+      filename="relatorio-instrumentos"
+      goBack={goBack}
+      items={sorted}
+      header={
+        <div className="text-center border-b-2 border-double border-black pb-2">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Instrumentos</h2>
           <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic text-center">Relação Geral de Instrumentos Cadastrados • Total: {instruments.length}</div>
         </div>
-        <table className="w-full border-collapse">
-            <thead>
-                <tr className="bg-black text-white text-left uppercase font-black text-[9px]">
-                    <th className="px-3 py-2 border border-gray-800">#</th>
-                    <th className="px-3 py-2 border border-gray-800">Instrumento</th>
-                    <th className="px-3 py-2 border border-gray-800">Modalidade</th>
-                    <th className="px-3 py-2 border border-gray-800 text-center">Clave</th>
-                    <th className="px-3 py-2 border border-gray-800 text-right">Afinação</th>
-                </tr>
-            </thead>
-            <tbody>
-                {sorted.map((i, idx) => (
-                    <tr key={i.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-3 py-2.5 text-[10px] text-black border border-gray-100">{idx + 1}</td>
-                        <td className="px-3 py-2.5 font-bold text-[10px] border border-gray-100 uppercase text-black">{i.name}</td>
-                        <td className="px-3 py-2.5 text-[10px] text-black border border-gray-100 uppercase font-medium">{i.modality}</td>
-                        <td className="px-3 py-2.5 text-center text-[10px] text-black border border-gray-100 uppercase font-bold">{i.timbre}</td>
-                        <td className="px-3 py-2.5 text-right font-black text-[10px] border border-gray-100 text-black uppercase">
-                            {i.tuning}
-                        </td>
-                    </tr>
-                ))}
-            </tbody>
-        </table>
-        
-        {instruments.length === 0 && (
-            <p className="text-center text-black py-12 italic uppercase font-bold text-xs tracking-widest">Nenhum instrumento cadastrado.</p>
-        )}
-      </div>
-    </div>
+      }
+      tableHeader={
+        <div className="flex bg-black text-white text-left uppercase font-black text-[9px] w-full">
+          <div className="px-3 py-2 border border-gray-800 w-12 text-center">#</div>
+          <div className="px-3 py-2 border border-gray-800 flex-1">Instrumento</div>
+          <div className="px-3 py-2 border border-gray-800 flex-1">Modalidade</div>
+          <div className="px-3 py-2 border border-gray-800 w-24 text-center">Clave</div>
+          <div className="px-3 py-2 border border-gray-800 w-32 text-right">Afinação</div>
+        </div>
+      }
+      renderItem={(i, idx) => (
+        <div className={`flex w-full ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+          <div className="px-3 py-2.5 text-[10px] text-black border border-gray-100 w-12 text-center">{idx + 1}</div>
+          <div className="px-3 py-2.5 font-bold text-[10px] border border-gray-100 uppercase text-black flex-1">{i.name}</div>
+          <div className="px-3 py-2.5 text-[10px] text-black border border-gray-100 uppercase font-medium flex-1">{i.modality}</div>
+          <div className="px-3 py-2.5 text-center text-[10px] text-black border border-gray-100 uppercase font-bold w-24">{i.timbre}</div>
+          <div className="px-3 py-2.5 text-right font-black text-[10px] border border-gray-100 text-black uppercase w-32">
+            {i.tuning}
+          </div>
+        </div>
+      )}
+    />
   );
 };
 
@@ -1699,40 +1963,34 @@ const MusiciansReportScreen = ({ goBack, ownerEmail }: any) => {
   const sorted = [...musicians].sort((a, b) => a.name.localeCompare(b.name));
   
   return (
-    <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print relative z-50">
-        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded shadow-sm hover:bg-gray-700 active:scale-95 transition-all font-bold">Voltar</button>
-        <div className="flex gap-2">
-          <button onClick={() => downloadHTML('musician-report-alpha', `musicos-alfabetico.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('musician-report-alpha', `musicos-alfabetico.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
-        </div>
-      </div>
-      <div id="musician-report-alpha" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+    <PagedReport
+      id="musician-report-alpha"
+      title="Relação de Integrantes"
+      filename="musicos-alfabetico"
+      goBack={goBack}
+      items={sorted}
+      header={
+        <div className="text-center border-b-2 border-double border-black pb-2">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relação de Integrantes</h2>
           <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic">Ordem Alfabética • Total: {musicians.length} Integrantes</div>
         </div>
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-black text-white text-left uppercase font-black text-[10px]">
-              <th className="px-4 py-2 border border-gray-800">Nome do Componente</th>
-              <th className="px-4 py-2 border border-gray-800">Voz(es) / Instrumentos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((m, idx) => (
-              <tr key={m.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                <td className="px-4 py-3 font-black text-black uppercase text-xs border border-gray-100">{m.name}</td>
-                <td className="px-4 py-3 text-[10px] font-bold text-black uppercase border border-gray-100 italic">
-                  {m.voices.join(', ')}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+      }
+      tableHeader={
+        <div className="flex bg-black text-white text-left uppercase font-black text-[10px] w-full">
+          <div className="px-4 py-2 border border-gray-800 flex-1">Nome do Componente</div>
+          <div className="px-4 py-2 border border-gray-800 flex-1">Voz(es) / Instrumentos</div>
+        </div>
+      }
+      renderItem={(m, idx) => (
+        <div className={`flex w-full ${idx % 2 === 1 ? 'bg-white' : 'bg-gray-50'}`}>
+          <div className="px-4 py-3 font-black text-black uppercase text-xs border border-gray-100 flex-1">{m.name}</div>
+          <div className="px-4 py-3 text-[10px] font-bold text-black uppercase border border-gray-100 italic flex-1">
+            {m.voices.join(', ') || m.instruments.join(', ')}
+          </div>
+        </div>
+      )}
+    />
   );
 };
 
@@ -1741,40 +1999,45 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
   useEffect(() => { fetchData('musicians', 'gca_musicians', ownerEmail).then(setMusicians); }, [ownerEmail]);
   const voices = ['Melodia', 'Contralto', 'Tenor', 'Baixo'];
   
+  // Flattening for PagedReport: we need to group by voice but as a flat list of sections
+  const sections: any[] = [];
+  voices.forEach(voice => {
+    const members = musicians.filter(m => m.voices.includes(voice)).sort((a,b) => a.name.localeCompare(b.name));
+    if (members.length > 0) {
+      sections.push({ type: 'header', label: voice, count: members.length });
+      members.forEach(m => sections.push({ type: 'member', name: m.name }));
+    }
+  });
+
   return (
-    <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print">
-        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
-        <div className="flex gap-2">
-          <button onClick={() => downloadHTML('musician-report-voice', `musicos-por-voz.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('musician-report-voice', `musicos-por-voz.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
-        </div>
-      </div>
-      <div id="musician-report-voice" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+    <PagedReport
+      id="musician-report-voice"
+      title="Integrantes por Voz"
+      filename="musicos-por-voz"
+      goBack={goBack}
+      items={sections}
+      header={
+        <div className="text-center border-b-2 border-double border-black pb-2">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Voz</h2>
           <div className="mt-2 text-xs font-bold uppercase italic text-black border-black border-t pt-2">Total: {musicians.length} Integrantes</div>
         </div>
-        
-        <div style={{ columns: '2', columnGap: '30px' }}>
-          {voices.map(voice => {
-            const members = musicians.filter(m => m.voices.includes(voice)).sort((a,b) => a.name.localeCompare(b.name));
-            if (members.length === 0) return null;
-            return (
-              <div key={voice} className="mb-6 break-inside-avoid">
-                <h3 className="bg-black text-white px-3 py-1 font-black uppercase text-[10px] mb-2 rounded-sm">{voice} ({members.length})</h3>
-                <div className="space-y-1">
-                  {members.map(m => (
-                    <div key={m.id} className="text-[10px] font-bold text-black border-b border-gray-100 py-1 uppercase truncate">{m.name}</div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+      }
+      renderItem={(item) => {
+        if (item.type === 'header') {
+          return (
+            <h3 className="bg-black text-white px-3 py-1 font-black uppercase text-[10px] mt-6 mb-2 rounded-sm avoid-break">
+              {item.label} ({item.count})
+            </h3>
+          );
+        }
+        return (
+          <div className="text-[10px] font-bold text-black border-b border-gray-100 py-1 uppercase truncate avoid-break">
+            {item.name}
+          </div>
+        );
+      }}
+    />
   );
 };
 
@@ -1786,40 +2049,44 @@ const MusiciansInstrumentReportScreen = ({ goBack, ownerEmail }: any) => {
     fetchData('instruments', 'gca_instruments', ownerEmail).then(setInstruments);
   }, [ownerEmail]);
 
+  const sections: any[] = [];
+  instruments.sort((a,b) => a.name.localeCompare(b.name)).forEach(inst => {
+    const members = musicians.filter(m => m.instruments.includes(inst.name)).sort((a,b) => a.name.localeCompare(b.name));
+    if (members.length > 0) {
+      sections.push({ type: 'header', label: inst.name, count: members.length });
+      members.forEach(m => sections.push({ type: 'member', name: m.name }));
+    }
+  });
+
   return (
-    <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print">
-        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
-        <div className="flex gap-2">
-          <button onClick={() => downloadHTML('musician-report-instrument', `musicos-por-instrumento.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('musician-report-instrument', `musicos-por-instrumento.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
-        </div>
-      </div>
-      <div id="musician-report-instrument" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-4 border-double border-blue-900 pb-6 mb-8">
+    <PagedReport
+      id="musician-report-instrument"
+      title="Integrantes por Instrumento"
+      filename="musicos-por-instrumento"
+      goBack={goBack}
+      items={sections}
+      header={
+        <div className="text-center border-b-4 border-double border-blue-900 pb-2">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-blue-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Integrantes por Instrumento</h2>
+          <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Instrumento</h2>
           <div className="mt-4 text-xs font-bold uppercase italic text-gray-500 border-blue-900 border-t pt-2">Total: {musicians.length} Integrantes</div>
         </div>
-
-        <div style={{ columns: '2', columnGap: '30px' }}>
-          {instruments.sort((a,b) => a.name.localeCompare(b.name)).map(inst => {
-            const members = musicians.filter(m => m.instruments.includes(inst.id)).sort((a,b) => a.name.localeCompare(b.name));
-            if (members.length === 0) return null;
-            return (
-              <div key={inst.id} className="mb-6 break-inside-avoid">
-                <h3 className="bg-blue-900 text-white px-3 py-1 font-black uppercase text-[10px] mb-2 rounded-sm">{inst.name} ({members.length})</h3>
-                <div className="space-y-1">
-                  {members.map(m => (
-                    <div key={m.id} className="text-[10px] font-bold text-gray-700 border-b border-gray-100 py-1 uppercase truncate">{m.name}</div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+      }
+      renderItem={(item) => {
+        if (item.type === 'header') {
+          return (
+            <h3 className="bg-blue-900 text-white px-3 py-1 font-black uppercase text-[10px] mt-6 mb-2 rounded-sm avoid-break">
+              {item.label} ({item.count})
+            </h3>
+          );
+        }
+        return (
+          <div className="text-[10px] font-bold text-gray-700 border-b border-gray-100 py-1 uppercase truncate avoid-break">
+            {item.name}
+          </div>
+        );
+      }}
+    />
   );
 };
 
@@ -1853,17 +2120,51 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
 
   const sortedMusicians = [...musicians].sort((a, b) => a.name.localeCompare(b.name));
 
+  // Flattening records: each item is either a date header or a musician status row
+  const items: any[] = [];
+  records.forEach(r => {
+    const presentIds = new Set(r.presentMusicianIds);
+    const justifiedMap = r.justifications || {};
+    const justifiedIds = new Set(Object.keys(justifiedMap));
+    
+    let filteredList: Musician[] = [];
+    if (reportData.t === 'Todos') {
+      filteredList = sortedMusicians;
+    } else if (reportData.t === 'Somente Presentes') {
+      filteredList = sortedMusicians.filter(m => presentIds.has(m.id));
+    } else if (reportData.t === 'Somente Ausentes') {
+      filteredList = sortedMusicians.filter(m => !presentIds.has(m.id) && !justifiedIds.has(m.id));
+    } else if (reportData.t === 'Somente Justificadas') {
+      filteredList = sortedMusicians.filter(m => justifiedIds.has(m.id) && !presentIds.has(m.id));
+    }
+
+    if (filteredList.length > 0 || reportData.t === 'Todos') {
+      items.push({ type: 'header', date: r.date });
+      filteredList.forEach(m => {
+        const isPresent = presentIds.has(m.id);
+        const isJustified = justifiedIds.has(m.id);
+        items.push({ 
+          type: 'row', 
+          name: m.name, 
+          status: isPresent ? 'Presente' : isJustified ? 'Justificado' : 'Ausente',
+          justification: isJustified ? justifiedMap[m.id] : '-'
+        });
+      });
+      if (filteredList.length === 0) {
+        items.push({ type: 'empty' });
+      }
+    }
+  });
+
   return (
-    <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print">
-        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
-        <div className="flex gap-2">
-          <button onClick={() => downloadHTML('attendance-report-view', `relatorio-presenca.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('attendance-report-view', `relatorio-presenca.pdf`, 'landscape')} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
-        </div>
-      </div>
-      <div id="attendance-report-view" className="bg-white p-10 shadow-2xl mx-auto max-w-[297mm] min-h-[210mm]">
-        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+    <PagedReport
+      id="attendance-report-view"
+      title="Relatório de Presença"
+      filename="relatorio-presenca"
+      goBack={goBack}
+      items={items}
+      header={
+        <div className="text-center border-b-2 border-double border-black pb-2">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Presença</h2>
           <div className="mt-2 text-[10px] font-bold uppercase italic text-black border-black border-t pt-2 flex justify-between">
@@ -1872,75 +2173,31 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
             <span>Filtro: {reportData.t}</span>
           </div>
         </div>
-
-        {records.length === 0 ? (
-          <p className="text-center text-black py-12 italic uppercase font-bold text-xs tracking-widest">Nenhum registro encontrado neste período.</p>
-        ) : (
-          <div className="space-y-8">
-            {records.map(r => {
-              const presentIds = new Set(r.presentMusicianIds);
-              const justifiedMap = r.justifications || {};
-              const justifiedIds = new Set(Object.keys(justifiedMap));
-              
-              let filteredList: Musician[] = [];
-              if (reportData.t === 'Todos') {
-                filteredList = sortedMusicians;
-              } else if (reportData.t === 'Somente Presentes') {
-                filteredList = sortedMusicians.filter(m => presentIds.has(m.id));
-              } else if (reportData.t === 'Somente Ausentes') {
-                filteredList = sortedMusicians.filter(m => !presentIds.has(m.id) && !justifiedIds.has(m.id));
-              } else if (reportData.t === 'Somente Justificadas') {
-                filteredList = sortedMusicians.filter(m => justifiedIds.has(m.id) && !presentIds.has(m.id));
-              }
-
-              return (
-                <div key={r.id} className="break-inside-avoid">
-                  <h3 className="bg-black text-white px-4 py-1 font-black uppercase text-[10px] mb-2 inline-block rounded-sm tracking-widest leading-none">
-                    {new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                  </h3>
-                  
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="bg-black text-white text-[9px] font-black uppercase tracking-widest text-left">
-                        <th className="px-3 py-1.5 border border-gray-800 w-1/3">Nome do Componente</th>
-                        <th className="px-3 py-1.5 border border-gray-800 w-32 text-center">Status</th>
-                        <th className="px-3 py-1.5 border border-gray-800">Justificativa</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredList.map((m, idx) => {
-                        const isPresent = presentIds.has(m.id);
-                        const isJustified = justifiedIds.has(m.id);
-                        const statusText = isPresent ? 'Presente' : isJustified ? 'Justificado' : 'Ausente';
-                        const statusColor = isPresent ? 'text-black' : isJustified ? 'text-black' : 'text-black';
-                        const justificationText = isJustified ? justifiedMap[m.id] : '-';
-
-                        return (
-                          <tr key={m.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                             <td className="px-3 py-2 border border-gray-100 font-bold text-black text-[10px] uppercase">{m.name}</td>
-                             <td className="px-3 py-2 border border-gray-100 text-center">
-                               <span className={`text-[9px] font-black uppercase ${statusColor}`}>{statusText}</span>
-                             </td>
-                             <td className="px-3 py-2 border border-gray-100 text-[10px] text-black italic">
-                               {justificationText}
-                             </td>
-                          </tr>
-                        );
-                      })}
-                      {filteredList.length === 0 && (
-                        <tr>
-                          <td colSpan={3} className="px-4 py-8 text-center text-black italic text-sm">Nenhum músico encontrado para este filtro nesta data.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })}
+      }
+      renderItem={(item, idx) => {
+        if (item.type === 'header') {
+          return (
+            <h3 className="bg-black text-white px-4 py-1 font-black uppercase text-[10px] my-3 inline-block rounded-sm tracking-widest leading-none avoid-break">
+              {new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </h3>
+          );
+        }
+        if (item.type === 'empty') {
+          return <div className="px-4 py-8 text-center text-black italic text-xs uppercase border border-gray-100">Nenhum músico encontrado para este filtro nesta data.</div>;
+        }
+        return (
+          <div className={`flex w-full items-center border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} avoid-break`}>
+            <div className="px-3 py-2 font-bold text-black text-[10px] uppercase w-1/3 border-r border-gray-100">{item.name}</div>
+            <div className="px-3 py-2 text-center w-32 border-r border-gray-100">
+              <span className="text-[9px] font-black uppercase text-black">{item.status}</span>
+            </div>
+            <div className="px-3 py-2 text-[10px] text-black italic flex-1">
+              {item.justification}
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        );
+      }}
+    />
   );
 };
 
@@ -1955,7 +2212,7 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
       const recs = await fetchData('attendance', 'gca_attendance', ownerEmail);
       const musics = await fetchData('musicians', 'gca_musicians', ownerEmail);
       
-      const filtered = recs.filter((r: AttendanceRecord) => 
+      const filteredRecords = recs.filter((r: AttendanceRecord) => 
         r.date >= reportData.s && r.date <= reportData.e
       );
       
@@ -1966,87 +2223,84 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
         finalMusicians = musics.filter((m: Musician) => m.instruments && m.instruments.length > 0);
       }
 
-      setRecords(filtered);
+      setRecords(filteredRecords);
       setMusicians(finalMusicians);
     };
     load();
   }, [ownerEmail, reportData.s, reportData.e, reportData.g]);
 
   const sortedMusicians = [...musicians].sort((a, b) => a.name.localeCompare(b.name));
-  const totalCallsInPeriod = records.length;
 
   return (
-    <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print">
-        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
-        <div className="flex gap-2">
-          <button onClick={() => downloadHTML('attendance-perc-view', `percentual-participacao.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('attendance-perc-view', `percentual-participacao.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
-        </div>
-      </div>
-      <div id="attendance-perc-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-4 border-double border-blue-900 pb-6 mb-8">
+    <PagedReport
+      id="attendance-perc-view"
+      title="Participação Proporcional"
+      filename="percentual-participacao"
+      goBack={goBack}
+      items={sortedMusicians}
+      header={
+        <div className="text-center border-b-4 border-double border-blue-900 pb-2">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-blue-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest">Participação Proporcional</h2>
+          <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Participação Proporcional</h2>
           <div className="mt-4 text-[10px] font-bold uppercase italic text-gray-500 border-blue-900 border-t pt-2 flex justify-between">
             <span>Período: {new Date(reportData.s + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(reportData.e + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-            <span>Grupo: {reportData.g || 'Geral'}</span>
-            <span>Chamadas: {totalCallsInPeriod}</span>
+            <span>Grupo Filtro: {reportData.g || 'Geral'}</span>
           </div>
         </div>
-
-        <table className="w-full border-collapse">
-            <thead>
-                <tr className="bg-blue-900 text-white text-left uppercase font-black text-[9px]">
-                    <th className="px-3 py-2 border border-blue-800">Nome do Componente</th>
-                    <th className="px-3 py-2 border border-blue-800 text-center">Pres.</th>
-                    <th className="px-3 py-2 border border-blue-800 text-center">Just.</th>
-                    <th className="px-3 py-2 border border-blue-800 text-center">AUS.</th>
-                    <th className="px-3 py-2 border border-blue-800 text-right">Frequência</th>
-                </tr>
-            </thead>
-            <tbody>
-                {sortedMusicians.map((m, idx) => {
-                    let presents = 0;
-                    let justified = 0;
-                    records.forEach(r => {
-                        if (r.presentMusicianIds.includes(m.id)) presents++;
-                        else if (r.justifications && r.justifications[m.id]) justified++;
-                    });
-                    
-                    const absences = totalCallsInPeriod - (presents + justified);
-                    const effectivePresence = presents + justified;
-                    const percentage = totalCallsInPeriod > 0 ? (effectivePresence / totalCallsInPeriod) * 100 : 0;
-                    const isBelowThreshold = percentage < 70;
-
-                    return (
-                        <tr key={m.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/30'}>
-                            <td className={`px-3 py-2.5 font-bold text-[10px] border border-gray-100 uppercase ${isBelowThreshold ? 'text-red-600' : 'text-gray-800'}`}>{m.name}</td>
-                            <td className="px-3 py-2.5 text-center text-[10px] text-gray-600 border border-gray-100">{presents}</td>
-                            <td className="px-3 py-2.5 text-center text-[10px] text-blue-600 font-bold border border-gray-100">{justified}</td>
-                            <td className={`px-3 py-2.5 text-center text-[10px] border border-gray-100 font-bold ${absences > 0 ? 'text-red-500' : 'text-gray-400'}`}>{absences}</td>
-                            <td className={`px-3 py-2.5 text-right font-black text-[11px] border border-gray-100 ${isBelowThreshold ? 'text-red-600' : 'text-blue-900'}`}>
-                                {percentage.toFixed(1)}%
-                            </td>
-                        </tr>
-                    );
-                })}
-            </tbody>
-        </table>
-        
-        {totalCallsInPeriod === 0 && (
-            <p className="text-center text-gray-400 py-12 italic uppercase font-bold text-xs tracking-widest">Nenhuma chamada registrada no período selecionado.</p>
-        )}
-
-        <div className="mt-12 text-[9px] text-gray-400 uppercase font-bold italic border-t pt-4">
-            * Justificativas são contabilizadas como presença para fins de frequência.
-            <br />
-            * AUS. (Ausência) refere-se a faltas sem justificativa.
-            <br />
-            * Frequência (%) = (Presenças + Justificativas) / Total de Chamadas.
+      }
+      tableHeader={
+        <div className="flex bg-blue-900 text-white text-left uppercase font-black text-[9px] w-full">
+          <div className="px-3 py-2 border border-blue-800 flex-1">Nome do Componente</div>
+          <div className="px-3 py-2 border border-blue-800 w-16 text-center">CHAM.</div>
+          <div className="px-3 py-2 border border-blue-800 w-16 text-center">Pres.</div>
+          <div className="px-3 py-2 border border-blue-800 w-16 text-center">Just.</div>
+          <div className="px-3 py-2 border border-blue-800 w-16 text-center">AUS.</div>
+          <div className="px-3 py-2 border border-blue-800 w-24 text-right">Frequência</div>
         </div>
-      </div>
-    </div>
+      }
+      renderItem={(m, idx) => {
+        let presents = 0;
+        let justified = 0;
+        let relevantCalls = 0;
+
+        records.forEach(r => {
+          let isExpected = false;
+          if (r.group === 'Geral' || !r.group) {
+            isExpected = true;
+          } else if (r.group === 'Coral') {
+            isExpected = m.voices && m.voices.length > 0;
+          } else if (r.group === 'Orquestra') {
+            isExpected = m.instruments && m.instruments.length > 0;
+          } else if (r.group === 'Outro') {
+            isExpected = r.subset_ids?.includes(m.id) || false;
+          }
+
+          if (isExpected) {
+            relevantCalls++;
+            if (r.presentMusicianIds.includes(m.id)) presents++;
+            else if (r.justifications && r.justifications[m.id]) justified++;
+          }
+        });
+        
+        const absences = relevantCalls - (presents + justified);
+        const effectivePresence = presents + justified;
+        const percentage = relevantCalls > 0 ? (effectivePresence / relevantCalls) * 100 : 0;
+        const isBelowThreshold = percentage < 70;
+
+        return (
+          <div className={`flex w-full ${idx % 2 === 1 ? 'bg-white' : 'bg-blue-50/30'} avoid-break`}>
+            <div className={`px-3 py-2.5 font-bold text-[10px] border border-gray-100 uppercase flex-1 ${isBelowThreshold ? 'text-red-600' : 'text-gray-800'}`}>{m.name}</div>
+            <div className="px-3 py-2.5 text-center text-[10px] text-gray-400 border border-gray-100 font-bold w-16 text-center">{relevantCalls}</div>
+            <div className="px-3 py-2.5 text-center text-[10px] text-gray-600 border border-gray-100 w-16 text-center">{presents}</div>
+            <div className="px-3 py-2.5 text-center text-[10px] text-blue-600 font-bold border border-gray-100 w-16 text-center">{justified}</div>
+            <div className={`px-3 py-2.5 text-center text-[10px] border border-gray-100 font-bold w-16 text-center ${absences > 0 ? 'text-red-500' : 'text-gray-400'}`}>{absences}</div>
+            <div className={`px-3 py-2.5 text-right font-black text-[11px] border border-gray-100 w-24 ${isBelowThreshold ? 'text-red-600' : 'text-blue-900'}`}>
+                {percentage.toFixed(1)}%
+            </div>
+          </div>
+        );
+      }}
+    />
   );
 };
 
@@ -2068,33 +2322,28 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
   });
 
   return (
-    <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print">
-        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
-        <div className="flex gap-2">
-          <button onClick={() => downloadHTML('hymn-notebook-report-view', `hinos-${notebook.code}.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('hymn-notebook-report-view', `hinos-${notebook.code}.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
-        </div>
-      </div>
-      <div id="hymn-notebook-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+    <PagedReport
+      id="hymn-notebook-report-view"
+      title="Biblioteca de Hinos"
+      filename={`hinos-${notebook.code}`}
+      goBack={goBack}
+      items={sorted}
+      header={
+        <div className="text-center border-b-2 border-double border-black pb-2">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Biblioteca de Hinos</h2>
           <div className="mt-2 text-[10px] font-bold uppercase italic text-black border-black border-t pt-2">
             Caderno: {notebook.code} - {notebook.name} • Total: {hymns.length} Hinos
           </div>
         </div>
-        
-        <div style={{ columns: '3', columnGap: '20px' }}>
-          {sorted.map(h => (
-            <div key={h.id} className="flex gap-2 items-center mb-1.5 break-inside-avoid border-b border-gray-100 pb-1 leading-none">
-              <span className="font-black text-black w-8 text-sm">{h.number}</span>
-              <span className="font-bold text-black uppercase text-[9px] flex-1 line-clamp-1">{h.title}</span>
-            </div>
-          ))}
+      }
+      renderItem={(h) => (
+        <div key={h.id} className="flex gap-2 items-center mb-1.5 avoid-break border-b border-gray-100 pb-1 leading-none w-full max-w-[170mm]">
+          <span className="font-black text-black w-10 text-sm text-right pr-2 border-r border-gray-200">{h.number}</span>
+          <span className="font-bold text-black uppercase text-[10px] flex-1 truncate">{h.title}</span>
         </div>
-      </div>
-    </div>
+      )}
+    />
   );
 };
 
@@ -3692,10 +3941,10 @@ const AttendanceReportInputScreen = ({ onGenerate, onCancel, isReadOnly, onExitI
   const [start, setStart] = useState(getBrasiliaYYYYMMDD());
   const [end, setEnd] = useState(getBrasiliaYYYYMMDD());
   const [type, setType] = useState<'Somente Presentes' | 'Somente Ausentes' | 'Somente Justificadas' | 'Todos'>('Todos');
-  const [group, setGroup] = useState<'Coral' | 'Orquestra' | 'Geral'>('Geral');
-  
+  const [group, setGroup] = useState<'Coral' | 'Orquestra' | 'Geral' | 'Outro'>('Geral');
+
   useEscapeKey(onCancel, [onCancel]);
-  
+
   return (
     <Layout title="Relatório de Presença" onBack={onCancel} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
       <div className="bg-white p-8 rounded shadow max-w-md mx-auto mt-12 space-y-6">
@@ -3709,6 +3958,7 @@ const AttendanceReportInputScreen = ({ onGenerate, onCancel, isReadOnly, onExitI
               <option value="Geral">Geral (Todos)</option>
               <option value="Coral">Coral (Vozes)</option>
               <option value="Orquestra">Orquestra (Instrumentos)</option>
+              <option value="Outro">Outro (Personalizada)</option>
             </select>
           </div>
           <div><label className="block text-base font-bold mb-2 text-gray-950">Tipo</label><select className="w-full border rounded-xl p-3 text-base shadow-sm" value={type} onChange={e => setType(e.target.value as any)}>
@@ -3728,7 +3978,10 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
   const [musicians, setMusicians] = useState<Musician[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set(editData?.presentMusicianIds || []));
   const [justifications, setJustifications] = useState<Record<string, string>>(editData?.justifications || {});
-  const [filterGroup, setFilterGroup] = useState<'Coral' | 'Orquestra' | 'Geral' | null>(null);
+  const [filterGroup, setFilterGroup] = useState<'Coral' | 'Orquestra' | 'Geral' | 'Outro' | null>(editData?.group || null);
+  const [showSelection, setShowSelection] = useState(false);
+  const [customSelectedIds, setCustomSelectedIds] = useState<Set<string>>(new Set(editData?.subset_ids || []));
+  const [selectionSearch, setSelectionSearch] = useState('');
   
   const [showDateModal, setShowDateModal] = useState(false);
   const [date, setDate] = useState(editData?.date || getBrasiliaYYYYMMDD());
@@ -3753,8 +4006,12 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
     } else if (viewJustifyId) {
       setViewJustifyId(null);
       setIsEditingJustify(false);
+    } else if (showSelection) {
+      setShowSelection(false);
+      setFilterGroup(null);
     } else if (filterGroup && !editData) {
       setFilterGroup(null);
+      setCustomSelectedIds(new Set());
     } else {
       goBack();
     }
@@ -3834,13 +4091,13 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
     setShowConfirmEdit(false);
   };
 
-  const handleSaveClick = () => { if (isReadOnly) return; if (selected.size === 0 && Object.keys(justifications).length === 0) { alert("Registre ao menos uma presença ou justificativa."); return; } setSaveError(null); setShowDateModal(true); };
+  const handleSaveClick = () => { if (isReadOnly) return; setSaveError(null); setShowDateModal(true); };
 
   const confirmSave = async () => {
     if (isReadOnly) return;
     const all = await fetchData('attendance', 'gca_attendance', ownerEmail);
     const currentGroup = editData?.group || (filterGroup as any);
-    const exists = all.some((r: AttendanceRecord) => r.date === date && r.group === currentGroup && r.id !== editData?.id);
+    const exists = currentGroup !== 'Outro' && all.some((r: AttendanceRecord) => r.date === date && r.group === currentGroup && r.id !== editData?.id);
     if (exists) { setSaveError(`Já Existe Uma Chamada de ${currentGroup} Nesta Data`); return; }
     const record: AttendanceRecord = { 
         id: editData?.id || generateId(), 
@@ -3848,6 +4105,7 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
         presentMusicianIds: Array.from(selected), 
         justifications,
         group: currentGroup,
+        subset_ids: filterGroup === 'Outro' ? Array.from(customSelectedIds) : undefined,
         owner_email: ownerEmail 
     };
     const updatedList = editData ? all.map((r: any) => r.id === editData.id ? record : r) : [...all, record];
@@ -3883,7 +4141,94 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
                 <span className="text-2xl">👥</span>
                 Geral (Todos os Componentes)
               </button>
+              <button 
+                onClick={() => { setFilterGroup('Outro'); setShowSelection(true); }}
+                className="bg-purple-50 text-purple-700 p-6 rounded-2xl border-2 border-purple-100 hover:bg-purple-100 transition-all flex flex-col items-center gap-2"
+              >
+                <span className="text-2xl">📝</span>
+                Outro (Escolha Personalizada)
+              </button>
            </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (filterGroup === 'Outro' && showSelection) {
+    const filteredForSelection = musicians.filter(m => 
+      m.name.toLowerCase().includes(selectionSearch.toLowerCase()) ||
+      (m.voices && m.voices.some(v => v.toLowerCase().includes(selectionSearch.toLowerCase()))) ||
+      (m.instruments && m.instruments.some(i => i.toLowerCase().includes(selectionSearch.toLowerCase())))
+    ).sort((a,b) => a.name.localeCompare(b.name));
+
+    const toggleSelection = (id: string) => {
+      const next = new Set(customSelectedIds);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setCustomSelectedIds(next);
+    };
+
+    const toggleAll = () => {
+      if (customSelectedIds.size === musicians.length) {
+        setCustomSelectedIds(new Set());
+      } else {
+        setCustomSelectedIds(new Set(musicians.map(m => m.id)));
+      }
+    };
+
+    return (
+      <Layout title="Selecionar Integrantes" onBack={handleBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
+        <div className="max-w-2xl mx-auto mt-6 bg-white p-6 rounded-3xl shadow-xl flex flex-col h-[80vh]">
+          <div className="mb-6 space-y-4">
+            <h3 className="text-lg font-black text-blue-900 uppercase">Quem participará desta chamada?</h3>
+            <div className="relative">
+              <input 
+                type="text"
+                placeholder="Pesquisar por nome, voz ou instrumento..."
+                className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-4 px-6 text-sm font-bold outline-none focus:border-blue-500 transition-all"
+                value={selectionSearch}
+                onChange={e => setSelectionSearch(e.target.value)}
+              />
+              <svg className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </div>
+            <div className="flex justify-between items-center bg-blue-50 p-4 rounded-2xl border border-blue-100">
+              <span className="text-xs font-black text-blue-900 uppercase">{customSelectedIds.size} Selecionados</span>
+              <button 
+                onClick={toggleAll}
+                className="text-[10px] font-black uppercase text-blue-600 hover:underline"
+              >
+                {customSelectedIds.size === musicians.length ? 'Desmarcar Todos' : 'Marcar Todos'}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-2 pr-2 scrollbar-thin">
+            {filteredForSelection.map(m => (
+              <div 
+                key={m.id} 
+                onClick={() => toggleSelection(m.id)}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-4 ${customSelectedIds.has(m.id) ? 'border-blue-500 bg-blue-50/50' : 'border-gray-50 bg-white'}`}
+              >
+                <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${customSelectedIds.has(m.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200'}`}>
+                  {customSelectedIds.has(m.id) && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-sm text-gray-900 truncate">{m.name}</p>
+                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest truncate">
+                    {m.voices.join(', ') || m.instruments.join(', ')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button 
+            disabled={customSelectedIds.size === 0}
+            onClick={() => setShowSelection(false)}
+            className="w-full bg-blue-600 text-white py-4 rounded-2xl mt-6 font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50"
+          >
+            Continuar para Chamada
+          </button>
         </div>
       </Layout>
     );
@@ -3892,6 +4237,7 @@ const RollCallScreen = ({ goBack, editData, ownerEmail, isReadOnly, onExitImpers
   const filteredMusicians = musicians.filter(m => {
     if (filterGroup === 'Coral') return m.voices && m.voices.length > 0;
     if (filterGroup === 'Orquestra') return m.instruments && m.instruments.length > 0;
+    if (filterGroup === 'Outro') return customSelectedIds.has(m.id);
     return true;
   });
 
@@ -4037,12 +4383,13 @@ const AttendanceHistoryScreen = ({ goBack, onEdit, ownerEmail, isReadOnly, onExi
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [musicians, setMusicians] = useState<Musician[]>([]);
   const [recordToDelete, setRecordToDelete] = useState<AttendanceRecord | null>(null);
-  const [filterGroup, setFilterGroup] = useState<'Coral' | 'Orquestra' | 'Geral' | 'Todos'>('Todos');
+  const [filterGroup, setFilterGroup] = useState<'Coral' | 'Orquestra' | 'Geral' | 'Outro' | 'Todos'>('Todos');
 
   const getGroupLabel = (g?: string) => {
     if (g === 'Coral') return 'Ensaios de Coral';
     if (g === 'Orquestra') return 'Ensaio de Orquestra';
     if (g === 'Geral') return 'Ensaio Geral';
+    if (g === 'Outro') return 'Ensaio Outros';
     return 'Não Classificado';
   };
 
@@ -4064,7 +4411,7 @@ const AttendanceHistoryScreen = ({ goBack, onEdit, ownerEmail, isReadOnly, onExi
         <div className="sticky top-[60px] z-20 bg-gray-50 shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
           <h3 className="text-xs font-black text-blue-900 uppercase tracking-widest">Filtro Rápido</h3>
           <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide justify-center">
-            {['Todos', 'Geral', 'Coral', 'Orquestra'].map((g) => (
+            {['Todos', 'Geral', 'Coral', 'Orquestra', 'Outro'].map((g) => (
               <button
                 key={g}
                 onClick={() => setFilterGroup(g as any)}
@@ -4137,7 +4484,7 @@ const AttendanceHistoryScreen = ({ goBack, onEdit, ownerEmail, isReadOnly, onExi
 const AttendancePercentageInputScreen = ({ onGenerate, onCancel, isReadOnly, onExitImpersonation }: any) => {
   const [start, setStart] = useState(getBrasiliaYYYYMMDD());
   const [end, setEnd] = useState(getBrasiliaYYYYMMDD());
-  const [group, setGroup] = useState<'Coral' | 'Orquestra' | 'Geral'>('Geral');
+  const [group, setGroup] = useState<'Coral' | 'Orquestra' | 'Geral' | 'Outro'>('Geral');
   return (
     <Layout title="Percentual de Participação" onBack={onCancel} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
       <div className="bg-white p-8 rounded shadow max-w-md mx-auto mt-12 space-y-6">
@@ -4151,6 +4498,7 @@ const AttendancePercentageInputScreen = ({ onGenerate, onCancel, isReadOnly, onE
               <option value="Geral">Geral (Todos)</option>
               <option value="Coral">Coral (Vozes)</option>
               <option value="Orquestra">Orquestra (Instrumentos)</option>
+              <option value="Outro">Outro (Personalizada)</option>
             </select>
           </div>
           <div className="flex justify-end gap-2 pt-4"><button onClick={onCancel} className="px-4 py-2 font-bold text-gray-500">Voltar</button><button onClick={() => onGenerate(start, end, group)} className="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow-lg hover:bg-blue-700 active:scale-95 transition-all">Gerar Relatório</button></div>
@@ -5115,17 +5463,23 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
 
   const notebookCodes = Object.keys(NOTEBOOKS).filter(code => grouped[code]);
 
+  const items: any[] = [];
+  notebookCodes.forEach(code => {
+    items.push({ type: 'header', code, label: NOTEBOOKS[code] });
+    grouped[code].forEach((h: any) => {
+      items.push({ type: 'row', number: h.number, title: h.title, count: h.count });
+    });
+  });
+
   return (
-    <div className="bg-gray-100 p-8 min-h-screen">
-      <div className="max-w-[800px] mx-auto mb-4 flex justify-between no-print">
-        <button onClick={goBack} className="bg-gray-600 text-white px-4 py-2 rounded">Voltar</button>
-        <div className="flex gap-2">
-          <button onClick={() => downloadHTML('hymn-usage-report-view', `relatorio-uso-hinos.html`)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Salvar HTML</button>
-          <button onClick={() => downloadPDF('hymn-usage-report-view', `relatorio-uso-hinos.pdf`)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Gerar PDF</button>
-        </div>
-      </div>
-      <div id="hymn-usage-report-view" className="bg-white p-12 shadow-2xl mx-auto max-w-[210mm] min-h-[297mm]">
-        <div className="text-center border-b-2 border-double border-black pb-2 mb-4">
+    <PagedReport
+      id="hymn-usage-report-view"
+      title="Frequência de Uso de Hinos"
+      filename="relatorio-uso-hinos"
+      goBack={goBack}
+      items={items}
+      header={
+        <div className="text-center border-b-2 border-double border-black pb-2">
           <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
           <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Frequência de Uso de Hinos</h2>
           <div className="mt-2 text-[9px] font-bold uppercase italic border-black border-t pt-2 flex justify-between text-black">
@@ -5133,30 +5487,26 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
             <span>Ordem: {sortOrder === 'numerical' ? 'Numérica' : sortOrder === 'most_presented' ? 'MAIS USADOS' : 'MENOS USADOS'}</span>
           </div>
         </div>
-
-        {notebookCodes.map(code => (
-          <div key={code} className="mb-6 last:mb-0 break-inside-avoid">
-            <h3 className="bg-black text-white px-3 py-1 font-black uppercase text-[10px] mb-2 rounded-sm tracking-widest">{code} - {NOTEBOOKS[code]}</h3>
-            
-            <div style={{ columns: '2', columnGap: '20px' }}>
-              {grouped[code].map((h: any) => (
-                <div key={h.id} className="flex justify-between items-center px-1 py-1 border-b border-gray-100 text-[10px] break-inside-avoid leading-none">
-                  <div className="flex gap-2 min-w-0 overflow-hidden items-center">
-                    <span className="font-black text-black w-6 flex-shrink-0">{h.number}</span>
-                    <span className="font-bold text-black uppercase truncate text-[9px]">{h.title}</span>
-                  </div>
-                  <span className={`font-black ml-2 ${h.count > 0 ? 'text-black' : 'text-gray-300'}`}>{h.count}</span>
-                </div>
-              ))}
+      }
+      renderItem={(item) => {
+        if (item.type === 'header') {
+          return (
+            <h3 className="bg-black text-white px-3 py-1 font-black uppercase text-[10px] mt-6 mb-2 rounded-sm tracking-widest avoid-break">
+              {item.code} - {item.label}
+            </h3>
+          );
+        }
+        return (
+          <div className="flex justify-between items-center px-1 py-1 border-b border-gray-100 text-[10px] avoid-break leading-none w-full">
+            <div className="flex gap-2 min-w-0 overflow-hidden items-center">
+              <span className="font-black text-black w-8 flex-shrink-0">{item.number}</span>
+              <span className="font-bold text-black uppercase truncate text-[10px]">{item.title}</span>
             </div>
+            <span className={`font-black ml-4 px-2 py-0.5 rounded ${item.count > 0 ? 'bg-black text-white' : 'text-gray-300'}`}>{item.count}</span>
           </div>
-        ))}
-
-        {report.length === 0 && (
-          <p className="text-center text-black py-12 italic uppercase font-bold text-xs tracking-widest">Nenhum hino encontrado ou registrado no período.</p>
-        )}
-      </div>
-    </div>
+        );
+      }}
+    />
   );
 };
 

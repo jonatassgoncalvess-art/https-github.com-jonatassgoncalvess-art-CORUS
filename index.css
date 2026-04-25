@@ -73,3 +73,62 @@
   font-style: italic;
   color: #6b7280;
 }
+
+/* Pagination Styles */
+@media screen {
+  .page-container {
+    background-color: #f3f4f6;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+}
+
+.page {
+  width: 210mm;
+  height: 297mm;
+  padding: 20mm;
+  margin: 0 auto 30px auto;
+  background: white;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-content {
+  flex: 1;
+  width: 100%;
+}
+
+.avoid-break {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body {
+    background: white !important;
+    padding: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .page {
+    margin: 0 !important;
+    box-shadow: none !important;
+    page-break-after: always;
+    break-after: page;
+    width: 210mm;
+    height: 297mm;
+  }
+  .page-container {
+    padding: 0 !important;
+    background: none !important;
+  }
+}
