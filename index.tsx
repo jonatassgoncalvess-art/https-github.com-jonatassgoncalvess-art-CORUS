@@ -557,18 +557,22 @@ const PagedReport = ({
       
       const PAGE_HEIGHT_MM = 297;
       const PADDING_MM = 40; // 20mm top + 20mm bottom
-      const HEADER_ESTIMATED_HEIGHT_MM = 45; // Just a starting point if needed, but we measure
       
       const mmToPx = (mm: number) => (mm * 96) / 25.4;
       const pxToMm = (px: number) => (px * 25.4) / 96;
       
       const maxContentHeightMm = PAGE_HEIGHT_MM - PADDING_MM;
-      const firstPageMaxContentHeightMm = maxContentHeightMm - HEADER_ESTIMATED_HEIGHT_MM;
 
-      // Temporary render all items to measure them
+      // Handle empty items case
+      if (items.length === 0) {
+        setPages([[]]); // Render at least one empty page with header
+        return;
+      }
+
+      // Render items to measure
       const tempContainer = measurementRef.current;
       tempContainer.style.display = 'block';
-      tempContainer.style.width = '170mm'; // 210 - 40
+      tempContainer.style.width = '170mm'; 
       
       const renderedItems = Array.from(tempContainer.children) as HTMLElement[];
       const newPages: any[][] = [];
@@ -576,7 +580,6 @@ const PagedReport = ({
       let currentHeightMm = 0;
       let isFirstPage = true;
 
-      // Measure header height if present
       const headerEl = tempContainer.querySelector('.report-header') as HTMLElement;
       const headerHeightMm = headerEl ? pxToMm(headerEl.offsetHeight) : 0;
       
@@ -584,15 +587,12 @@ const PagedReport = ({
       const tableHeaderEl = tempContainer.querySelector('.table-header') as HTMLElement;
       const tableHeaderHeightMm = tableHeaderEl ? pxToMm(tableHeaderEl.offsetHeight) : 0;
 
-      const getLimit = (first: boolean) => first ? (maxContentHeightMm - headerHeightMm) : maxContentHeightMm;
-
       itemsToProcess.forEach((el, idx) => {
         const itemHeightMm = pxToMm(el.offsetHeight);
-        const limit = getLimit(isFirstPage);
-        
-        // Include table header height if it's the start of a new page or first page
+        const limit = isFirstPage ? (maxContentHeightMm - headerHeightMm) : maxContentHeightMm;
         const overhead = (currentPage.length === 0 && tableHeaderHeightMm) ? tableHeaderHeightMm : 0;
 
+        // Safety check: if a single item is taller than the page, we must still put it in
         if (currentHeightMm + itemHeightMm + overhead > limit && currentPage.length > 0) {
           newPages.push(currentPage);
           currentPage = [items[idx]];
@@ -612,37 +612,34 @@ const PagedReport = ({
       tempContainer.style.display = 'none';
     };
 
-    // Small timeout to ensure DOM is ready
-    const timer = setTimeout(measureAndSplit, 100);
+    const timer = setTimeout(measureAndSplit, 200);
     return () => clearTimeout(timer);
-  }, [items, header]);
+  }, [items, header, tableHeader]);
 
   const handlePrint = () => {
     window.print();
   };
 
   return (
-    <div className="bg-gray-200 min-h-screen pb-20">
-      {/* Control Bar */}
+    <div className="bg-gray-200 min-h-screen pb-20 overflow-x-hidden">
       <div className="max-w-[800px] mx-auto py-4 px-4 flex justify-between items-center no-print sticky top-0 z-[100] bg-gray-200/80 backdrop-blur-sm">
         <button onClick={goBack} className="bg-gray-600 text-white px-5 py-2 rounded-xl font-black uppercase text-xs shadow-lg hover:bg-gray-700 transition-all active:scale-95 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-          Voltar
+          Sair do Relatório
         </button>
         <div className="flex gap-2">
           <button onClick={() => downloadHTML(id, `${filename}.html`)} className="bg-white text-gray-700 border-2 border-gray-100 px-5 py-2 rounded-xl font-black uppercase text-xs hover:bg-gray-50 transition-all flex items-center gap-2">
-             Salvar HTML
+             Baixar HTML
           </button>
           <button onClick={handlePrint} className="bg-blue-600 text-white px-5 py-2 rounded-xl font-black uppercase text-xs shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 flex items-center gap-2">
-             Imprimir / PDF
+             Imprimir PDF
           </button>
         </div>
       </div>
 
-      {/* Measurement Container (Hidden) */}
       <div 
         ref={measurementRef} 
-        style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '170mm', visibility: 'hidden' }}
+        style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '170mm', visibility: 'hidden', pointerEvents: 'none' }}
       >
         <div className="report-header">{header}</div>
         <div className="table-header">{tableHeader}</div>
@@ -651,8 +648,7 @@ const PagedReport = ({
         ))}
       </div>
 
-      {/* Rendered Pages */}
-      <div id={id} className="page-container">
+      <div id={id} className="page-container flex flex-col items-center">
         {pages.length > 0 ? (
           pages.map((pageItems, pageIdx) => (
             <div key={pageIdx} className="page">
@@ -677,16 +673,21 @@ const PagedReport = ({
                 </div>
               </div>
 
-              {/* Page Footer */}
               <div className="absolute bottom-6 right-10 text-[10px] font-black text-gray-300 uppercase tracking-widest">
                 Página {pageIdx + 1} de {pages.length}
               </div>
             </div>
           ))
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600/20 border-t-blue-600"></div>
-            <p className="font-black uppercase text-xs tracking-widest">Organizando páginas...</p>
+          <div className="flex flex-col items-center justify-center py-40 text-gray-400 gap-6">
+            <div className="relative h-20 w-20">
+              <div className="absolute inset-0 animate-ping rounded-full bg-blue-600/10"></div>
+              <div className="relative animate-spin rounded-full h-20 w-20 border-t-4 border-l-4 border-blue-600"></div>
+            </div>
+            <div className="text-center">
+              <p className="font-black uppercase text-lg tracking-tighter text-gray-800">Organizando Páginas</p>
+              <p className="font-bold uppercase text-[10px] tracking-widest text-gray-400 mt-1">Isso pode levar alguns segundos dependendo do tamanho...</p>
+            </div>
           </div>
         )}
       </div>
@@ -1917,8 +1918,26 @@ const MusicianReportSelectionScreen = ({ navigate, goBack, ownerEmail, onExitImp
 const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   useEffect(() => { fetchData('instruments', 'gca_instruments', ownerEmail).then(setInstruments); }, [ownerEmail]);
-  const sorted = [...instruments].sort((a, b) => a.name.localeCompare(b.name));
+  const sorted = useMemo(() => [...instruments].sort((a, b) => a.name.localeCompare(b.name)), [instruments]);
   
+  const header = useMemo(() => (
+    <div className="text-center border-b-2 border-double border-black pb-2">
+      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Instrumentos</h2>
+      <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic text-center">Relação Geral de Instrumentos Cadastrados • Total: {instruments.length}</div>
+    </div>
+  ), [instruments.length]);
+
+  const tableHeader = useMemo(() => (
+    <div className="flex bg-black text-white text-left uppercase font-black text-[9px] w-full">
+      <div className="px-3 py-2 border border-gray-800 w-12 text-center">#</div>
+      <div className="px-3 py-2 border border-gray-800 flex-1">Instrumento</div>
+      <div className="px-3 py-2 border border-gray-800 flex-1">Modalidade</div>
+      <div className="px-3 py-2 border border-gray-800 w-24 text-center">Clave</div>
+      <div className="px-3 py-2 border border-gray-800 w-32 text-right">Afinação</div>
+    </div>
+  ), []);
+
   return (
     <PagedReport
       id="instruments-report-view"
@@ -1926,22 +1945,8 @@ const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
       filename="relatorio-instrumentos"
       goBack={goBack}
       items={sorted}
-      header={
-        <div className="text-center border-b-2 border-double border-black pb-2">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Instrumentos</h2>
-          <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic text-center">Relação Geral de Instrumentos Cadastrados • Total: {instruments.length}</div>
-        </div>
-      }
-      tableHeader={
-        <div className="flex bg-black text-white text-left uppercase font-black text-[9px] w-full">
-          <div className="px-3 py-2 border border-gray-800 w-12 text-center">#</div>
-          <div className="px-3 py-2 border border-gray-800 flex-1">Instrumento</div>
-          <div className="px-3 py-2 border border-gray-800 flex-1">Modalidade</div>
-          <div className="px-3 py-2 border border-gray-800 w-24 text-center">Clave</div>
-          <div className="px-3 py-2 border border-gray-800 w-32 text-right">Afinação</div>
-        </div>
-      }
+      header={header}
+      tableHeader={tableHeader}
       renderItem={(i, idx) => (
         <div className={`flex w-full ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
           <div className="px-3 py-2.5 text-[10px] text-black border border-gray-100 w-12 text-center">{idx + 1}</div>
@@ -1960,8 +1965,23 @@ const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
 const MusiciansReportScreen = ({ goBack, ownerEmail }: any) => {
   const [musicians, setMusicians] = useState<Musician[]>([]);
   useEffect(() => { fetchData('musicians', 'gca_musicians', ownerEmail).then(setMusicians); }, [ownerEmail]);
-  const sorted = [...musicians].sort((a, b) => a.name.localeCompare(b.name));
+  const sorted = useMemo(() => [...musicians].sort((a, b) => a.name.localeCompare(b.name)), [musicians]);
   
+  const header = useMemo(() => (
+    <div className="text-center border-b-2 border-double border-black pb-2">
+      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relação de Integrantes</h2>
+      <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic">Ordem Alfabética • Total: {musicians.length} Integrantes</div>
+    </div>
+  ), [musicians.length]);
+
+  const tableHeader = useMemo(() => (
+    <div className="flex bg-black text-white text-left uppercase font-black text-[10px] w-full">
+      <div className="px-4 py-2 border border-gray-800 flex-1">Nome do Componente</div>
+      <div className="px-4 py-2 border border-gray-800 flex-1">Voz(es) / Instrumentos</div>
+    </div>
+  ), []);
+
   return (
     <PagedReport
       id="musician-report-alpha"
@@ -1969,19 +1989,8 @@ const MusiciansReportScreen = ({ goBack, ownerEmail }: any) => {
       filename="musicos-alfabetico"
       goBack={goBack}
       items={sorted}
-      header={
-        <div className="text-center border-b-2 border-double border-black pb-2">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relação de Integrantes</h2>
-          <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic">Ordem Alfabética • Total: {musicians.length} Integrantes</div>
-        </div>
-      }
-      tableHeader={
-        <div className="flex bg-black text-white text-left uppercase font-black text-[10px] w-full">
-          <div className="px-4 py-2 border border-gray-800 flex-1">Nome do Componente</div>
-          <div className="px-4 py-2 border border-gray-800 flex-1">Voz(es) / Instrumentos</div>
-        </div>
-      }
+      header={header}
+      tableHeader={tableHeader}
       renderItem={(m, idx) => (
         <div className={`flex w-full ${idx % 2 === 1 ? 'bg-white' : 'bg-gray-50'}`}>
           <div className="px-4 py-3 font-black text-black uppercase text-xs border border-gray-100 flex-1">{m.name}</div>
@@ -1999,15 +2008,34 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
   useEffect(() => { fetchData('musicians', 'gca_musicians', ownerEmail).then(setMusicians); }, [ownerEmail]);
   const voices = ['Melodia', 'Contralto', 'Tenor', 'Baixo'];
   
-  // Flattening for PagedReport: we need to group by voice but as a flat list of sections
-  const sections: any[] = [];
-  voices.forEach(voice => {
-    const members = musicians.filter(m => m.voices.includes(voice)).sort((a,b) => a.name.localeCompare(b.name));
-    if (members.length > 0) {
-      sections.push({ type: 'header', label: voice, count: members.length });
-      members.forEach(m => sections.push({ type: 'member', name: m.name }));
-    }
-  });
+  const voiceMusiciansCount = useMemo(() => {
+    const unique = new Set(
+      musicians
+        .filter(m => m.voices && m.voices.length > 0)
+        .map(m => m.id)
+    );
+    return unique.size;
+  }, [musicians]);
+
+  const sections = useMemo(() => {
+    const result: any[] = [];
+    voices.forEach(voice => {
+      const members = musicians.filter(m => m.voices.includes(voice)).sort((a,b) => a.name.localeCompare(b.name));
+      if (members.length > 0) {
+        result.push({ type: 'header', label: voice, count: members.length });
+        members.forEach(m => result.push({ type: 'member', name: m.name }));
+      }
+    });
+    return result;
+  }, [musicians]);
+
+  const header = useMemo(() => (
+    <div className="text-center border-b-2 border-double border-black pb-2">
+      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Voz</h2>
+      <div className="mt-2 text-xs font-bold uppercase italic text-black border-black border-t pt-2">Total: {voiceMusiciansCount} Integrantes</div>
+    </div>
+  ), [voiceMusiciansCount]);
 
   return (
     <PagedReport
@@ -2016,27 +2044,18 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
       filename="musicos-por-voz"
       goBack={goBack}
       items={sections}
-      header={
-        <div className="text-center border-b-2 border-double border-black pb-2">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Voz</h2>
-          <div className="mt-2 text-xs font-bold uppercase italic text-black border-black border-t pt-2">Total: {musicians.length} Integrantes</div>
-        </div>
-      }
-      renderItem={(item) => {
-        if (item.type === 'header') {
-          return (
-            <h3 className="bg-black text-white px-3 py-1 font-black uppercase text-[10px] mt-6 mb-2 rounded-sm avoid-break">
-              {item.label} ({item.count})
-            </h3>
-          );
-        }
-        return (
+      header={header}
+      renderItem={(item) => (
+        item.type === 'header' ? (
+          <h3 className="bg-black text-white px-3 py-1 font-black uppercase text-[10px] mt-6 mb-2 rounded-sm avoid-break">
+            {item.label} ({item.count})
+          </h3>
+        ) : (
           <div className="text-[10px] font-bold text-black border-b border-gray-100 py-1 uppercase truncate avoid-break">
             {item.name}
           </div>
-        );
-      }}
+        )
+      )}
     />
   );
 };
@@ -2044,19 +2063,57 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
 const MusiciansInstrumentReportScreen = ({ goBack, ownerEmail }: any) => {
   const [musicians, setMusicians] = useState<Musician[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
-  useEffect(() => { 
+  useEffect(() => {
     fetchData('musicians', 'gca_musicians', ownerEmail).then(setMusicians);
     fetchData('instruments', 'gca_instruments', ownerEmail).then(setInstruments);
   }, [ownerEmail]);
 
-  const sections: any[] = [];
-  instruments.sort((a,b) => a.name.localeCompare(b.name)).forEach(inst => {
-    const members = musicians.filter(m => m.instruments.includes(inst.name)).sort((a,b) => a.name.localeCompare(b.name));
-    if (members.length > 0) {
-      sections.push({ type: 'header', label: inst.name, count: members.length });
-      members.forEach(m => sections.push({ type: 'member', name: m.name }));
-    }
-  });
+  const instrumentMusiciansCount = useMemo(() => {
+    const unique = new Set(
+      musicians
+        .filter(m => m.instruments && m.instruments.length > 0)
+        .map(m => m.id)
+    );
+    return unique.size;
+  }, [musicians]);
+
+  const sections = useMemo(() => {
+    if (musicians.length === 0 || instruments.length === 0) return [];
+    
+    const musByInst: Record<string, Musician[]> = {};
+    musicians.forEach(m => {
+      m.instruments.forEach(instId => {
+        if (!musByInst[instId]) musByInst[instId] = [];
+        musByInst[instId].push(m);
+      });
+    });
+
+    const result: any[] = [];
+    const sortedInstruments = [...instruments].sort((a,b) => a.name.localeCompare(b.name));
+    
+    sortedInstruments.forEach(inst => {
+      const members = musByInst[inst.id];
+      if (members && members.length > 0) {
+        members.sort((a,b) => a.name.localeCompare(b.name));
+        result.push({ 
+          type: 'header', 
+          label: inst.name, 
+          tuning: inst.tuning,
+          count: members.length 
+        });
+        members.forEach(m => result.push({ type: 'member', name: m.name }));
+      }
+    });
+    return result;
+  }, [musicians, instruments]);
+
+  const header = useMemo(() => (
+    <div className="text-center border-b-4 border-double border-blue-900 pb-2">
+      <h1 className="text-3xl font-black uppercase tracking-tighter text-blue-900">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Instrumento</h2>
+      <div className="mt-4 text-xs font-bold uppercase italic text-gray-500 border-blue-900 border-t pt-2">Total: {instrumentMusiciansCount} Integrantes</div>
+    </div>
+  ), [instrumentMusiciansCount]);
 
   return (
     <PagedReport
@@ -2065,27 +2122,19 @@ const MusiciansInstrumentReportScreen = ({ goBack, ownerEmail }: any) => {
       filename="musicos-por-instrumento"
       goBack={goBack}
       items={sections}
-      header={
-        <div className="text-center border-b-4 border-double border-blue-900 pb-2">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-blue-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Instrumento</h2>
-          <div className="mt-4 text-xs font-bold uppercase italic text-gray-500 border-blue-900 border-t pt-2">Total: {musicians.length} Integrantes</div>
-        </div>
-      }
-      renderItem={(item) => {
-        if (item.type === 'header') {
-          return (
-            <h3 className="bg-blue-900 text-white px-3 py-1 font-black uppercase text-[10px] mt-6 mb-2 rounded-sm avoid-break">
-              {item.label} ({item.count})
-            </h3>
-          );
-        }
-        return (
+      header={header}
+      renderItem={(item) => (
+        item.type === 'header' ? (
+          <h3 className="bg-blue-900 text-white px-3 py-1 font-black uppercase text-[10px] mt-6 mb-2 rounded-sm avoid-break flex justify-between items-center">
+            <span>{item.label} ({item.count})</span>
+            <span className="text-[8px] bg-white/20 px-2 py-0.5 rounded italic">Afinação: {item.tuning}</span>
+          </h3>
+        ) : (
           <div className="text-[10px] font-bold text-gray-700 border-b border-gray-100 py-1 uppercase truncate avoid-break">
             {item.name}
           </div>
-        );
-      }}
+        )
+      )}
     />
   );
 };
@@ -2156,6 +2205,18 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
     }
   });
 
+  const header = useMemo(() => (
+    <div className="text-center border-b-2 border-double border-black pb-2">
+      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Presença</h2>
+      <div className="mt-2 text-[10px] font-bold uppercase italic text-black border-black border-t pt-2 flex justify-between">
+        <span>Período: {new Date(reportData.s + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(reportData.e + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+        <span>Grupo: {reportData.g || 'Geral'}</span>
+        <span>Filtro: {reportData.t}</span>
+      </div>
+    </div>
+  ), [reportData.s, reportData.e, reportData.g, reportData.t]);
+
   return (
     <PagedReport
       id="attendance-report-view"
@@ -2163,17 +2224,7 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
       filename="relatorio-presenca"
       goBack={goBack}
       items={items}
-      header={
-        <div className="text-center border-b-2 border-double border-black pb-2">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Presença</h2>
-          <div className="mt-2 text-[10px] font-bold uppercase italic text-black border-black border-t pt-2 flex justify-between">
-            <span>Período: {new Date(reportData.s + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(reportData.e + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-            <span>Grupo: {reportData.g || 'Geral'}</span>
-            <span>Filtro: {reportData.t}</span>
-          </div>
-        </div>
-      }
+      header={header}
       renderItem={(item, idx) => {
         if (item.type === 'header') {
           return (
@@ -2229,7 +2280,29 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
     load();
   }, [ownerEmail, reportData.s, reportData.e, reportData.g]);
 
-  const sortedMusicians = [...musicians].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedMusicians = useMemo(() => [...musicians].sort((a, b) => a.name.localeCompare(b.name)), [musicians]);
+  
+  const header = useMemo(() => (
+    <div className="text-center border-b-4 border-double border-blue-900 pb-2">
+      <h1 className="text-3xl font-black uppercase tracking-tighter text-blue-900">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Participação Proporcional</h2>
+      <div className="mt-4 text-[10px] font-bold uppercase italic text-gray-500 border-blue-900 border-t pt-2 flex justify-between">
+        <span>Período: {new Date(reportData.s + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(reportData.e + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+        <span>Grupo Filtro: {reportData.g || 'Geral'}</span>
+      </div>
+    </div>
+  ), [reportData.s, reportData.e, reportData.g]);
+
+  const tableHeader = useMemo(() => (
+    <div className="flex bg-blue-900 text-white text-left uppercase font-black text-[9px] w-full">
+      <div className="px-3 py-2 border border-blue-800 flex-1">Nome do Componente</div>
+      <div className="px-3 py-2 border border-blue-800 w-16 text-center">CHAM.</div>
+      <div className="px-3 py-2 border border-blue-800 w-16 text-center">Pres.</div>
+      <div className="px-3 py-2 border border-blue-800 w-16 text-center">Just.</div>
+      <div className="px-3 py-2 border border-blue-800 w-16 text-center">AUS.</div>
+      <div className="px-3 py-2 border border-blue-800 w-24 text-right">Frequência</div>
+    </div>
+  ), []);
 
   return (
     <PagedReport
@@ -2238,26 +2311,8 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
       filename="percentual-participacao"
       goBack={goBack}
       items={sortedMusicians}
-      header={
-        <div className="text-center border-b-4 border-double border-blue-900 pb-2">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-blue-900">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Participação Proporcional</h2>
-          <div className="mt-4 text-[10px] font-bold uppercase italic text-gray-500 border-blue-900 border-t pt-2 flex justify-between">
-            <span>Período: {new Date(reportData.s + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(reportData.e + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-            <span>Grupo Filtro: {reportData.g || 'Geral'}</span>
-          </div>
-        </div>
-      }
-      tableHeader={
-        <div className="flex bg-blue-900 text-white text-left uppercase font-black text-[9px] w-full">
-          <div className="px-3 py-2 border border-blue-800 flex-1">Nome do Componente</div>
-          <div className="px-3 py-2 border border-blue-800 w-16 text-center">CHAM.</div>
-          <div className="px-3 py-2 border border-blue-800 w-16 text-center">Pres.</div>
-          <div className="px-3 py-2 border border-blue-800 w-16 text-center">Just.</div>
-          <div className="px-3 py-2 border border-blue-800 w-16 text-center">AUS.</div>
-          <div className="px-3 py-2 border border-blue-800 w-24 text-right">Frequência</div>
-        </div>
-      }
+      header={header}
+      tableHeader={tableHeader}
       renderItem={(m, idx) => {
         let presents = 0;
         let justified = 0;
@@ -2321,6 +2376,16 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
     return n1 - n2;
   });
 
+  const header = useMemo(() => (
+    <div className="text-center border-b-2 border-double border-black pb-2">
+      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Biblioteca de Hinos</h2>
+      <div className="mt-2 text-[10px] font-bold uppercase italic text-black border-black border-t pt-2">
+        Caderno: {notebook.code} - {notebook.name} • Total: {hymns.length} Hinos
+      </div>
+    </div>
+  ), [notebook.code, notebook.name, hymns.length]);
+
   return (
     <PagedReport
       id="hymn-notebook-report-view"
@@ -2328,15 +2393,7 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
       filename={`hinos-${notebook.code}`}
       goBack={goBack}
       items={sorted}
-      header={
-        <div className="text-center border-b-2 border-double border-black pb-2">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Biblioteca de Hinos</h2>
-          <div className="mt-2 text-[10px] font-bold uppercase italic text-black border-black border-t pt-2">
-            Caderno: {notebook.code} - {notebook.name} • Total: {hymns.length} Hinos
-          </div>
-        </div>
-      }
+      header={header}
       renderItem={(h) => (
         <div key={h.id} className="flex gap-2 items-center mb-1.5 avoid-break border-b border-gray-100 pb-1 leading-none w-full max-w-[170mm]">
           <span className="font-black text-black w-10 text-sm text-right pr-2 border-r border-gray-200">{h.number}</span>
@@ -3669,6 +3726,10 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
 
   useEffect(() => { fetchData('instruments', 'gca_instruments', ownerEmail).then(setInstruments); }, [ownerEmail]);
 
+  const sortedInstruments = useMemo(() => {
+    return [...instruments].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [instruments]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isReadOnly) return;
@@ -3763,7 +3824,7 @@ const InstrumentsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImp
         </div>
       )}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        {instruments.map(i => (
+        {sortedInstruments.map(i => (
           <div key={i.id} className="p-4 border-b last:border-0 flex justify-between items-center hover:bg-gray-50 group">
             <div><p className="font-bold text-gray-800">{i.name}</p><p className="text-xs text-gray-500 uppercase font-bold">{i.modality} • {i.timbre} • {i.tuning}</p></div>
             {!isReadOnly && (
@@ -3887,7 +3948,7 @@ const MusiciansScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImper
                 <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-50">
                   <select className="w-full border-2 border-white rounded-xl p-4 mb-4 font-bold focus:border-blue-600 outline-none shadow-sm" onChange={e => addInstrument(e.target.value)}>
                     <option value="">Adicionar novo instrumento...</option>
-                    {instruments.map(i => <option key={i.id} value={i.id}>{i.name} ({i.tuning})</option>)}
+                    {[...instruments].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(i => <option key={i.id} value={i.id}>{i.name} ({i.tuning})</option>)}
                   </select>
                   <div className="flex flex-wrap gap-2">
                     {formData.instruments.map(id => (
@@ -5471,6 +5532,17 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
     });
   });
 
+  const header = useMemo(() => (
+    <div className="text-center border-b-2 border-double border-black pb-2">
+      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Frequência de Uso de Hinos</h2>
+      <div className="mt-2 text-[9px] font-bold uppercase italic border-black border-t pt-2 flex justify-between text-black">
+        <span>Período: {new Date(start + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(end + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+        <span>Ordem: {sortOrder === 'numerical' ? 'Numérica' : sortOrder === 'most_presented' ? 'MAIS USADOS' : 'MENOS USADOS'}</span>
+      </div>
+    </div>
+  ), [start, end, sortOrder]);
+
   return (
     <PagedReport
       id="hymn-usage-report-view"
@@ -5478,16 +5550,7 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
       filename="relatorio-uso-hinos"
       goBack={goBack}
       items={items}
-      header={
-        <div className="text-center border-b-2 border-double border-black pb-2">
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-          <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Frequência de Uso de Hinos</h2>
-          <div className="mt-2 text-[9px] font-bold uppercase italic border-black border-t pt-2 flex justify-between text-black">
-            <span>Período: {new Date(start + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(end + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-            <span>Ordem: {sortOrder === 'numerical' ? 'Numérica' : sortOrder === 'most_presented' ? 'MAIS USADOS' : 'MENOS USADOS'}</span>
-          </div>
-        </div>
-      }
+      header={header}
       renderItem={(item) => {
         if (item.type === 'header') {
           return (
