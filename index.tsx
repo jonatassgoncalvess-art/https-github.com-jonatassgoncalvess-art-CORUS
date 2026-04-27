@@ -5008,15 +5008,30 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
     buildSections();
   }, [data.type, ownerEmail]);
 
-  const update = async (sec: string, idx: number, field: string, val: string) => {
+  const update = (sec: string, idx: number, field: string, val: string) => {
     if (isReadOnly) return;
-    const s = [...(data.sections![sec] || [])]; s[idx] = { ...s[idx], [field]: val };
-    if ((field === 'number' || field === 'notebook') && s[idx].notebook && s[idx].notebook !== 'Caderno' && s[idx].number) {
-      const all = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail);
-      const found = all.find((h: any) => h.notebook === s[idx].notebook && h.number === s[idx].number);
-      s[idx].title = found ? found.title : '';
-    }
-    setData({ ...data, sections: { ...data.sections!, [sec]: s } });
+    
+    setData(prev => {
+      const sections = { ...prev.sections };
+      const s = [...(sections[sec] || [])];
+      s[idx] = { ...s[idx], [field]: val };
+      
+      if (field === 'number' || field === 'notebook') {
+        if (s[idx].notebook && s[idx].notebook !== 'Caderno' && s[idx].number) {
+          const found = libraryHymns.find((h: MasterHymn) => h.notebook === s[idx].notebook && h.number === s[idx].number);
+          if (found) {
+            s[idx].title = found.title;
+          } else if (field === 'number') {
+            s[idx].title = '';
+          }
+        } else if (field === 'number' && !s[idx].number) {
+          s[idx].title = '';
+        }
+      }
+      
+      return { ...prev, sections: { ...sections, [sec]: s } };
+    });
+
     if (validationErrors.length > 0) {
       setValidationErrors(prev => prev.filter(err => !err.startsWith(`${sec}-${idx}`)));
     }
