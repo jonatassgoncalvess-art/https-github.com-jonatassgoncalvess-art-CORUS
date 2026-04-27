@@ -5,6 +5,8 @@ import autoTable from 'jspdf-autotable';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 // @ts-ignore
+import html2pdf from 'html2pdf.js';
+// @ts-ignore
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-ignore
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -363,7 +365,7 @@ const downloadPDF = (
 
     setTimeout(() => {
       window.print();
-      document.title = originalTitle; // ← MOVIDO PRA CÁ
+      document.title = originalTitle;
     }, 400);
 
   } else {
@@ -382,10 +384,68 @@ const downloadPDF = (
       // revertendo depois do print
       others.forEach(el => el.classList.remove('print-hidden-temp'));
       document.body.className = originalBodyStyles;
-      document.title = originalTitle; // ← MOVIDO PRA CÁ
+      document.title = originalTitle;
 
     }, 300);
   }
+};
+
+const downloadDirectPDF = (
+  elementId: string,
+  filename: string,
+  orientation: 'portrait' | 'landscape' = 'portrait'
+) => {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+
+  const isPortrait = orientation === 'portrait';
+  const widthPixels = isPortrait ? 794 : 1123; 
+
+  element.classList.add('pdf-capture', isPortrait ? 'portrait' : 'landscape');
+
+  const opt = {
+    margin: 0,
+    filename: filename,
+    image: { type: 'jpeg' as 'jpeg', quality: 1.0 },
+    html2canvas: { 
+      scale: 2.5, // High quality
+      useCORS: true, 
+      letterRendering: false,
+      scrollY: 0,
+      scrollX: 0,
+      windowWidth: widthPixels,
+      width: widthPixels,
+      logging: false,
+      backgroundColor: '#ffffff',
+      onclone: (doc: any) => {
+        const el = doc.getElementById(elementId);
+        if (el) {
+          el.style.width = widthPixels + 'px';
+          el.style.margin = '0';
+          el.style.padding = '0';
+          // Ensure pages are full size for A4 output
+          const pages = el.querySelectorAll('.page');
+          pages.forEach((p: any) => {
+            p.style.height = isPortrait ? '297mm' : '210mm';
+            p.style.boxShadow = 'none';
+          });
+        }
+      }
+    },
+    jsPDF: { 
+      unit: 'mm' as 'mm', 
+      format: 'a4', 
+      orientation: orientation,
+      compress: true,
+      precision: 2
+    },
+    pagebreak: { mode: 'css' }
+  };
+
+  // @ts-ignore
+  html2pdf().set(opt).from(element).save().then(() => {
+    element.classList.remove('pdf-capture', 'portrait', 'landscape');
+  });
 };
 
 const downloadHTML = (elementId: string, filename: string) => {
@@ -606,32 +666,48 @@ const PagedReport = ({
       if (!measurementRef.current) return;
       
       const PAGE_HEIGHT_MM = isLandscape ? 210 : 297;
-      const PADDING_MM = 40; // 20mm top + 20mm bottom
-      const MM_TO_PX = 3.78;
-      const MAX_HEIGHT_PX = (PAGE_HEIGHT_MM - PADDING_MM) * MM_TO_PX;
+      const PADDING_MM = 30; // Margem total (15mm top + 15mm bottom)
       
+      const MM_TO_PX = 3.77952755906; // 96 DPI / 25.4mm
+      const MAX_HEIGHT_PX = (PAGE_HEIGHT_MM - PADDING_MM - 6) * MM_TO_PX; // Buffer reduzido para 6mm para aproveitar melhor a página
+
       const container = measurementRef.current;
-      const renderedItems = Array.from(container.querySelectorAll('.measurement-item')) as HTMLElement[];
+      if (!container) return;
+
+      const renderedItems = Array.from(
+        container.querySelectorAll('.measurement-item')
+      ) as HTMLElement[];
+
       const hEl = container.querySelector('.report-header') as HTMLElement;
       const thEl = container.querySelector('.table-header') as HTMLElement;
       const fEl = container.querySelector('.report-footer-measure') as HTMLElement;
-      
+
       const hHeight = hEl?.offsetHeight || 0;
       const thHeight = thEl?.offsetHeight || 0;
       const lfHeight = fEl?.offsetHeight || 0;
 
       const newPages: any[][] = [];
+
       let currentPage: any[] = [];
       let currentHeight = 0;
       let isFirstPage = true;
 
       items.forEach((item, idx) => {
-        const itemHeight = renderedItems[idx]?.offsetHeight || 0;
-        const overhead = (currentPage.length === 0 && thHeight) ? thHeight : 0;
-        const availableHeight = isFirstPage ? (MAX_HEIGHT_PX - hHeight) : MAX_HEIGHT_PX;
-        const footerSpaceNeeded = (idx === items.length - 1 && lastPageFooter) ? lfHeight : 0;
+        const itemHeight = (renderedItems[idx]?.offsetHeight || 0) + 1;
 
-        if (currentHeight + itemHeight + overhead + footerSpaceNeeded > availableHeight && currentPage.length > 0) {
+        const overhead = currentPage.length === 0 ? thHeight : 0;
+        const availableHeight = isFirstPage
+          ? MAX_HEIGHT_PX - hHeight
+          : MAX_HEIGHT_PX;
+
+        const footerSpaceNeeded =
+          idx === items.length - 1 && lastPageFooter ? lfHeight : 0;
+
+        if (
+          currentHeight + itemHeight + overhead + footerSpaceNeeded >
+            availableHeight &&
+          currentPage.length > 0
+        ) {
           newPages.push(currentPage);
           currentPage = [item];
           currentHeight = itemHeight;
@@ -662,30 +738,57 @@ const PagedReport = ({
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           Sair
         </button>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
+          <button 
+            onClick={() => downloadHTML(id, filename.replace('.pdf', '.html'))} 
+            className="bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl font-bold uppercase text-[10px] shadow-sm hover:bg-gray-200 transition-all active:scale-95 flex items-center gap-2 border border-gray-200"
+          >
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+             Offline
+          </button>
+          <button 
+            onClick={() => downloadDirectPDF(id, filename, orientation as any)} 
+            className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-black uppercase text-[10px] shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-2"
+          >
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+             Baixar PDF
+          </button>
           <button 
             onClick={handlePrint} 
-            className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-black uppercase text-xs shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 flex items-center gap-2"
+            className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-black uppercase text-[10px] shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 flex items-center gap-2"
           >
-             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-             IMPRIMIR / GERAR PDF
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+             Imprimir
           </button>
         </div>
       </div>
 
+      {/* Hidden measurement container for height calculations */}
       <div 
         ref={measurementRef} 
         className={`measure-container ${isLandscape ? 'landscape' : 'portrait'}`}
+        style={{
+          position: 'fixed',
+          top: '-10000px',
+          left: '-10000px',
+          visibility: 'hidden',
+          opacity: 0,
+          pointerEvents: 'none',
+          zIndex: -9999
+        }}
       >
         <div className="report-header">{header}</div>
-        <div className="table-header">{tableHeader}</div>
+        {tableHeader && <div className="table-header">{tableHeader}</div>}
         {items.map((item, idx) => (
-          <div key={idx} className="measurement-item avoid-break">{renderItem(item, idx)}</div>
+          <div key={idx} className="measurement-item avoid-break">
+            {renderItem(item, idx)}
+          </div>
         ))}
         {lastPageFooter && <div className="report-footer-measure">{lastPageFooter}</div>}
       </div>
 
-      <div className="page-container">
+      {/* Visual Preview */}
+      <div id={id} className="page-container">
         {pages.length > 0 ? (
           pages.map((pageItems, pageIdx) => (
             <div key={pageIdx} className={`page ${isLandscape ? 'landscape' : 'portrait'}`}>
@@ -871,6 +974,10 @@ const CalendarPreviewModal = ({ events, startDate, endDate, exportType, onClose,
   }, [items]);
 
   const handleDownload = () => {
+    downloadDirectPDF('calendar-export-container', `Calendario-${startDate}-a-${endDate}.pdf`, 'portrait');
+  };
+
+  const handlePrint = () => {
     downloadPDF('calendar-export-container', `Calendario-${startDate}-a-${endDate}.pdf`, 'portrait');
   };
 
@@ -883,12 +990,17 @@ const CalendarPreviewModal = ({ events, startDate, endDate, exportType, onClose,
             <p className="text-xs text-gray-400 uppercase mt-2 font-bold italic">A4 Paginado • Impressão Realista</p>
           </div>
           <div className="flex gap-4">
-            <button onClick={handleDownload} className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-200 active:scale-95">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Baixar PDF
+            <button onClick={() => downloadHTML('calendar-export-container', `Calendario-${startDate}-a-${endDate}.html`)} className="bg-gray-100 text-gray-700 px-6 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-gray-200 transition-all flex items-center gap-2 border border-gray-200 active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              Offline
             </button>
-            <button onClick={() => window.print()} className="bg-white border-2 border-gray-100 p-3 rounded-2xl text-black hover:text-blue-600 transition-all active:scale-95">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            <button onClick={handleDownload} className="bg-emerald-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-xl shadow-emerald-200 active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Baixar Direto
+            </button>
+            <button onClick={handlePrint} className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-2 shadow-xl shadow-blue-200 active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Imprimir
             </button>
             <button onClick={onClose} className="bg-white border-2 border-gray-100 p-3 rounded-2xl text-black hover:text-red-500 transition-all active:scale-95">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1956,20 +2068,20 @@ const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
   const sorted = useMemo(() => [...instruments].sort((a, b) => a.name.localeCompare(b.name)), [instruments]);
   
   const header = useMemo(() => (
-    <div className="text-center border-b-2 border-double border-black pb-2">
-      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Instrumentos</h2>
-      <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic text-center">Relação Geral de Instrumentos Cadastrados • Total: {instruments.length}</div>
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 w-full pt-1">
+      <h1 className="text-3xl font-black uppercase tracking-tight text-blue-900 mb-2">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">Relatório de Instrumentos</h2>
+      <div className="mt-2 text-[11px] font-black uppercase tracking-widest text-black border-blue-900 border-t pt-4 italic text-center w-full px-4">Relação Geral de Instrumentos Cadastrados • Total: {instruments.length}</div>
     </div>
   ), [instruments.length]);
 
   const tableHeader = useMemo(() => (
-    <div className="flex bg-black text-white text-left uppercase font-black text-[9px] w-full">
-      <div className="px-3 py-2 border border-gray-800 w-12 text-center">#</div>
-      <div className="px-3 py-2 border border-gray-800 flex-1">Instrumento</div>
-      <div className="px-3 py-2 border border-gray-800 flex-1">Modalidade</div>
-      <div className="px-3 py-2 border border-gray-800 w-24 text-center">Clave</div>
-      <div className="px-3 py-2 border border-gray-800 w-32 text-right">Afinação</div>
+    <div className="flex bg-blue-900 text-white text-left uppercase font-black text-[10px] w-full items-center min-h-[44px]">
+      <div className="px-3 py-2 w-12 text-center flex items-center justify-center">#</div>
+      <div className="px-3 py-2 border-l border-blue-800/30 flex-1 flex items-center justify-center font-black h-full">Instrumento</div>
+      <div className="px-3 py-2 border-l border-blue-800/30 flex-1 flex items-center justify-center font-black h-full">Modalidade</div>
+      <div className="px-3 py-2 border-l border-blue-800/30 w-24 text-center flex items-center justify-center h-full">Clave</div>
+      <div className="px-3 py-2 border-l border-blue-800/30 w-32 border-r border-blue-800/30 flex items-center justify-center h-full">Afinação</div>
     </div>
   ), []);
 
@@ -1983,13 +2095,13 @@ const InstrumentsReportScreen = ({ goBack, ownerEmail }: any) => {
       header={header}
       tableHeader={tableHeader}
       renderItem={(i, idx) => (
-        <div className={`flex w-full ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-          <div className="px-3 py-2.5 text-[10px] text-black border border-gray-100 w-12 text-center">{idx + 1}</div>
-          <div className="px-3 py-2.5 font-bold text-[10px] border border-gray-100 uppercase text-black flex-1">{i.name}</div>
-          <div className="px-3 py-2.5 text-[10px] text-black border border-gray-100 uppercase font-medium flex-1">{i.modality}</div>
-          <div className="px-3 py-2.5 text-center text-[10px] text-black border border-gray-100 uppercase font-bold w-24">{i.timbre}</div>
-          <div className="px-3 py-2.5 text-right font-black text-[10px] border border-gray-100 text-black uppercase w-32">
-            {i.tuning}
+        <div className={`flex w-full items-stretch ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} avoid-break min-h-[44px]`}>
+          <div className="px-3 py-2 w-12 text-center flex items-center justify-center font-bold text-gray-400 text-[10px] border-r border-gray-100">{idx + 1}</div>
+          <div className="px-6 py-2 flex-1 font-bold text-black uppercase text-[12px] border-r border-gray-100 flex items-center">{i.name}</div>
+          <div className="px-6 py-2 flex-1 text-black text-[11px] border-r border-gray-100 flex items-center italic">{i.modality}</div>
+          <div className="px-3 py-2 w-24 text-center text-black font-black text-[11px] border-r border-gray-100 flex items-center justify-center">{i.timbre || '-'}</div>
+          <div className="px-6 py-2 w-32 border-r border-gray-100 flex items-center justify-end">
+            <span className="font-black text-black text-[11px] uppercase">{i.tuning || '-'}</span>
           </div>
         </div>
       )}
@@ -2003,17 +2115,17 @@ const MusiciansReportScreen = ({ goBack, ownerEmail }: any) => {
   const sorted = useMemo(() => [...musicians].sort((a, b) => a.name.localeCompare(b.name)), [musicians]);
   
   const header = useMemo(() => (
-    <div className="text-center border-b-2 border-double border-black pb-2">
-      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relação de Integrantes</h2>
-      <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic">Ordem Alfabética • Total: {musicians.length} Integrantes</div>
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 pt-1 w-full">
+      <h1 className="text-3xl font-black uppercase tracking-tight text-blue-900 mb-2">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">Relação de Integrantes</h2>
+      <div className="mt-2 text-[11px] font-black uppercase tracking-widest text-black border-blue-900 border-t pt-4 italic w-full text-center px-4">Ordem Alfabética • Total: {musicians.length} Integrantes</div>
     </div>
   ), [musicians.length]);
 
   const tableHeader = useMemo(() => (
-    <div className="flex bg-black text-white text-left uppercase font-black text-[10px] w-full">
-      <div className="px-4 py-2 border border-gray-800 flex-1">Nome do Componente</div>
-      <div className="px-4 py-2 border border-gray-800 flex-1">Voz(es) / Instrumentos</div>
+    <div className="flex bg-blue-900 text-white text-left uppercase font-black text-[11px] w-full items-center min-h-[44px]">
+      <div className="px-6 py-2 border-l border-blue-800/30 flex-1 flex items-center justify-center h-full">Nome do Componente</div>
+      <div className="px-6 py-2 border-l border-blue-800/30 flex-1 flex items-center justify-center h-full">Voz(es) / Instrumentos</div>
     </div>
   ), []);
 
@@ -2027,9 +2139,9 @@ const MusiciansReportScreen = ({ goBack, ownerEmail }: any) => {
       header={header}
       tableHeader={tableHeader}
       renderItem={(m, idx) => (
-        <div className={`flex w-full ${idx % 2 === 1 ? 'bg-white' : 'bg-gray-50'}`}>
-          <div className="px-4 py-3 font-black text-black uppercase text-xs border border-gray-100 flex-1">{m.name}</div>
-          <div className="px-4 py-3 text-[10px] font-bold text-black uppercase border border-gray-100 italic flex-1">
+        <div className={`flex w-full items-stretch ${idx % 2 === 1 ? 'bg-white' : 'bg-gray-50/50'} min-h-[48px] avoid-break`}>
+          <div className="px-6 py-3 font-bold text-black uppercase text-[12.5px] flex-1 border-r border-gray-100 flex items-center">{m.name}</div>
+          <div className="px-6 py-3 text-black text-[11px] italic flex-1 flex items-center">
             {m.voices.join(', ') || m.instruments.join(', ')}
           </div>
         </div>
@@ -2065,10 +2177,10 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
   }, [musicians]);
 
   const header = useMemo(() => (
-    <div className="text-center border-b-2 border-double border-black pb-2">
-      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Voz</h2>
-      <div className="mt-2 text-xs font-bold uppercase italic text-black border-black border-t pt-2">Total: {voiceMusiciansCount} Integrantes</div>
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 pt-1 w-full">
+      <h1 className="text-3xl font-black uppercase tracking-tight text-blue-900 mb-2">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">Integrantes por Voz</h2>
+      <div className="mt-2 text-xs font-bold uppercase italic text-black border-blue-900 border-t pt-4 w-full text-center px-4">Total: {voiceMusiciansCount} Integrantes</div>
     </div>
   ), [voiceMusiciansCount]);
 
@@ -2082,11 +2194,13 @@ const MusiciansVoiceReportScreen = ({ goBack, ownerEmail }: any) => {
       header={header}
       renderItem={(item) => (
         item.type === 'header' ? (
-          <h3 className="bg-black text-white px-3 py-1 font-black uppercase text-[10px] mt-6 mb-2 rounded-sm avoid-break">
-            {item.label} ({item.count})
-          </h3>
+          <div className="flex items-center justify-center w-full mt-8 mb-4">
+            <h3 className="bg-white border-2 border-blue-900 text-blue-900 px-8 py-3.5 font-black uppercase text-[13px] inline-block rounded-sm tracking-widest leading-none avoid-break shadow-sm min-h-[44px] flex items-center justify-center">
+              {item.label} ({item.count})
+            </h3>
+          </div>
         ) : (
-          <div className="text-[10px] font-bold text-black border-b border-gray-100 py-1 uppercase truncate avoid-break">
+          <div className="text-[11px] font-bold text-black border-b border-gray-100 py-3 uppercase truncate avoid-break flex items-center h-full min-h-[32px] px-6">
             {item.name}
           </div>
         )
@@ -2143,10 +2257,10 @@ const MusiciansInstrumentReportScreen = ({ goBack, ownerEmail }: any) => {
   }, [musicians, instruments]);
 
   const header = useMemo(() => (
-    <div className="text-center border-b-4 border-double border-blue-900 pb-2">
-      <h1 className="text-3xl font-black uppercase tracking-tighter text-blue-900">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Integrantes por Instrumento</h2>
-      <div className="mt-4 text-xs font-bold uppercase italic text-gray-500 border-blue-900 border-t pt-2">Total: {instrumentMusiciansCount} Integrantes</div>
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 pt-1 w-full">
+      <h1 className="text-3xl font-black uppercase tracking-tight text-blue-900 mb-2">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">Integrantes por Instrumento</h2>
+      <div className="mt-2 text-xs font-bold uppercase italic text-black border-blue-900 border-t pt-4 w-full text-center px-4">Total: {instrumentMusiciansCount} Integrantes</div>
     </div>
   ), [instrumentMusiciansCount]);
 
@@ -2160,12 +2274,14 @@ const MusiciansInstrumentReportScreen = ({ goBack, ownerEmail }: any) => {
       header={header}
       renderItem={(item) => (
         item.type === 'header' ? (
-          <h3 className="bg-blue-900 text-white px-3 py-1 font-black uppercase text-[10px] mt-6 mb-2 rounded-sm avoid-break flex justify-between items-center">
-            <span>{item.label} ({item.count})</span>
-            <span className="text-[8px] bg-white/20 px-2 py-0.5 rounded italic">Afinação: {item.tuning}</span>
-          </h3>
+          <div className="flex items-center justify-center w-full mt-8 mb-4">
+            <div className="bg-white border-2 border-blue-900 text-blue-900 px-8 py-3.5 font-black uppercase text-[13px] inline-block rounded-sm tracking-widest leading-none avoid-break shadow-sm relative group min-h-[44px] flex items-center justify-center">
+              <span>{item.label} ({item.count})</span>
+              <span className="ml-4 text-[9px] text-gray-400 italic font-medium">Afinação: {item.tuning}</span>
+            </div>
+          </div>
         ) : (
-          <div className="text-[10px] font-bold text-gray-700 border-b border-gray-100 py-1 uppercase truncate avoid-break">
+          <div className="text-[11px] font-bold text-gray-800 border-b border-gray-100 py-3 uppercase truncate avoid-break flex items-center h-full min-h-[32px] px-6">
             {item.name}
           </div>
         )
@@ -2241,16 +2357,24 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
   });
 
   const header = useMemo(() => (
-    <div className="text-center border-b-2 border-double border-black pb-2">
-      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Relatório de Presença</h2>
-      <div className="mt-2 text-[10px] font-bold uppercase italic text-black border-black border-t pt-2 flex justify-between">
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 pt-1 w-full">
+      <h1 className="text-3xl font-black uppercase tracking-tight leading-normal mb-2 text-blue-900">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">Relatório de Presença</h2>
+      <div className="mt-2 text-[13px] font-bold uppercase italic text-black border-blue-900 border-t pt-4 flex justify-between w-full px-4">
         <span>Período: {new Date(reportData.s + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(reportData.e + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
         <span>Grupo: {reportData.g || 'Geral'}</span>
         <span>Filtro: {reportData.t}</span>
       </div>
     </div>
   ), [reportData.s, reportData.e, reportData.g, reportData.t]);
+
+  const tableHeader = useMemo(() => (
+    <div className="flex bg-blue-900 text-white uppercase font-black text-[11px] w-full items-center min-h-[40px]">
+      <div className="px-3 py-1.5 w-1/3 text-center">Integrante</div>
+      <div className="px-3 py-1.5 w-32 text-center border-l border-blue-800/30">Presença</div>
+      <div className="px-3 py-1.5 flex-1 text-center border-l border-blue-800/30">Observação / Justificativa</div>
+    </div>
+  ), []);
 
   return (
     <PagedReport
@@ -2260,24 +2384,27 @@ const AttendanceReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
       goBack={goBack}
       items={items}
       header={header}
+      tableHeader={tableHeader}
       renderItem={(item, idx) => {
         if (item.type === 'header') {
           return (
-            <h3 className="bg-black text-white px-4 py-1 font-black uppercase text-[10px] my-3 inline-block rounded-sm tracking-widest leading-none avoid-break">
+          <div className="flex items-center justify-center w-full my-6">
+            <h3 className="bg-white border-2 border-blue-900 text-blue-900 px-8 py-3 font-black uppercase text-[12px] inline-block rounded-sm tracking-widest leading-none avoid-break shadow-sm">
               {new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </h3>
+          </div>
           );
         }
         if (item.type === 'empty') {
-          return <div className="px-4 py-8 text-center text-black italic text-xs uppercase border border-gray-100">Nenhum músico encontrado para este filtro nesta data.</div>;
+          return <div className="px-4 py-8 text-center text-black italic text-sm uppercase border border-gray-100">Nenhum músico encontrado para este filtro nesta data.</div>;
         }
         return (
-          <div className={`flex w-full items-center border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} avoid-break`}>
-            <div className="px-3 py-2 font-bold text-black text-[10px] uppercase w-1/3 border-r border-gray-100">{item.name}</div>
-            <div className="px-3 py-2 text-center w-32 border-r border-gray-100">
-              <span className="text-[9px] font-black uppercase text-black">{item.status}</span>
+          <div className={`flex w-full items-stretch border-b border-gray-100 bg-white avoid-break`}>
+            <div className="px-3 py-3 font-bold text-black text-[12px] uppercase w-1/3 border-r border-gray-100 flex items-center">{item.name}</div>
+            <div className="px-3 py-3 text-center w-32 border-r border-gray-100 flex items-center justify-center">
+              <span className={`text-[11px] font-black uppercase ${item.status === 'Presente' ? 'text-emerald-600' : item.status === 'Justificado' ? 'text-blue-600' : 'text-rose-600'}`}>{item.status}</span>
             </div>
-            <div className="px-3 py-2 text-[10px] text-black italic flex-1">
+            <div className="px-3 py-3 text-[11px] text-gray-600 font-medium flex-1 flex items-center">
               {item.justification}
             </div>
           </div>
@@ -2318,24 +2445,24 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
   const sortedMusicians = useMemo(() => [...musicians].sort((a, b) => a.name.localeCompare(b.name)), [musicians]);
   
   const header = useMemo(() => (
-    <div className="text-center border-b-4 border-double border-blue-900 pb-2">
-      <h1 className="text-3xl font-black uppercase tracking-tighter text-blue-900">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold mt-2 bg-blue-900 text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Participação Proporcional</h2>
-      <div className="mt-4 text-[10px] font-bold uppercase italic text-gray-500 border-blue-900 border-t pt-2 flex justify-between">
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 pt-1 w-full">
+      <h1 className="text-3xl font-black uppercase tracking-tight leading-tight mb-2 text-blue-900">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">Participação Proporcional</h2>
+      <div className="mt-2 text-[13px] font-bold uppercase italic text-black border-blue-900 border-t pt-4 flex justify-between w-full px-4">
         <span>Período: {new Date(reportData.s + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(reportData.e + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-        <span>Grupo Filtro: {reportData.g || 'Geral'}</span>
+        <span>Grupo: {reportData.g || 'Geral'}</span>
       </div>
     </div>
   ), [reportData.s, reportData.e, reportData.g]);
 
   const tableHeader = useMemo(() => (
-    <div className="flex bg-blue-900 text-white text-left uppercase font-black text-[9px] w-full">
-      <div className="px-3 py-2 border border-blue-800 flex-1">Nome do Componente</div>
-      <div className="px-3 py-2 border border-blue-800 w-16 text-center">CHAM.</div>
-      <div className="px-3 py-2 border border-blue-800 w-16 text-center">Pres.</div>
-      <div className="px-3 py-2 border border-blue-800 w-16 text-center">Just.</div>
-      <div className="px-3 py-2 border border-blue-800 w-16 text-center">AUS.</div>
-      <div className="px-3 py-2 border border-blue-800 w-24 text-right">Frequência</div>
+    <div className="flex items-center bg-blue-900 text-white text-left uppercase font-black text-[11px] w-full min-h-[44px]">
+      <div className="px-6 py-2 flex-1 flex items-center h-full">Nome do Componente</div>
+      <div className="px-3 py-2 border-l border-blue-800/30 w-20 text-center flex items-center justify-center h-full">CHAM.</div>
+      <div className="px-3 py-2 border-l border-blue-800/30 w-20 text-center flex items-center justify-center h-full">Pres.</div>
+      <div className="px-3 py-2 border-l border-blue-800/30 w-20 text-center flex items-center justify-center h-full">Just.</div>
+      <div className="px-3 py-2 border-l border-blue-800/30 w-20 text-center flex items-center justify-center h-full">AUS.</div>
+      <div className="px-6 py-2 border-l border-blue-800/30 w-28 text-right flex items-center justify-end h-full">Frequência</div>
     </div>
   ), []);
 
@@ -2378,13 +2505,13 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
         const isBelowThreshold = percentage < 70;
 
         return (
-          <div className={`flex w-full ${idx % 2 === 1 ? 'bg-white' : 'bg-blue-50/30'} avoid-break`}>
-            <div className={`px-3 py-2.5 font-bold text-[10px] border border-gray-100 uppercase flex-1 ${isBelowThreshold ? 'text-red-600' : 'text-gray-800'}`}>{m.name}</div>
-            <div className="px-3 py-2.5 text-center text-[10px] text-gray-400 border border-gray-100 font-bold w-16 text-center">{relevantCalls}</div>
-            <div className="px-3 py-2.5 text-center text-[10px] text-gray-600 border border-gray-100 w-16 text-center">{presents}</div>
-            <div className="px-3 py-2.5 text-center text-[10px] text-blue-600 font-bold border border-gray-100 w-16 text-center">{justified}</div>
-            <div className={`px-3 py-2.5 text-center text-[10px] border border-gray-100 font-bold w-16 text-center ${absences > 0 ? 'text-red-500' : 'text-gray-400'}`}>{absences}</div>
-            <div className={`px-3 py-2.5 text-right font-black text-[11px] border border-gray-100 w-24 ${isBelowThreshold ? 'text-red-600' : 'text-blue-900'}`}>
+          <div className={`flex items-stretch w-full ${idx % 2 === 1 ? 'bg-white' : 'bg-gray-50/50'} avoid-break border-b border-gray-100 min-h-[48px]`}>
+            <div className={`px-6 py-3 font-bold text-[12px] border-r border-gray-100 uppercase flex-1 flex items-center ${isBelowThreshold ? 'text-red-600' : 'text-black'}`}>{m.name}</div>
+            <div className="px-3 py-3 text-center text-[12px] text-gray-400 border-r border-gray-100 font-bold w-20 flex items-center justify-center">{relevantCalls}</div>
+            <div className="px-3 py-3 text-center text-[12px] text-emerald-600 border-r border-gray-100 w-20 flex items-center justify-center font-black">{presents}</div>
+            <div className="px-3 py-3 text-center text-[12px] text-blue-600 font-bold border-r border-gray-100 w-20 flex items-center justify-center">{justified}</div>
+            <div className={`px-3 py-3 text-center text-[12px] border-r border-gray-100 font-bold w-20 flex items-center justify-center ${absences > 0 ? 'text-red-500' : 'text-gray-300'}`}>{absences}</div>
+            <div className={`px-6 py-3 text-right font-black text-[14px] w-28 flex items-center justify-end ${isBelowThreshold ? 'text-red-600' : 'text-blue-900'}`}>
                 {percentage.toFixed(1)}%
             </div>
           </div>
@@ -2412,14 +2539,21 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
   }), [hymns]);
 
   const header = useMemo(() => (
-    <div className="text-center border-b-2 border-double border-black pb-2">
-      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Biblioteca de Hinos</h2>
-      <div className="mt-2 text-[10px] font-bold uppercase italic text-black border-black border-t pt-2">
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 pt-1 w-full">
+      <h1 className="text-3xl font-black uppercase tracking-tight leading-tight mb-2 text-blue-900">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">Biblioteca de Hinos</h2>
+      <div className="mt-2 text-[13px] font-bold uppercase italic text-black border-blue-900 border-t pt-4 w-full px-4 text-center">
         Caderno: {notebook.code} - {notebook.name} • Total: {hymns.length} Hinos
       </div>
     </div>
   ), [notebook.code, notebook.name, hymns.length]);
+
+  const tableHeader = useMemo(() => (
+    <div className="flex bg-blue-900 text-white uppercase font-black text-[11px] w-full items-center min-h-[44px]">
+      <div className="px-3 py-1.5 w-20 text-center flex items-center justify-center border-r border-blue-800/30 font-black h-full">Nº</div>
+      <div className="px-6 py-1.5 flex-1 flex items-center h-full">Título do Hino</div>
+    </div>
+  ), []);
 
   return (
     <PagedReport
@@ -2429,10 +2563,11 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
       goBack={goBack}
       items={sorted}
       header={header}
+      tableHeader={tableHeader}
       renderItem={(h) => (
-        <div key={h.id} className="flex gap-2 items-center mb-1.5 avoid-break border-b border-gray-100 pb-1 leading-none w-full max-w-[170mm]">
-          <span className="font-black text-black w-10 text-sm text-right pr-2 border-r border-gray-200">{h.number}</span>
-          <span className="font-bold text-black uppercase text-[10px] flex-1 truncate">{h.title}</span>
+        <div key={h.id} className="flex items-stretch w-full border-b border-gray-100 bg-white avoid-break min-h-[44px]">
+          <div className="px-3 py-3 w-20 text-center font-black text-black border-r border-gray-100 text-base flex items-center justify-center">{h.number}</div>
+          <div className="px-6 py-3 flex-1 font-bold text-black uppercase text-[12.5px] flex items-center">{h.title}</div>
         </div>
       )}
     />
@@ -2443,17 +2578,17 @@ const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
 
 const AdminMasterReportView = ({ id, title, columns, data, goBack, orientation = 'portrait' }: any) => {
   const header = useMemo(() => (
-    <div className="text-center border-b-2 border-double border-black pb-2 mb-4 w-full">
-      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">{title}</h2>
-      <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-black border-black border-t pt-2 italic text-center">Sistema de Gestão Admin Master</div>
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 pt-1 w-full">
+      <h1 className="text-3xl font-black uppercase tracking-tight text-blue-900 mb-2">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">{title}</h2>
+      <div className="mt-2 text-[11px] font-black uppercase tracking-widest text-black border-blue-900 border-t pt-4 italic text-center w-full px-4">Sistema de Gestão Admin Master</div>
     </div>
   ), [title]);
 
   const tableHeader = useMemo(() => (
-    <div className="flex bg-black text-white text-left uppercase font-black text-[9px] w-full">
+    <div className="flex items-center bg-blue-900 text-white text-left uppercase font-black text-[11px] w-full min-h-[44px]">
       {columns.map((col: any) => (
-        <div key={col.key} className="px-3 py-2 border border-black/20 flex-1 truncate">{col.label}</div>
+        <div key={col.key} className="px-6 py-2 border-l border-blue-800/30 flex-1 h-full flex items-center justify-center text-center">{col.label}</div>
       ))}
     </div>
   ), [columns]);
@@ -2469,10 +2604,10 @@ const AdminMasterReportView = ({ id, title, columns, data, goBack, orientation =
       orientation={orientation}
       title={title}
       renderItem={(item, idx) => (
-        <div className={`flex w-full ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+        <div className={`flex items-stretch w-full ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} min-h-[44px] avoid-break border-b border-gray-100`}>
           {columns.map((col: any) => (
-            <div key={col.key} className="px-3 py-2.5 text-[10px] font-bold text-black border border-gray-100 flex-1 truncate uppercase">
-              {item[col.key] || '-'}
+            <div key={col.key} className="px-6 py-2 text-[12px] font-bold text-black border-r border-gray-100 flex-1 flex items-center uppercase overflow-hidden">
+              <span className="truncate">{item[col.key] || '-'}</span>
             </div>
           ))}
         </div>
@@ -3627,9 +3762,14 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
       <div className="mb-4 mt-8 flex gap-4 no-print flex-wrap justify-center sticky top-4 z-[100] bg-gray-200/80 backdrop-blur-sm p-4 rounded-3xl shadow-sm">
         <button onClick={goBack} className="bg-gray-700 text-white px-6 py-2 rounded-full font-bold transition-all hover:bg-gray-800 active:scale-95">Voltar</button>
         <button onClick={() => navigate('admin_edit_conductor', conductor)} className="bg-amber-600 text-white px-6 py-2 rounded-full font-bold shadow-lg transition-all hover:bg-amber-700 active:scale-95">Editar Informações</button>
-        <button onClick={() => downloadPDF('crr-card-mirror', `CRR-${conductor.registry_number}.pdf`, 'landscape')} className="bg-blue-600 text-white px-8 py-2 rounded-full font-bold shadow-lg transition-all hover:bg-blue-700 active:scale-95 flex items-center gap-2">
+        <button onClick={() => downloadHTML('crr-card-mirror', `CRR-${conductor.registry_number}.html`)} className="bg-gray-700 text-white px-6 py-2 rounded-full font-bold transition-all hover:bg-gray-800 active:scale-95">Offline (HTML)</button>
+        <button onClick={() => downloadDirectPDF('crr-card-mirror', `CRR-${conductor.registry_number}.pdf`, 'landscape')} className="bg-emerald-600 text-white px-8 py-2 rounded-full font-bold shadow-lg transition-all hover:bg-emerald-700 active:scale-95 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Baixar Cartão (PDF)
+          Baixar Direto
+        </button>
+        <button onClick={() => downloadPDF('crr-card-mirror', `CRR-${conductor.registry_number}.pdf`, 'landscape')} className="bg-blue-600 text-white px-8 py-2 rounded-full font-bold shadow-lg transition-all hover:bg-blue-700 active:scale-95 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Imprimir
         </button>
       </div>
 
@@ -5375,10 +5515,10 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
   const orientation = (list.isDetailed || isNatal) ? 'landscape' : 'portrait';
 
   const header = useMemo(() => (
-    <div className="text-center border-b-2 border-double border-black pb-2 items-center flex flex-col w-full">
-      <h1 className="text-2xl font-black uppercase tracking-tighter">Igreja Apostólica</h1>
-      <h2 className="text-base font-bold mt-1 border border-black inline-block px-4 py-0.5 uppercase mb-2">{MEETING_TYPES[list.type]}</h2>
-      <div className="w-full flex justify-between px-2 font-black uppercase italic border-black border-t pt-2 text-[10px] text-black">
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 w-full pt-1">
+      <h1 className="text-3xl font-black uppercase tracking-tight leading-normal mb-2 text-blue-900">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase mb-6 leading-tight rounded-sm">{MEETING_TYPES[list.type]}</h2>
+      <div className="w-full flex justify-between px-4 font-black uppercase italic border-blue-900 border-t pt-4 text-[13px] text-black">
         <span>Data: {new Date(list.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
         {isNatal && <span>Início: {list.startTime || '19:00:00'}</span>}
         <span>Congregação: {list.congregation}</span>
@@ -5387,20 +5527,20 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
   ), [list.type, list.date, list.startTime, list.congregation, isNatal]);
 
   const tableHeader = useMemo(() => (
-    <div className="flex border-b-2 border-black bg-black text-white uppercase font-black text-[9px] w-full">
-      <div className="px-2 py-2 w-10 shrink-0">Cad.</div>
-      <div className="px-2 py-2 w-12 shrink-0">Nº</div>
-      <div className="px-2 py-2 flex-1">Hino</div>
+    <div className="flex items-center border-b-2 border-blue-900 bg-blue-900 text-white uppercase font-black text-[11px] w-full min-h-[44px]">
+      <div className="px-2 py-2 w-16 shrink-0 text-center flex items-center justify-center">Cad.</div>
+      <div className="px-2 py-2 w-14 shrink-0 text-center border-l border-blue-800/30 flex items-center justify-center">Nº</div>
+      <div className="px-2 py-2 flex-1 border-l border-blue-800/30 text-center flex items-center justify-center">Hino</div>
       {list.isDetailed && (
         <>
-          <div className="px-2 py-2 w-24 shrink-0">Regente</div>
-          <div className="px-2 py-2 w-24 shrink-0">Solista</div>
-          <div className="px-2 py-2 w-24 shrink-0">Tecladista</div>
-          <div className="px-2 py-2 w-24 shrink-0">Violonista</div>
+          <div className="px-2 py-2 w-24 shrink-0 text-center border-l border-blue-800/30 flex items-center justify-center">Regente</div>
+          <div className="px-2 py-2 w-24 shrink-0 text-center border-l border-blue-800/30 flex items-center justify-center">Solista</div>
+          <div className="px-2 py-2 w-24 shrink-0 text-center border-l border-blue-800/30 flex items-center justify-center">Tecladista</div>
+          <div className="px-2 py-2 w-24 shrink-0 text-center border-l border-blue-800/30 flex items-center justify-center">Violonista</div>
         </>
       )}
-      <div className="px-2 py-2 w-24 shrink-0">Execução</div>
-      {isNatal && <div className="px-2 py-2 w-20 shrink-0 text-center">Cronometro</div>}
+      <div className="px-2 py-2 w-24 shrink-0 text-center border-l border-blue-800/30 flex items-center justify-center">Execução</div>
+      {isNatal && <div className="px-2 py-2 w-20 shrink-0 text-center border-l border-blue-800/30 flex items-center justify-center">Cronometro</div>}
     </div>
   ), [list.isDetailed, isNatal]);
 
@@ -5433,7 +5573,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
       renderItem={(item) => {
         if (item.type === 'special') {
           return (
-            <div className="px-2 py-3 text-center font-black uppercase text-black italic tracking-widest border-y border-gray-100 bg-white" style={{ fontSize: '12px' }}>
+            <div className="px-2 py-3.5 text-center font-black uppercase text-black italic tracking-widest border-y border-gray-100 bg-white min-h-[44px] flex items-center justify-center" style={{ fontSize: '12px' }}>
               {item.label}
             </div>
           );
@@ -5447,25 +5587,25 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
         }
 
         const e = item.data;
-        const cellPadding = isNatal ? 'px-1 py-1.5' : 'px-2 py-2.5';
-        const fontSize = isNatal ? '10px' : '11px';
+        const cellPadding = isNatal ? 'px-1 py-1.5' : 'px-2 py-3';
+        const fontSize = isNatal ? '10.5px' : '12.5px';
 
         return (
-          <div className="flex border-b border-gray-100 items-center w-full bg-white transition-colors hover:bg-gray-50/30" style={{ fontSize }}>
-            <div className={`${cellPadding} w-10 shrink-0 font-bold text-gray-400`}>{e.notebook}</div>
-            <div className={`${cellPadding} w-12 shrink-0 font-black text-black border-r border-gray-50`}>{e.number}</div>
-            <div className={`${cellPadding} flex-1 font-bold text-black uppercase truncate`}>{e.title}</div>
+          <div className="flex border-b border-gray-100 items-stretch w-full bg-white transition-colors hover:bg-gray-50/30" style={{ fontSize, minHeight: '42px' }}>
+            <div className={`${cellPadding} w-16 shrink-0 font-bold text-gray-500 border-r border-gray-100 italic flex items-center justify-center text-center`}>{e.notebook}</div>
+            <div className={`${cellPadding} w-14 shrink-0 font-black text-black border-r border-gray-100 text-center flex items-center justify-center`}>{e.number}</div>
+            <div className={`${cellPadding} flex-1 font-bold text-black uppercase truncate flex items-center px-4`}>{e.title}</div>
             {list.isDetailed && (
               <>
-                <div className={`${cellPadding} w-24 shrink-0 text-[10px] italic text-gray-600 truncate border-l border-gray-50`}>{item.isDetailedRow ? (e.conductor || '-') : ''}</div>
-                <div className={`${cellPadding} w-24 shrink-0 text-[10px] italic text-gray-600 truncate border-l border-gray-50`}>{item.isDetailedRow ? (e.soloist || '-') : ''}</div>
-                <div className={`${cellPadding} w-24 shrink-0 text-[10px] italic text-gray-600 truncate border-l border-gray-50`}>{item.isDetailedRow ? (e.keyboardist || '-') : ''}</div>
-                <div className={`${cellPadding} w-24 shrink-0 text-[10px] italic text-gray-600 truncate border-l border-gray-50`}>{item.isDetailedRow ? (e.guitarist || '-') : ''}</div>
+                <div className={`${cellPadding} w-24 shrink-0 text-[11px] text-black font-medium truncate border-l border-gray-50 flex items-center justify-center text-center`}>{item.isDetailedRow ? (e.conductor || '-') : ''}</div>
+                <div className={`${cellPadding} w-24 shrink-0 text-[11px] text-black font-medium truncate border-l border-gray-50 flex items-center justify-center text-center`}>{item.isDetailedRow ? (e.soloist || '-') : ''}</div>
+                <div className={`${cellPadding} w-24 shrink-0 text-[11px] text-black font-medium truncate border-l border-gray-50 flex items-center justify-center text-center`}>{item.isDetailedRow ? (e.keyboardist || '-') : ''}</div>
+                <div className={`${cellPadding} w-24 shrink-0 text-[11px] text-black font-medium truncate border-l border-gray-50 flex items-center justify-center text-center`}>{item.isDetailedRow ? (e.guitarist || '-') : ''}</div>
               </>
             )}
-            <div className={`${cellPadding} w-24 shrink-0 text-gray-500 italic truncate border-l border-gray-50`}>{!item.hideExecution ? (e.execution || '-') : ''}</div>
+            <div className={`${cellPadding} w-24 shrink-0 text-black font-bold uppercase truncate border-l border-gray-100 flex items-center justify-center text-center`}>{!item.hideExecution ? (e.execution || '-') : ''}</div>
             {isNatal && (
-              <div className={`${cellPadding} w-20 shrink-0 text-black font-black text-center font-mono border-l border-gray-50`} style={{ fontSize: '12px' }}>
+              <div className={`${cellPadding} w-20 shrink-0 text-black font-black text-center font-mono border-l border-gray-100 flex items-center justify-center`} style={{ fontSize: '13px' }}>
                 {item.runningClock}
               </div>
             )}
@@ -5580,10 +5720,10 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
   });
 
   const header = useMemo(() => (
-    <div className="text-center border-b-2 border-double border-black pb-2">
-      <h1 className="text-3xl font-black uppercase tracking-tighter text-black">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold mt-1 bg-black text-white inline-block px-6 py-1 uppercase rounded-sm tracking-widest leading-none">Frequência de Uso de Hinos</h2>
-      <div className="mt-2 text-[9px] font-bold uppercase italic border-black border-t pt-2 flex justify-between text-black">
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 pt-1 w-full">
+      <h1 className="text-3xl font-black uppercase tracking-tight leading-normal mb-2 text-blue-900">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">Frequência de Uso de Hinos</h2>
+      <div className="mt-2 text-[11px] font-bold uppercase italic border-blue-900 border-t pt-4 flex justify-between text-black w-full px-4">
         <span>Período: {new Date(start + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(end + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
         <span>Ordem: {sortOrder === 'numerical' ? 'Numérica' : sortOrder === 'most_presented' ? 'MAIS USADOS' : 'MENOS USADOS'}</span>
       </div>
@@ -5601,18 +5741,23 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
       renderItem={(item) => {
         if (item.type === 'header') {
           return (
-            <h3 className="bg-black text-white px-3 py-1 font-black uppercase text-[10px] mt-6 mb-2 rounded-sm tracking-widest avoid-break">
-              {item.code} - {item.label}
-            </h3>
+            <div className="flex items-center justify-center w-full mt-8 mb-4">
+              <h3 className="bg-white border-2 border-blue-900 text-blue-900 px-8 py-3.5 font-black uppercase text-[13px] rounded-sm tracking-widest avoid-break leading-none shadow-sm min-h-[44px] flex items-center justify-center">
+                {item.code} - {item.label}
+              </h3>
+            </div>
           );
         }
         return (
-          <div className="flex justify-between items-center px-1 py-1 border-b border-gray-100 text-[10px] avoid-break leading-none w-full">
-            <div className="flex gap-2 min-w-0 overflow-hidden items-center">
-              <span className="font-black text-black w-8 flex-shrink-0">{item.number}</span>
-              <span className="font-bold text-black uppercase truncate text-[10px]">{item.title}</span>
+          <div className="flex justify-between items-center px-6 py-3 border-b border-gray-100 text-[11px] avoid-break w-full bg-white hover:bg-gray-50/50 transition-colors min-h-[44px]">
+            <div className="flex gap-4 min-w-0 overflow-hidden items-center h-full">
+              <span className="font-black text-blue-900 w-10 flex-shrink-0 text-right pr-4 border-r border-gray-100 flex items-center justify-end h-full">{item.number}</span>
+              <span className="font-bold text-black uppercase truncate text-[12.5px] flex items-center h-full">{item.title}</span>
             </div>
-            <span className={`font-black ml-4 px-2 py-0.5 rounded ${item.count > 0 ? 'bg-black text-white' : 'text-gray-300'}`}>{item.count}</span>
+            <div className="flex items-center gap-4 h-full">
+              <span className="text-[10px] font-black uppercase text-gray-400">Total:</span>
+              <span className={`font-black w-10 h-10 flex items-center justify-center rounded-full text-[13px] shadow-sm ${item.count > 0 ? 'bg-blue-900 text-white' : 'bg-gray-100 text-gray-400'}`}>{item.count}</span>
+            </div>
           </div>
         );
       }}

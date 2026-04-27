@@ -81,7 +81,7 @@
 /* ===== CONFIGURAÇÃO DE IMPRESSÃO A4 REAL ===== */
 @page {
   size: A4;
-  margin: 20mm;
+  margin: 0 !important;
 }
 
 .page-container {
@@ -102,87 +102,102 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: visible;
-  page-break-after: always;
+  overflow: hidden;
   break-after: page;
+}
+
+/* ❗ CORREÇÃO IMPORTANTE (remove página em branco final) */
+.page:not(:last-child) {
+  page-break-after: always;
 }
 
 .page.portrait {
   width: 210mm;
-  min-height: 297mm;
-  padding: 20mm;
+  height: 297mm;
+  padding: 15mm;
+  background: white;
+  position: relative;
+  overflow: hidden;
 }
 
 .page.landscape {
   width: 297mm;
-  min-height: 210mm;
-  padding: 20mm;
+  height: 210mm;
+  padding: 15mm;
+  background: white;
+  position: relative;
+  overflow: hidden;
 }
 
-.page:last-child {
-  page-break-after: auto !important;
-  break-after: auto !important;
+/* Área Oculta de Medição */
+.measure-container {
+  position: absolute !important;
+  top: -10000px !important;
+  left: -10000px !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  z-index: -1000 !important;
+  background: white;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.page-content {
-  flex: 1;
-  width: 100%;
-}
+.measure-container.portrait { width: 210mm; padding: 15mm; }
+.measure-container.landscape { width: 297mm; padding: 15mm; }
 
 .avoid-break {
   break-inside: avoid;
   page-break-inside: avoid;
 }
 
-/* Área Oculta de Medição */
-.measure-container {
-  position: absolute;
-  top: -10000px;
-  left: -10000px;
-  visibility: hidden;
-  pointer-events: none;
-  z-index: -1;
-  background: white;
+/* Limpeza para Captura Direta em PDF */
+.pdf-capture {
+  background: white !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
 }
 
-.measure-container.portrait { width: 210mm; padding: 20mm; }
-.measure-container.landscape { width: 297mm; padding: 20mm; }
+.pdf-capture .page {
+  box-shadow: none !important;
+  border: none !important;
+  margin: 0 !important;
+  page-break-after: auto !important;
+  page-break-inside: avoid !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
 
-/* Isolamento de Impressão para Elementos Avulsos (ex: Carteirinha) */
-@media print {
-  body.print-isolation {
-    visibility: hidden;
-    background: white !important;
-  }
-  
-  body.print-isolation #root {
-    display: none !important;
-  }
+.pdf-capture.portrait .page {
+  width: 210mm !important;
+  height: 297mm !important;
+  padding: 8mm 15mm 15mm 15mm !important; /* Reduzido de 15mm para 8mm no topo */
+}
 
-  /* Mostrar apenas o elemento alvo */
-  .print-isolation #crr-card-mirror,
-  .print-isolation #crr-card-mirror * {
-    visibility: visible;
-  }
+.pdf-capture.landscape .page {
+  width: 297mm !important;
+  height: 210mm !important;
+  padding: 10mm 20mm 20mm 20mm !important; /* Reduzido de 20mm para 10mm no topo */
+}
 
-  .print-isolation #crr-card-mirror {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    display: flex !important;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-  }
+.pdf-capture .page:not(:last-child) {
+  page-break-after: always !important;
+}
 
-  .print-hidden-temp {
-    display: none !important;
-  }
+.pdf-capture img, .pdf-capture svg {
+  display: block !important;
+  max-width: 100% !important;
+}
+
+.pdf-capture * {
+  box-sizing: border-box !important;
 }
 
 @media print {
-  body {
+  html, body {
+    height: auto !important;
     background: white !important;
     margin: 0 !important;
     padding: 0 !important;
