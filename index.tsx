@@ -195,14 +195,30 @@ type BulletinUserStatus = {
 
 type HymnListType = 'Normal130' | 'Normal200' | 'Oracao' | 'Especial200' | 'Festiva200' | 'Comunhao200' | 'NatalAnoNovo' | 'Outra';
 
+export const FESTIVIDADES = [
+  "(em branco)",
+  "Primeira Reunião do Ano",
+  "Coroação do Irmão Aldo",
+  "Dia das Mães",
+  "Aniversário da Santa Vó",
+  "Corphus Christ",
+  "Dia dos País",
+  "Assunção a Maria Santíssima",
+  "Aniversário do Irmão Aldo",
+  "Dia do Consolador",
+  "Natal",
+  "Ano Novo"
+];
+
 type HymnList = {
   id: string;
   date: string;
   congregation: string;
   type: HymnListType;
-  startTime?: string; // Horário de início (HH:MM)
+  startTime?: string; 
   isDetailed?: boolean;
   owner_email?: string;
+  festivity?: string;
   sections: {
     hymnal: HymnEntry[];
     choir: HymnEntry[];
@@ -286,6 +302,13 @@ const deleteRow = async (table: string, localKey: string, id: string, updatedLoc
 };
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 const generateNumericPassword = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 const getBrasiliaYYYYMMDD = () => {
@@ -318,14 +341,23 @@ const calculateAge = (birthDate: string) => {
   return age;
 };
 
+type HymnRelation = {
+  id: string;
+  title: string;
+  type: 'fixed' | 'custom';
+  hymns: { notebook: string; number: string; title: string }[];
+  owner_email: string;
+};
+
 const MEETING_TYPES: Record<string, string> = {
   Normal130: 'Reunião Normal (Até 1h30min)',
   Normal200: 'Reunião Normal (Até 2h)',
   Oracao: 'Reunião de Oração',
   Especial200: 'Reunião Especial (Até 2h)',
   Festiva200: 'Reunião Festiva (Até 2h)',
-  Comunhao200: 'Reunião de Santa Comunhão',
+  SantaComunhao: 'Reunião de Santa Comunhão',
   NatalAnoNovo: 'Natal / Ano Novo',
+  Comunhao200: 'Comunhão até 200 Instrumentos',
   Outra: 'Outra',
 };
 
@@ -4861,6 +4893,7 @@ const ProgramsScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImpers
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
       <MenuCard title="Orientações" desc="Regras de elaboração" icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>} onClick={() => navigate('guidelines')} />
       <MenuCard title="Nova Lista" desc="Gerar programa de hinos" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m9 15 2 2 4-4"/></svg>} onClick={() => navigate('hymn_lists')} />
+      <MenuCard title="Relações de Hinos" desc="Hinos para datas festivas" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>} onClick={() => navigate('hymn_relations_dashboard')} />
       <MenuCard title="Relatórios de Hinos" desc="Uso de hinos por período" icon={<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 18v-4"/><path d="M12 18v-7"/><path d="M16 18v-2"/></svg>} onClick={() => navigate('hymn_report_input')} />
     </div>
   </Layout>
@@ -5134,6 +5167,43 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
     const newList: HymnList = { id: initialData?.id || generateId(), owner_email: ownerEmail, ...data } as HymnList;
     const all = await fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail);
     await saveData('hymn_lists', 'gca_hymn_lists', [...all.filter((l: any) => l.id !== initialData?.id), newList], ownerEmail);
+
+    if (newList.festivity && newList.festivity !== '(em branco)') {
+      const relations = await fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail);
+      let relation = relations.find((r: any) => r.title === newList.festivity);
+      
+      const hymnsInList: {notebook: string, number: string, title: string}[] = [];
+      Object.values(newList.sections).forEach(entries => {
+        (entries as any[]).forEach(e => {
+          if (e.notebook && e.number && e.notebook !== 'Caderno') {
+            if (!hymnsInList.some(h => h.notebook === e.notebook && h.number === e.number)) {
+              hymnsInList.push({ notebook: e.notebook, number: e.number, title: e.title });
+            }
+          }
+        });
+      });
+
+      if (relation) {
+        const updatedHymns = [...relation.hymns];
+        hymnsInList.forEach(h => {
+          if (!updatedHymns.some(uh => uh.notebook === h.notebook && uh.number === h.number)) {
+            updatedHymns.push(h);
+          }
+        });
+        relation.hymns = updatedHymns;
+        const updatedRelations = relations.map((r: any) => r.id === relation.id ? relation : r);
+        await saveData('hymn_relations', 'gca_hymn_relations', updatedRelations, ownerEmail);
+      } else {
+        const newRelation: HymnRelation = {
+          id: generateUUID(),
+          title: newList.festivity,
+          type: 'fixed',
+          hymns: hymnsInList,
+          owner_email: ownerEmail
+        };
+        await saveData('hymn_relations', 'gca_hymn_relations', [...relations, newRelation], ownerEmail);
+      }
+    }
     onSave();
   };
 
@@ -5195,6 +5265,19 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
           <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Data</label><input required type="date" disabled={isReadOnly} className="w-full border rounded p-2" value={data.date} onChange={e => setData({...data, date: e.target.value})} /></div>
           <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Congregação</label><input required disabled={isReadOnly} placeholder="Ex.: São Paulo/SP" className="w-full border rounded p-2" value={data.congregation} onChange={e => setData({...data, congregation: e.target.value})} /></div>
           <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Tipo</label><select disabled={isReadOnly} className="w-full border rounded p-2" value={data.type} onChange={e => { isFirstRun.current = true; setData({...data, type: e.target.value as any}); }}>{Object.entries(MEETING_TYPES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+          {['Normal130', 'Normal200', 'Especial200', 'Festiva200', 'SantaComunhao', 'NatalAnoNovo'].includes(data.type || '') && (
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Festividade</label>
+              <select 
+                disabled={isReadOnly} 
+                className="w-full border rounded p-2 bg-white" 
+                value={data.festivity || '(em branco)'} 
+                onChange={e => setData({...data, festivity: e.target.value})}
+              >
+                {FESTIVIDADES.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+          )}
           {data.type === 'NatalAnoNovo' && (
             <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Início Reunião</label><input type="text" placeholder="00:00:00" disabled={isReadOnly} className="w-full border rounded p-2 text-center font-mono" value={data.startTime || '19:00:00'} onChange={e => setData({...data, startTime: e.target.value})} /></div>
           )}
@@ -5631,6 +5714,379 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
   );
 };
 
+const HymnRelationsDashboardScreen = ({ navigate, goBack, ownerEmail, isReadOnly, onExitImpersonation }: any) => {
+  const [relations, setRelations] = useState<HymnRelation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail).then(all => {
+      setRelations(all);
+      setLoading(false);
+    });
+  }, [ownerEmail]);
+
+  const fixedRelations = FESTIVIDADES.filter(f => f !== '(em branco)');
+  
+  const createCustom = () => {
+    const title = prompt('Título da Relação Personalizada:');
+    if (!title) return;
+    const newRelation: HymnRelation = {
+      id: generateUUID(),
+      title,
+      type: 'custom',
+      hymns: [],
+      owner_email: ownerEmail
+    };
+    saveData('hymn_relations', 'gca_hymn_relations', [...relations, newRelation], ownerEmail).then(() => {
+      setRelations(prev => [...prev, newRelation]);
+      navigate('hymn_relation_detail', newRelation);
+    });
+  };
+
+  const filteredFixed = fixedRelations.filter(f => f.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredCustom = relations.filter(r => r.type === 'custom' && r.title.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  return (
+    <Layout title="Relações de Hinos" onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
+      <div className="space-y-8">
+        <div className="sticky top-0 z-10 flex flex-wrap gap-4 items-center justify-between bg-white/80 backdrop-blur-md p-6 rounded-2xl border border-blue-100 shadow-sm">
+          <div>
+            <h3 className="text-lg font-black text-blue-900 uppercase tracking-tight">Relações de Hinos</h3>
+            <p className="text-xs text-blue-600 font-bold">Datas festivas e relações personalizadas</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+            <div className="relative flex-1 md:w-64">
+              <input 
+                placeholder="Buscar relação..." 
+                className="w-full bg-blue-50 border-none rounded-xl py-2.5 pl-10 pr-4 text-sm font-bold text-blue-900 placeholder:text-blue-300 outline-none focus:ring-2 focus:ring-blue-200 transition-all"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+            
+            <button onClick={createCustom} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center gap-2 whitespace-nowrap">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Relação Personalizada
+            </button>
+          </div>
+        </div>
+
+        {filteredFixed.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredFixed.map(title => {
+              const rel = relations.find(r => r.title === title && r.type === 'fixed');
+              const count = rel ? rel.hymns.length : 0;
+              return (
+                <button 
+                  key={title} 
+                  onClick={() => navigate('hymn_relation_detail', rel || { id: generateUUID(), title, type: 'fixed', hymns: [], owner_email: ownerEmail })}
+                  className="bg-white border-2 border-gray-100 p-5 rounded-2xl flex flex-col items-start hover:border-blue-300 hover:shadow-xl hover:shadow-blue-50 transition-all group text-left"
+                >
+                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 mb-4 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                  </div>
+                  <h4 className="font-black text-gray-900 uppercase tracking-tight mb-1 group-hover:text-blue-600 transition-colors">{title}</h4>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{count} {count === 1 ? 'Hino Relacionado' : 'Hinos Relacionados'}</p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {filteredCustom.length > 0 && (
+          <div className="space-y-6 pt-6 border-t border-gray-100">
+            <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Personalizadas</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCustom.map(rel => (
+                <button 
+                  key={rel.id} 
+                  onClick={() => navigate('hymn_relation_detail', rel)}
+                  className="bg-white border-2 border-gray-100 p-5 rounded-2xl flex flex-col items-start hover:border-blue-300 hover:shadow-xl hover:shadow-blue-50 transition-all group text-left"
+                >
+                  <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 mb-4 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                  </div>
+                  <h4 className="font-black text-gray-900 uppercase tracking-tight mb-1 group-hover:text-purple-600 transition-colors">{rel.title}</h4>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{rel.hymns.length} Hinos</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+};
+
+const HymnRelationDetailScreen = ({ relation: initialRelation, goBack, navigate, ownerEmail, isReadOnly, onExitImpersonation }: any) => {
+  const [relation, setRelation] = useState<HymnRelation>(initialRelation);
+  const [libraryHymns, setLibraryHymns] = useState<MasterHymn[]>([]);
+  const [newHymn, setNewHymn] = useState({ notebook: 'Caderno', number: '', title: '' });
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [listSearchTerm, setListSearchTerm] = useState('');
+
+  useEffect(() => {
+    fetchData('hymns_library', 'gca_hymns_library', ownerEmail).then(setLibraryHymns);
+    // Refresh relation from DB just in case
+    fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail).then(all => {
+      const found = all.find((r: any) => r.id === initialRelation.id || (r.title === initialRelation.title && r.type === initialRelation.type));
+      if (found) setRelation(found);
+    });
+  }, [initialRelation.id, initialRelation.title, initialRelation.type, ownerEmail]);
+
+  const saveToDb = async (updatedHymns: any[]) => {
+    const all = await fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail);
+    const updatedRelation = { ...relation, hymns: updatedHymns };
+    const filtered = all.filter((r: any) => r.id !== relation.id);
+    await saveData('hymn_relations', 'gca_hymn_relations', [...filtered, updatedRelation], ownerEmail);
+    setRelation(updatedRelation);
+  };
+
+  const addHymn = () => {
+    if (newHymn.notebook === 'Caderno' || !newHymn.number || !newHymn.title) return;
+    if (relation.hymns.some(h => h.notebook === newHymn.notebook && h.number === newHymn.number)) return;
+    const updated = [...relation.hymns, { ...newHymn }];
+    saveToDb(updated);
+    setNewHymn({ notebook: 'Caderno', number: '', title: '' });
+  };
+
+  const removeHymn = (idx: number) => {
+    const updated = [...relation.hymns];
+    updated.splice(idx, 1);
+    saveToDb(updated);
+  };
+
+  const updateNewHymnField = (field: string, val: string) => {
+    const updated = { ...newHymn, [field]: val };
+    if (field === 'number' || field === 'notebook') {
+      if (updated.notebook !== 'Caderno' && updated.number) {
+        const found = libraryHymns.find(h => h.notebook === updated.notebook && h.number === updated.number);
+        updated.title = found ? found.title : '';
+      } else if (field === 'number') {
+        updated.title = '';
+      }
+    }
+    setNewHymn(updated);
+  };
+
+  const selectHymnFromSearch = (num: string) => {
+    const found = libraryHymns.find(h => h.notebook === newHymn.notebook && h.number === num);
+    if (found) {
+      const updated = { ...newHymn, number: num, title: found.title };
+      setNewHymn(updated);
+    }
+    setShowSearchModal(false);
+  };
+
+  const deleteRelation = async () => {
+    if (!confirm('Deseja excluir esta relação?')) return;
+    const all = await fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail);
+    const filtered = all.filter((r: any) => r.id !== relation.id);
+    await saveData('hymn_relations', 'gca_hymn_relations', filtered, ownerEmail);
+    goBack();
+  };
+
+  const filteredHymns = relation.hymns.filter(h => 
+    h.number.includes(listSearchTerm) || 
+    h.title.toLowerCase().includes(listSearchTerm.toLowerCase()) ||
+    h.notebook.toLowerCase().includes(listSearchTerm.toLowerCase())
+  );
+
+  return (
+    <Layout title={relation.title} onBack={goBack} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation}>
+      <div className="space-y-6">
+        <div className="sticky top-0 z-20 bg-white border border-gray-100 p-6 rounded-2xl shadow-md space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-black text-blue-900 uppercase tracking-widest">Incluir Hino na Relação</h3>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => navigate('hymn_relation_report', relation)}
+                className="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm border border-blue-100"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                Gerar Relatório
+              </button>
+              {relation.type === 'custom' && (
+                <button onClick={deleteRelation} className="text-red-500 hover:text-red-700 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  Excluir Relação
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 items-end">
+            <div className="flex-1 w-full space-y-1">
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Caderno</label>
+              <select className="w-full border rounded-xl p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all font-bold text-sm" value={newHymn.notebook} onChange={e => updateNewHymnField('notebook', e.target.value)}>
+                <option value="Caderno">Caderno</option>
+                {Object.keys(NOTEBOOKS).map(code => <option key={code} value={code}>{code}</option>)}
+              </select>
+            </div>
+            <div className="w-full sm:w-32 space-y-1">
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Nº</label>
+              <div className="flex items-center gap-1">
+                <input placeholder="000" className="w-full border rounded-xl p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all font-mono font-bold" value={newHymn.number} onChange={e => updateNewHymnField('number', e.target.value)} />
+                <button onClick={() => {
+                  if (newHymn.notebook === 'Caderno') return alert('Selecione um caderno primeiro');
+                  setShowSearchModal(true);
+                  setSearchTerm('');
+                }} className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
+              </div>
+            </div>
+            <div className="flex-[2] w-full space-y-1">
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Título</label>
+              <input readOnly placeholder="Auto-completar..." className="w-full border rounded-xl p-2.5 bg-gray-100 text-gray-500 font-bold" value={newHymn.title} />
+            </div>
+            <button onClick={addHymn} className="bg-blue-600 text-white h-[46px] px-8 rounded-xl font-black uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-100 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Incluir
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-gray-50 px-6 py-5 border-b border-gray-100 flex flex-wrap justify-between items-center gap-4">
+            <div className="flex items-center gap-3">
+              <h3 className="font-black text-blue-900 uppercase text-sm tracking-widest">Hinos na Relação</h3>
+              <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-xs font-black uppercase shadow-sm">{relation.hymns.length}</span>
+            </div>
+            <div className="relative w-full sm:w-80">
+              <input 
+                placeholder="Pesquisar hino na lista..." 
+                className="w-full bg-white border-2 border-gray-200 rounded-xl py-2.5 pl-11 pr-5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-300 transition-all shadow-sm"
+                value={listSearchTerm}
+                onChange={e => setListSearchTerm(e.target.value)}
+              />
+              <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
+            {filteredHymns.length === 0 ? (
+              <div className="p-12 text-center text-gray-400 flex flex-col items-center gap-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="opacity-20"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>
+                <p className="text-sm font-bold uppercase tracking-widest opacity-60">
+                  {listSearchTerm ? 'Nenhum hino corresponde à busca' : 'Nenhum hino nesta relação'}
+                </p>
+              </div>
+            ) : (
+              filteredHymns.map((h, i) => (
+                <div key={i} className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-all group">
+                  <div className="w-10 h-10 bg-blue-50 text-blue-900 font-black flex items-center justify-center rounded-lg border border-blue-100 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-700 transition-all shadow-sm">
+                    {h.number}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-gray-900 uppercase text-sm tracking-tight">{h.title}</h4>
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{h.notebook}</p>
+                  </div>
+                  <button onClick={() => removeHymn(relation.hymns.indexOf(h))} className="p-2 text-red-300 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {showSearchModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-blue-900/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowSearchModal(false)} />
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl relative animate-scale-in overflow-hidden">
+            <div className="bg-blue-600 p-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-white text-xl font-black uppercase tracking-tight">Pesquisar Hino</h3>
+                <span className="text-blue-100 text-[10px] font-bold uppercase tracking-widest">Caderno: {newHymn.notebook}</span>
+              </div>
+              <button onClick={() => setShowSearchModal(false)} className="text-blue-100 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div className="p-6">
+              <div className="relative mb-6">
+                <input autoFocus placeholder="Buscar por número ou título..." className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl p-4 pl-12 text-lg font-bold outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 transition-all" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </div>
+              <div className="max-h-[400px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                {libraryHymns
+                  .filter(h => h.notebook === newHymn.notebook)
+                  .filter(h => h.number.includes(searchTerm) || h.title.toLowerCase().includes(searchTerm.toLowerCase()))
+                  .map(h => (
+                    <button key={h.id} onClick={() => selectHymnFromSearch(h.number)} className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-blue-50 transition-all border-2 border-transparent hover:border-blue-100 group text-left">
+                      <div className="w-12 h-12 bg-gray-50 group-hover:bg-blue-600 rounded-xl flex items-center justify-center font-black text-gray-400 group-hover:text-white border border-gray-100 group-hover:border-blue-700 transition-all">{h.number}</div>
+                      <div className="flex-1">
+                        <p className="font-bold text-gray-900 uppercase group-hover:text-blue-900 transition-colors">{h.title}</p>
+                        <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{h.notebook}</p>
+                      </div>
+                      <svg className="text-blue-200 group-hover:text-blue-600 transition-all opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </Layout>
+  );
+};
+
+// --- Relatório de Relação de Hinos ---
+
+const HymnRelationReportScreen = ({ relation, goBack, onExitImpersonation }: any) => {
+  return (
+    <Layout title={`Relatório: ${relation.title}`} onBack={goBack} onExitImpersonation={onExitImpersonation}>
+      <div className="bg-white p-8 sm:p-12 min-h-screen">
+        <div className="max-w-4xl mx-auto space-y-10">
+          <div className="text-center border-b-4 border-blue-600 pb-8">
+            <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter mb-2">{relation.title}</h2>
+            <p className="text-sm font-bold text-blue-600 uppercase tracking-[0.2em]">Relação de Hinos Cadastrados</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            {relation.hymns.length === 0 ? (
+              <p className="text-center text-gray-400 font-bold uppercase py-20">Nenhum hino cadastrado nesta relação.</p>
+            ) : (
+              <div className="border border-gray-200 rounded-2xl overflow-hidden">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 w-24">Nº</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Título do Hino</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 w-32">Caderno</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {relation.hymns.sort((a: any, b: any) => a.number.localeCompare(b.number, undefined, {numeric: true})).map((h: any, i: number) => (
+                      <tr key={i} className="hover:bg-blue-50/30 transition-colors">
+                        <td className="px-6 py-4 font-black text-blue-600 font-mono">{h.number}</td>
+                        <td className="px-6 py-4 font-bold text-gray-900 uppercase text-sm">{h.title}</td>
+                        <td className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase">{h.notebook}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-10 flex justify-center no-print">
+            <button 
+              onClick={() => window.print()} 
+              className="bg-gray-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl flex items-center gap-3"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Imprimir Relação
+            </button>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+};
+
 const HymnReportInputScreen = ({ onGenerate, onCancel, onExitImpersonation }: any) => {
   const [start, setStart] = useState(getBrasiliaYYYYMMDD());
   const [end, setEnd] = useState(getBrasiliaYYYYMMDD());
@@ -5834,9 +6290,11 @@ const AdminMenuScreen = ({ navigate, goBack, currentUser }: any) => {
   );
 };
 
-const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConductorRegistration }: any) => {
+const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onUpdateCurrentUser, onAwaitingConductorRegistration }: any) => {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [permissionModalUser, setPermissionModalUser] = useState<UserAccount | null>(null);
+  const [initialAdminStatus, setInitialAdminStatus] = useState<boolean | null>(null);
+  const [adminCheckPassword, setAdminCheckPassword] = useState('');
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<UserAccount | null>(null);
   const [deletePassword, setDeletePassword] = useState('');
   const [statusConfirmUser, setStatusConfirmUser] = useState<{user: UserAccount, target: any} | null>(null);
@@ -5848,11 +6306,13 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
   const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
   const hasGeneralAccess = isMaster || currentUser.canApprove || currentUser.canRegister || currentUser.canManageLocations;
   
-  const filteredUsersForAdmin = users.filter(u => {
-    if (u.email === 'Admin') return false;
-    if (hasGeneralAccess) return true;
-    return (currentUser.managedUserEmails || []).includes(u.email);
-  });
+  const filteredUsersForAdmin = users
+    .filter(u => {
+      if (u.email === 'Admin') return false;
+      if (hasGeneralAccess) return true;
+      return (currentUser.managedUserEmails || []).includes(u.email);
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   useEscapeKey(() => {
     if (showScopeSelector) {
@@ -5865,6 +6325,8 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
     } else if (permissionModalUser) {
       setPermissionModalUser(null);
       setPermissionError(null);
+      setAdminCheckPassword('');
+      setInitialAdminStatus(null);
     } else if (deleteConfirmUser) {
       setDeleteConfirmUser(null);
       setDeletePassword('');
@@ -5940,6 +6402,18 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
         return;
       }
     }
+
+    if (permissionModalUser.isAdminUser !== initialAdminStatus) {
+      if (!adminCheckPassword) {
+        setPermissionError("Confirme sua senha de Admin para alterar o nível de acesso");
+        return;
+      }
+      if (adminCheckPassword !== currentUser.password) {
+        setPermissionError("Senha de confirmação incorreta");
+        return;
+      }
+    }
+
     const { error } = await supabase.from('users').update({
       isAdminUser: permissionModalUser.isAdminUser,
       isMasterAdmin: permissionModalUser.isMasterAdmin,
@@ -5960,6 +6434,9 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
     }).eq('id', permissionModalUser.id);
 
     if (!error) {
+      if (permissionModalUser.id === currentUser.id) {
+        onUpdateCurrentUser(permissionModalUser);
+      }
       setUsers(users.map(u => u.id === permissionModalUser.id ? permissionModalUser : u));
       setPermissionModalUser(null);
     } else {
@@ -6045,7 +6522,12 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
                   </button>
                 )}
                 {u.status === 'authorized' && isMaster && (
-                  <button onClick={() => { setPermissionModalUser(u); setPermissionError(null); }} className="bg-purple-50 text-purple-600 p-2 rounded-lg">
+                  <button onClick={() => { 
+                    setPermissionModalUser(u); 
+                    setInitialAdminStatus(u.isAdminUser || false);
+                    setAdminCheckPassword('');
+                    setPermissionError(null); 
+                  }} className="bg-purple-50 text-purple-600 p-2 rounded-lg">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                   </button>
                 )}
@@ -6072,13 +6554,16 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
     );
   };
 
-  const pending = filteredUsersForAdmin.filter(u => u.status === 'pending');
-  const authorized = filteredUsersForAdmin.filter(u => u.status === 'authorized');
-  const disabled = filteredUsersForAdmin.filter(u => u.status !== 'pending' && u.status !== 'authorized');
+  const admins = filteredUsersForAdmin.filter(u => u.isAdminUser);
+  const others = filteredUsersForAdmin.filter(u => !u.isAdminUser);
+  const pending = others.filter(u => u.status === 'pending');
+  const authorized = others.filter(u => u.status === 'authorized');
+  const disabled = others.filter(u => u.status !== 'pending' && u.status !== 'authorized');
 
   return (
     <Layout title="Acessos" onBack={goBack}>
       <div className="max-w-3xl mx-auto py-6">
+        <Section title="Administradores" list={admins} />
         <Section title="Pendentes de Aprovação" list={pending} />
         <Section title="Usuários Autorizados" list={authorized} />
         <Section title="Usuários Desabilitados" list={disabled} />
@@ -6278,9 +6763,30 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onAwaitingConduc
               </div>
             </div>
 
-            <div className="p-8 border-t bg-gray-50 flex gap-4">
-              <button onClick={savePermissions} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all text-xs">Salvar Alterações</button>
-              <button onClick={() => setPermissionModalUser(null)} className="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-xl font-black uppercase hover:bg-gray-100 transition-all text-xs">Cancelar</button>
+            <div className="p-8 border-t bg-gray-50 space-y-4">
+              {permissionModalUser.isAdminUser !== initialAdminStatus && (
+                <div className="animate-slide-down">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase mb-2 text-left">Confirme sua senha de Admin para {permissionModalUser.isAdminUser ? 'Conceder' : 'Retirar'} acesso:</p>
+                  <input 
+                    type="password" 
+                    value={adminCheckPassword} 
+                    onChange={e => {
+                      setAdminCheckPassword(e.target.value);
+                      setPermissionError(null);
+                    }}
+                    placeholder="Digite sua senha de Admin"
+                    className="w-full border-2 border-blue-100 rounded-xl p-3 text-center font-bold focus:border-blue-600 outline-none transition-all text-sm"
+                  />
+                </div>
+              )}
+              <div className="flex gap-4">
+                <button onClick={savePermissions} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black uppercase shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all text-xs">Salvar Alterações</button>
+                <button onClick={() => {
+                  setPermissionModalUser(null);
+                  setAdminCheckPassword('');
+                  setInitialAdminStatus(null);
+                }} className="flex-1 bg-white border border-gray-200 text-gray-500 py-4 rounded-xl font-black uppercase hover:bg-gray-100 transition-all text-xs">Cancelar</button>
+              </div>
             </div>
           </div>
         </div>
@@ -8355,6 +8861,7 @@ const App = () => {
   const [screen, setScreen] = useState('home');
   const [history, setHistory] = useState<string[]>([]);
   const [editData, setEditData] = useState<any>(null);
+  const [relationData, setRelationData] = useState<any>(null);
   const [notebookData, setNotebookData] = useState<any>(null);
   const [reportData, setReportData] = useState<any>(null);
   const [attendanceEditData, setAttendanceEditData] = useState<any>(null);
@@ -8446,6 +8953,7 @@ const App = () => {
       screen: next, 
       history: newHistory,
       editData: (next === 'create_hymn_list' || next === 'admin_bulletin_form' || ['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next)) ? data : editData,
+      relationData: next === 'hymn_relation_detail' ? data : relationData,
       notebookData: (next === 'notebook_detail' || next === 'hymn_notebook_report') ? data : notebookData,
       reportData: ['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next) ? data : reportData,
       attendanceEditData: next === 'roll_call' ? data : attendanceEditData
@@ -8456,6 +8964,7 @@ const App = () => {
     setHistory(newHistory); 
     setScreen(next); 
     if (next === 'create_hymn_list' || next === 'admin_bulletin_form') setEditData(data); 
+    if (next === 'hymn_relation_detail') setRelationData(data);
     if (next === 'notebook_detail' || next === 'hymn_notebook_report') setNotebookData(data); 
     if (['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next)) setReportData(data); 
     if (next === 'roll_call') setAttendanceEditData(data); 
@@ -8518,6 +9027,7 @@ const App = () => {
         { name: 'attendance', key: 'gca_attendance' },
         { name: 'master_hymns', key: 'gca_master_hymns' },
         { name: 'hymn_lists', key: 'hymn_lists' },
+        { name: 'hymn_relations', key: 'gca_hymn_relations' },
       ];
 
       // Admin specific tables only if master
@@ -8621,7 +9131,8 @@ const App = () => {
           musicians: 'gca_musicians',
           attendance: 'gca_attendance',
           master_hymns: 'gca_master_hymns',
-          hymn_lists: 'hymn_lists'
+          hymn_lists: 'hymn_lists',
+          hymn_relations: 'gca_hymn_relations'
         };
 
         let importCount = 0;
@@ -8715,11 +9226,15 @@ const App = () => {
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <div className="flex-1">
           {(() => {
+            if (screen.startsWith('admin_') && !isAdmin) {
+              setTimeout(() => { setScreen('home'); setHistory([]); }, 0);
+              return null;
+            }
             switch (screen) {
               case 'calendar': return <CalendarScreen goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'profile': return <ProfileScreen user={viewingUser || currentUser} goBack={goBack} onUpdate={setCurrentUser} onExitImpersonation={onExitImpersonation} isReadOnly={isReadOnly} />;
               case 'admin_menu': return <AdminMenuScreen navigate={navigate} goBack={goBack} currentUser={currentUser} />;
-              case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); navigate('home'); }} currentUser={currentUser} onAwaitingConductorRegistration={(u: any) => navigate('admin_new_conductor', u)} />;
+              case 'admin_users': return <AdminUsersScreen goBack={goBack} onImpersonate={(u: any) => { setViewingUser(u); navigate('home'); }} currentUser={currentUser} onUpdateCurrentUser={setCurrentUser} onAwaitingConductorRegistration={(u: any) => navigate('admin_new_conductor', u)} />;
               case 'admin_countries': return <AdminCountriesScreen goBack={goBack} navigate={navigate} />;
               case 'admin_states': return <AdminStatesScreen goBack={goBack} navigate={navigate} />;
               case 'admin_congregations': return <AdminCongregationsScreen goBack={goBack} navigate={navigate} />;
@@ -8760,6 +9275,9 @@ const App = () => {
               case 'guidelines': return <GuidelinesScreen goBack={goBack} onExitImpersonation={onExitImpersonation} />;
               case 'hymn_lists': return <HymnListScreen goBack={goBack} onCreate={() => navigate('create_hymn_list')} onEdit={l => navigate('create_hymn_list', l)} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'create_hymn_list': return <CreateHymnListScreen onSave={goBack} onCancel={goBack} initialData={editData} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'hymn_relations_dashboard': return <HymnRelationsDashboardScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'hymn_relation_detail': return <HymnRelationDetailScreen relation={relationData} goBack={goBack} navigate={navigate} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'hymn_relation_report': return <HymnRelationReportScreen relation={relationData} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
               case 'hymn_report_input': return <HymnReportInputScreen onGenerate={(s: any, e: any, t: any) => navigate('hymn_report', {s, e, t})} onCancel={goBack} onExitImpersonation={onExitImpersonation} />;
               case 'data_management': return <DataManagementScreen goBack={goBack} onBackupJSON={handleBackup} isExportingJSON={isExporting} onBackupCSV={handleCSVExport} isExportingCSV={isExportingCSV} onImportJSON={handleImportJSON} onImportCSV={handleImportCSV} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} canExportBackups={isMaster} />;
               default: return <HomeScreen navigate={navigate} onLogout={onLogout} isReadOnly={isReadOnly} isAdmin={isAdmin} onProfileClick={() => navigate('profile')} onExitImpersonation={onExitImpersonation} />;
