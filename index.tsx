@@ -4937,7 +4937,7 @@ const GuidelinesScreen = ({ goBack, onExitImpersonation }: any) => (
   </Layout>
 );
 
-const HymnListScreen = ({ goBack, onCreate, onEdit, ownerEmail, isReadOnly, onExitImpersonation }: any) => {
+const HymnListScreen = ({ navigate, goBack, onCreate, onEdit, ownerEmail, isReadOnly, onExitImpersonation }: any) => {
   const [lists, setLists] = useState<HymnList[]>([]);
   const [viewing, setViewing] = useState<HymnList | null>(null);
   const [listToDelete, setListToDelete] = useState<HymnList | null>(null);
@@ -4973,9 +4973,18 @@ const HymnListScreen = ({ goBack, onCreate, onEdit, ownerEmail, isReadOnly, onEx
           </div>
         </div>
       )}
-      <div className="sticky top-[60px] z-20 bg-gray-50/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex justify-between items-center border-b border-gray-100">
-        <h2 className="text-base font-bold text-blue-900">Histórico de Programas</h2>
-        {!isReadOnly && <button onClick={onCreate} className="bg-blue-600 text-white px-7 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">Nova Lista</button>}
+      <div className="sticky top-[60px] z-20 bg-white/95 backdrop-blur-sm shadow-sm -mx-4 px-4 py-4 mb-6 -mt-4 flex flex-wrap justify-between items-center border-b border-gray-100 gap-4">
+        <h2 className="text-base font-black text-blue-900 uppercase tracking-tight">Histórico de Programas</h2>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => navigate('hymn_share_selection')} 
+            className="bg-blue-50 text-blue-600 px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-sm hover:bg-blue-100 transition-all flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+            Compartilhamento
+          </button>
+          {!isReadOnly && <button onClick={onCreate} className="bg-blue-600 text-white px-7 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all">Nova Lista</button>}
+        </div>
       </div>
       <div className="space-y-4">
         {lists.sort((a,b) => b.date.localeCompare(a.date)).map(l => (
@@ -5822,7 +5831,7 @@ const HymnRelationsDashboardScreen = ({ navigate, goBack, ownerEmail, isReadOnly
 };
 
 const HymnRelationDetailScreen = ({ relation: initialRelation, goBack, navigate, ownerEmail, isReadOnly, onExitImpersonation }: any) => {
-  const [relation, setRelation] = useState<HymnRelation>(initialRelation);
+  const [relation, setRelation] = useState<HymnRelation | null>(initialRelation);
   const [libraryHymns, setLibraryHymns] = useState<MasterHymn[]>([]);
   const [newHymn, setNewHymn] = useState({ notebook: 'Caderno', number: '', title: '' });
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -5830,13 +5839,16 @@ const HymnRelationDetailScreen = ({ relation: initialRelation, goBack, navigate,
   const [listSearchTerm, setListSearchTerm] = useState('');
 
   useEffect(() => {
+    if (!initialRelation) return;
     fetchData('hymns_library', 'gca_hymns_library', ownerEmail).then(setLibraryHymns);
     // Refresh relation from DB just in case
     fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail).then(all => {
       const found = all.find((r: any) => r.id === initialRelation.id || (r.title === initialRelation.title && r.type === initialRelation.type));
       if (found) setRelation(found);
     });
-  }, [initialRelation.id, initialRelation.title, initialRelation.type, ownerEmail]);
+  }, [initialRelation?.id, initialRelation?.title, initialRelation?.type, ownerEmail]);
+
+  if (!initialRelation || !relation) return <Layout title="Detalhes" onBack={goBack}>Carregando...</Layout>;
 
   const saveToDb = async (updatedHymns: any[]) => {
     const all = await fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail);
@@ -6036,6 +6048,7 @@ const HymnRelationDetailScreen = ({ relation: initialRelation, goBack, navigate,
 // --- Relatório de Relação de Hinos ---
 
 const HymnRelationReportScreen = ({ relation, goBack, onExitImpersonation }: any) => {
+  if (!relation) return <Layout title="Relatório" onBack={goBack}>Carregando...</Layout>;
   return (
     <Layout title={`Relatório: ${relation.title}`} onBack={goBack} onExitImpersonation={onExitImpersonation}>
       <div className="bg-white p-8 sm:p-12 min-h-screen">
@@ -6084,6 +6097,223 @@ const HymnRelationReportScreen = ({ relation, goBack, onExitImpersonation }: any
         </div>
       </div>
     </Layout>
+  );
+};
+
+// --- Compartilhamento de Listas (Seleção) ---
+
+const HymnShareSelectionScreen = ({ navigate, goBack, ownerEmail, onExitImpersonation }: any) => {
+  const [startDate, setStartDate] = useState(getBrasiliaYYYYMMDD());
+  const [endDate, setEndDate] = useState(getBrasiliaYYYYMMDD());
+  const [lists, setLists] = useState<HymnList[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchActiveLists = async () => {
+    setLoading(true);
+    const all = await fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail);
+    const filtered = all.filter((l: any) => l.date >= startDate && l.date <= endDate);
+    setLists(filtered.sort((a,b) => a.date.localeCompare(b.date)));
+    setSelectedIds([]);
+    setLoading(false);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const selectAll = () => {
+    if (selectedIds.length === lists.length) setSelectedIds([]);
+    else setSelectedIds(lists.map(l => l.id));
+  };
+
+  const generateReport = () => {
+    if (selectedIds.length === 0) return alert('Selecione ao menos uma lista');
+    const selectedLists = lists.filter(l => selectedIds.includes(l.id));
+    navigate('hymn_share_pdf', selectedLists);
+  };
+
+  return (
+    <Layout title="Compartilhamento de Hinos" onBack={goBack} onExitImpersonation={onExitImpersonation}>
+      <div className="space-y-6">
+        <div className="bg-white border-2 border-blue-100 p-6 rounded-2xl shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row gap-4 items-end">
+            <div className="flex-1 space-y-1">
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Data Inicial</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full border rounded-xl p-3 bg-gray-50 font-bold outline-none focus:ring-2 focus:ring-blue-100 transition-all" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Data Final</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full border rounded-xl p-3 bg-gray-50 font-bold outline-none focus:ring-2 focus:ring-blue-100 transition-all" />
+            </div>
+            <button onClick={fetchActiveLists} className="bg-blue-600 text-white px-8 py-3.5 rounded-xl font-black uppercase text-xs shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">
+              Buscar Listas
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="py-12 text-center animate-pulse text-blue-300 font-black uppercase tracking-widest text-xs">Buscando...</div>
+          ) : lists.length > 0 ? (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex justify-between items-center px-2">
+                <h3 className="text-xs font-black text-blue-900 uppercase tracking-widest">Listas Encontradas ({lists.length})</h3>
+                <button onClick={selectAll} className="text-blue-600 text-[10px] font-black uppercase tracking-widest hover:underline">
+                  {selectedIds.length === lists.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {lists.map(l => (
+                  <label key={l.id} className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedIds.includes(l.id) ? 'border-blue-500 bg-blue-50 shadow-md transform scale-[1.02]' : 'border-gray-100 hover:border-blue-200 bg-white'}`}>
+                    <input type="checkbox" checked={selectedIds.includes(l.id)} onChange={() => toggleSelect(l.id)} className="sr-only" />
+                    <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${selectedIds.includes(l.id) ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-200'}`}>
+                      {selectedIds.includes(l.id) && <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </div>
+                    <div>
+                      <p className="font-black text-gray-900 uppercase text-sm">{new Date(l.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{l.congregation} • {MEETING_TYPES[l.type]}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : (
+             <div className="py-20 text-center text-gray-300">
+               <svg className="mx-auto mb-4 opacity-20" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+               <p className="text-sm font-bold uppercase tracking-widest opacity-60">Nenhuma lista encontrada no período</p>
+             </div>
+          )}
+        </div>
+
+        {selectedIds.length > 0 && (
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 animate-slide-up no-print">
+            <button 
+              onClick={generateReport}
+              className="w-full bg-gray-900 text-white p-6 rounded-2xl font-black uppercase tracking-widest hover:bg-black transition-all shadow-2xl flex items-center justify-center gap-3 active:scale-95"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+              Gerar Relatório de Hinos ({selectedIds.length})
+            </button>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+};
+
+// --- Compartilhamento de Listas (Relatório PDF) ---
+
+const HymnSharePDFScreen = ({ selectedLists, currentUser, goBack }: any) => {
+  if (!selectedLists) return (
+    <div className="p-20 text-center flex flex-col items-center gap-4">
+      <p className="font-bold text-gray-400 uppercase tracking-widest">Nenhuma lista selecionada</p>
+      <button onClick={goBack} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold uppercase text-xs">Voltar</button>
+    </div>
+  );
+  return (
+    <div className="min-h-screen bg-gray-100 p-0 sm:p-8 flex flex-col items-center">
+      <div className="bg-white w-full max-w-[210mm] min-h-[297mm] shadow-2xl p-[15mm] border border-gray-200 relative overflow-hidden print:shadow-none print:border-none print:p-[10mm] print:m-0" id="print-area">
+        {/* Header com a congregação do usuário logado */}
+        <div className="text-center border-b-4 border-blue-600 pb-6 mb-8">
+          <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tighter mb-1">PROGRAMAÇÃO DE HINOS</h1>
+          <p className="text-lg font-bold text-blue-600 uppercase tracking-[0.2em]">{currentUser?.congregation || 'CORE CONGREGACIONAL'}</p>
+        </div>
+
+        <div className="space-y-10">
+          {selectedLists.map((l: any, idx: number) => {
+            // Extrair todos os hinos das seções da lista e achatar em um único array
+            const allHymnsFromSections: any[] = [];
+            if (l.sections) {
+              Object.values(l.sections).forEach((sectionEntries: any) => {
+                if (Array.isArray(sectionEntries)) {
+                  sectionEntries.forEach(entry => {
+                    if (entry.notebook && entry.number && entry.title) {
+                      allHymnsFromSections.push(entry);
+                    }
+                  });
+                }
+              });
+            }
+
+            // Filtrar hinos que não sejam do caderno 'H' e que tenham título
+            const filteredHymns = allHymnsFromSections.filter((h: any) => h.notebook !== 'H' && h.title);
+            
+            if (filteredHymns.length === 0) return null;
+
+            return (
+              <div key={l.id} className="break-inside-avoid PageBreak mb-8">
+                <div className="bg-gray-50 px-4 py-2 rounded-t-lg border-l-4 border-blue-600 flex justify-between items-center">
+                  <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">
+                    {new Date(l.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long' })}
+                  </h2>
+                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{MEETING_TYPES[l.type]}</span>
+                </div>
+
+                <div className="border border-gray-200 border-t-0 rounded-b-lg overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-100 border-b border-gray-200">
+                        <th className="p-2 text-[10px] font-black uppercase text-gray-400 text-center w-16">Caderno</th>
+                        <th className="p-2 text-[10px] font-black uppercase text-gray-400 text-center w-12">Nº</th>
+                        <th className="p-2 text-[10px] font-black uppercase text-gray-400">Hino</th>
+                        <th className="p-2 text-[10px] font-black uppercase text-gray-400">Regente</th>
+                        <th className="p-2 text-[10px] font-black uppercase text-gray-400">Solista</th>
+                        <th className="p-2 text-[10px] font-black uppercase text-gray-400 w-32">Execução</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredHymns.map((h: any, hIdx: number) => (
+                        <tr key={hIdx} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                          <td className="p-2 text-center text-[10px] font-black text-gray-500 uppercase">{h.notebook}</td>
+                          <td className="p-2 text-center text-[11px] font-black text-blue-600 font-mono italic">{h.number}</td>
+                          <td className="p-2 text-xs font-bold text-gray-900 uppercase leading-tight">{h.title}</td>
+                          <td className="p-2 text-[9px] font-black uppercase text-gray-400">{h.conductor || '-'}</td>
+                          <td className="p-2 text-[9px] font-black uppercase text-gray-400">{h.soloist || '-'}</td>
+                          <td className="p-2 text-[9px] font-black uppercase text-blue-500/70 tracking-tighter leading-none">{h.execution || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer print only */}
+        <div className="absolute bottom-[10mm] left-[15mm] right-[15mm] text-[8px] font-bold text-gray-300 uppercase tracking-[0.3em] flex justify-between border-t border-gray-100 pt-2 print:flex hidden">
+          <span>CORUS - GESTOR DE CORAIS APOSTÓLICOS</span>
+          <span>{new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+      </div>
+
+      <div className="fixed bottom-8 flex gap-4 no-print scale-110">
+        <button onClick={goBack} className="bg-white text-gray-600 px-8 py-3 rounded-xl font-bold uppercase shadow-xl hover:bg-gray-50 border border-gray-200">Voltar</button>
+        <button 
+          onClick={() => window.print()} 
+          className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold uppercase shadow-xl hover:bg-blue-700 flex items-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Imprimir / PDF
+        </button>
+      </div>
+
+      <style>{`
+        @media print {
+          body { background: white !important; }
+          .no-print { display: none !important; }
+          #print-area { 
+            box-shadow: none !important; 
+            border: none !important; 
+            margin: 0 !important;
+            padding: 10mm !important;
+            min-height: auto !important;
+          }
+          .PageBreak { page-break-inside: avoid; }
+          @page { size: auto; margin: 15mm; }
+        }
+      `}</style>
+    </div>
   );
 };
 
@@ -8953,9 +9183,9 @@ const App = () => {
       screen: next, 
       history: newHistory,
       editData: (next === 'create_hymn_list' || next === 'admin_bulletin_form' || ['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next)) ? data : editData,
-      relationData: next === 'hymn_relation_detail' ? data : relationData,
+      relationData: (next === 'hymn_relation_detail' || next === 'hymn_relation_report') ? data : relationData,
       notebookData: (next === 'notebook_detail' || next === 'hymn_notebook_report') ? data : notebookData,
-      reportData: ['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next) ? data : reportData,
+      reportData: ['hymn_share_pdf', 'attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next) ? data : reportData,
       attendanceEditData: next === 'roll_call' ? data : attendanceEditData
     };
     
@@ -8966,7 +9196,7 @@ const App = () => {
     if (next === 'create_hymn_list' || next === 'admin_bulletin_form') setEditData(data); 
     if (next === 'hymn_relation_detail') setRelationData(data);
     if (next === 'notebook_detail' || next === 'hymn_notebook_report') setNotebookData(data); 
-    if (['attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next)) setReportData(data); 
+    if (['hymn_share_pdf', 'attendance_report', 'hymn_report', 'musicians_voice_report', 'attendance_percentage_report', 'musicians_instrument_report', 'admin_countries_report', 'admin_states_report', 'admin_congregations_report', 'admin_conductors_report', 'musicians_report', 'instruments_report'].includes(next)) setReportData(data); 
     if (next === 'roll_call') setAttendanceEditData(data); 
     if (['admin_crr_card', 'admin_new_conductor', 'admin_edit_conductor'].includes(next)) setEditData(data); 
     
@@ -9273,8 +9503,10 @@ const App = () => {
               case 'hymn_notebook_report': return <HymnNotebookReportScreen notebook={notebookData} goBack={goBack} ownerEmail={activeEmail} />;
               case 'programs': return <ProgramsScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'guidelines': return <GuidelinesScreen goBack={goBack} onExitImpersonation={onExitImpersonation} />;
-              case 'hymn_lists': return <HymnListScreen goBack={goBack} onCreate={() => navigate('create_hymn_list')} onEdit={l => navigate('create_hymn_list', l)} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'hymn_lists': return <HymnListScreen navigate={navigate} goBack={goBack} onCreate={() => navigate('create_hymn_list')} onEdit={l => navigate('create_hymn_list', l)} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'create_hymn_list': return <CreateHymnListScreen onSave={goBack} onCancel={goBack} initialData={editData} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
+              case 'hymn_share_selection': return <HymnShareSelectionScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} onExitImpersonation={onExitImpersonation} />;
+              case 'hymn_share_pdf': return <HymnSharePDFScreen selectedLists={reportData} currentUser={currentUser} goBack={goBack} />;
               case 'hymn_relations_dashboard': return <HymnRelationsDashboardScreen navigate={navigate} goBack={goBack} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'hymn_relation_detail': return <HymnRelationDetailScreen relation={relationData} goBack={goBack} navigate={navigate} ownerEmail={activeEmail} isReadOnly={isReadOnly} onExitImpersonation={onExitImpersonation} />;
               case 'hymn_relation_report': return <HymnRelationReportScreen relation={relationData} goBack={goBack} onExitImpersonation={onExitImpersonation} />;
