@@ -6389,6 +6389,17 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
     generate();
   }, [ownerEmail, start, end]);
 
+  const header = useMemo(() => (
+    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 pt-1 w-full">
+      <h1 className="text-3xl font-black uppercase tracking-tight leading-normal mb-2 text-blue-900">Igreja Apostólica</h1>
+      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">Frequência de Uso de Hinos</h2>
+      <div className="mt-2 text-[11px] font-bold uppercase italic border-blue-900 border-t pt-4 flex justify-between text-black w-full px-4">
+        <span>Período: {new Date(start + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(end + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+        <span>Ordem: {sortOrder === 'numerical' ? 'Numérica' : sortOrder === 'most_presented' ? 'MAIS USADOS' : 'MENOS USADOS'}</span>
+      </div>
+    </div>
+  ), [start, end, sortOrder]);
+
   if (loading) return <div className="min-h-screen bg-white flex items-center justify-center font-bold animate-pulse text-blue-600 uppercase tracking-widest">Calculando Uso de Hinos...</div>;
 
   const grouped = report.reduce((acc: any, h) => {
@@ -6415,21 +6426,15 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
   const items: any[] = [];
   notebookCodes.forEach(code => {
     items.push({ type: 'header', code, label: NOTEBOOKS[code] });
-    grouped[code].forEach((h: any) => {
-      items.push({ type: 'row', number: h.number, title: h.title, count: h.count });
-    });
+    // Agrupar hinos em trios para o layout de 3 colunas
+    const hymns = grouped[code];
+    for (let i = 0; i < hymns.length; i += 3) {
+      items.push({ 
+        type: 'row_trio', 
+        hymns: hymns.slice(i, i + 3) 
+      });
+    }
   });
-
-  const header = useMemo(() => (
-    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 pt-1 w-full">
-      <h1 className="text-3xl font-black uppercase tracking-tight leading-normal mb-2 text-blue-900">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase rounded-sm tracking-widest leading-tight">Frequência de Uso de Hinos</h2>
-      <div className="mt-2 text-[11px] font-bold uppercase italic border-blue-900 border-t pt-4 flex justify-between text-black w-full px-4">
-        <span>Período: {new Date(start + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(end + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-        <span>Ordem: {sortOrder === 'numerical' ? 'Numérica' : sortOrder === 'most_presented' ? 'MAIS USADOS' : 'MENOS USADOS'}</span>
-      </div>
-    </div>
-  ), [start, end, sortOrder]);
 
   return (
     <PagedReport
@@ -6442,27 +6447,28 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
       renderItem={(item) => {
         if (item.type === 'header') {
           return (
-            <div className="flex items-center justify-center w-full mt-8 mb-4">
-              <h3 className="bg-white border-2 border-blue-900 text-blue-900 px-8 py-3.5 font-black uppercase text-[13px] rounded-sm tracking-widest avoid-break leading-none shadow-sm min-h-[44px] flex items-center justify-center">
+            <div className="flex items-center justify-center w-full mt-6 mb-2">
+              <h3 className="bg-blue-900/5 text-blue-900 border border-blue-900/20 w-full py-2.5 font-black uppercase text-[13px] rounded-sm tracking-widest avoid-break leading-none flex items-center justify-center">
                 {item.code} - {item.label}
               </h3>
             </div>
           );
         }
+
         return (
-          <div className="flex justify-between items-center px-6 py-3 border-b border-gray-100 text-[11px] avoid-break w-full bg-white hover:bg-gray-50/50 transition-colors min-h-[44px]">
-            <div className="flex gap-4 min-w-0 overflow-hidden items-center h-full">
-              <span className="font-black text-blue-900 w-10 flex-shrink-0 text-right pr-4 border-r border-gray-100 flex items-center justify-end h-full">{item.number}</span>
-              <span className="font-bold text-black uppercase truncate text-[12.5px] flex items-center h-full">{item.title}</span>
-            </div>
-            <div className="flex items-center gap-4 h-full">
-              <span className="text-[10px] font-black uppercase text-gray-400">Total:</span>
-              <span className={`font-black w-10 h-10 flex items-center justify-center rounded-full text-[13px] shadow-sm ${item.count > 0 ? 'bg-blue-900 text-white' : 'bg-gray-100 text-gray-400'}`}>{item.count}</span>
-            </div>
+          <div className="grid grid-cols-3 gap-3 w-full py-1.5 border-b border-gray-100 last:border-0 avoid-break min-h-[36px]">
+            {item.hymns.map((h: any, idx: number) => (
+              <div key={idx} className="flex items-center gap-2 overflow-hidden">
+                <span className="text-[12px] font-black text-blue-600 font-mono w-8 text-right shrink-0">{h.number}</span>
+                <span className="text-[11px] font-bold text-gray-800 uppercase flex-1 truncate leading-tight tracking-tight">{h.title}</span>
+                <span className="text-[10px] font-black text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-sm shrink-0 border border-blue-100">{h.count}x</span>
+              </div>
+            ))}
           </div>
         );
       }}
     />
+
   );
 };
 
