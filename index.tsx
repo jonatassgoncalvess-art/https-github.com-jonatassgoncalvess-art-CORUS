@@ -107,7 +107,7 @@ type CalendarEvent = {
   user_email: string;
   title: string;
   description: string;
-  event_type: 'Ensaio' | 'Reunião' | 'Reunião de Oração' | 'Reunião Festiva' | 'Aprimoramento';
+  event_type: 'Ensaio' | 'Reunião' | 'Reunião de Oração' | 'Reunião Festiva' | 'Aprimoramento' | 'Comemoração IA';
   start_time: string;
   end_time?: string;
   created_at?: string;
@@ -1171,6 +1171,7 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
   // New Pickers states
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [showYearPicker, setShowYearPicker] = useState(false);
+  const [showIAModal, setShowIAModal] = useState(false);
   const [pickerYear, setPickerYear] = useState(currentDate.getFullYear());
 
   useEffect(() => {
@@ -1425,6 +1426,7 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
                   e.event_type === 'Reunião' ? 'bg-emerald-100 text-emerald-900' :
                   e.event_type === 'Reunião de Oração' ? 'bg-purple-100 text-purple-900' :
                   e.event_type === 'Reunião Festiva' ? 'bg-amber-100 text-amber-900' :
+                  e.event_type === 'Comemoração IA' ? 'bg-blue-600 text-white shadow-blue-200' :
                   'bg-rose-100 text-rose-900'
                 }`}
               >
@@ -1437,6 +1439,348 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
     }
     
     return calendarDays;
+  };
+
+  const IA_CELEBRATIONS_LIST = [
+    "Primeira reunião do ano",
+    "Coroação do Irmão Aldo",
+    "Dia das Mães",
+    "Aniversário da Santa Vó",
+    "Corpus Christ",
+    "Dia dos Pais",
+    "Assunção de Maria Santíssima",
+    "Aniversário do Irmão Aldo",
+    "Dia do Consolador",
+    "Natal",
+    "Ano Novo",
+    "Aniversário da Congregação"
+  ];
+
+  const IAModal = () => {
+    const [iaDates, setIaDates] = useState<Record<string, { day: string, month: string }>>({});
+    const [customCelebrations, setCustomCelebrations] = useState<string[]>([]);
+    const [newCelebrationName, setNewCelebrationName] = useState('');
+    const [showAddInput, setShowAddInput] = useState(false);
+    const [savingIA, setSavingIA] = useState(false);
+    const currentYear = currentDate.getFullYear();
+
+    useEffect(() => {
+      // Load current IA events for this year to get dates
+      const currentYearEvents = events.filter(e => e.event_type === 'Comemoração IA' && new Date(e.start_time).getFullYear() === currentYear);
+      
+      const fetchAllNames = async () => {
+        const { data } = await supabase
+          .from('gca_calendar_events')
+          .select('title')
+          .eq('user_email', ownerEmail)
+          .eq('event_type', 'Comemoração IA');
+        
+        if (data) {
+          const uniqueNames = Array.from(new Set(data.map(d => d.title)));
+          const customs = uniqueNames.filter(name => !IA_CELEBRATIONS_LIST.includes(name));
+          setCustomCelebrations(customs);
+        }
+      };
+      
+      fetchAllNames();
+
+      const datesObj: Record<string, { day: string, month: string }> = {};
+      const allNamesForParsing = [...IA_CELEBRATIONS_LIST, ...customCelebrations];
+      
+      allNamesForParsing.forEach(name => {
+        const found = currentYearEvents.find(e => e.title === name);
+        if (found && found.start_time) {
+          // Parse string YYYY-MM-DD
+          const [datePart] = found.start_time.split('T');
+          const [y, m, d] = datePart.split('-');
+          datesObj[name] = {
+            day: String(parseInt(d)),
+            month: String(parseInt(m))
+          };
+        } else {
+          datesObj[name] = { day: '', month: '' };
+        }
+      });
+      setIaDates(datesObj);
+    }, [currentYear, events, customCelebrations.length]);
+
+    const handleSave = async () => {
+      setSavingIA(true);
+      try {
+        const startTimePattern = `${currentYear}-%`;
+        await supabase
+          .from('gca_calendar_events')
+          .delete()
+          .eq('user_email', ownerEmail)
+          .eq('event_type', 'Comemoração IA')
+          .like('start_time', startTimePattern);
+
+        const allNames = [...IA_CELEBRATIONS_LIST, ...customCelebrations];
+        const toInsert = allNames
+          .filter(name => iaDates[name]?.day && iaDates[name]?.month)
+          .map(name => {
+            const val = iaDates[name];
+            const dateStr = `${currentYear}-${String(val.month).padStart(2, '0')}-${String(val.day).padStart(2, '0')}T10:00:00`;
+            return {
+              user_email: ownerEmail,
+              title: name,
+              description: 'Evento de Comemoração IA',
+              event_type: 'Comemoração IA' as const,
+              start_time: dateStr
+            };
+          });
+
+        if (toInsert.length > 0) {
+          const { error } = await supabase.from('gca_calendar_events').insert(toInsert);
+          if (error) throw error;
+        }
+
+        setShowIAModal(false);
+        fetchEvents();
+      } catch (err) {
+        console.error('Erro ao salvar comemorações:', err);
+        alert('Erro ao salvar modificações.');
+      } finally {
+        setSavingIA(false);
+      }
+    };
+
+    const addCustom = () => {
+      if (!newCelebrationName.trim()) return;
+      if (customCelebrations.includes(newCelebrationName.trim()) || IA_CELEBRATIONS_LIST.includes(newCelebrationName.trim())) {
+        alert('Esta comemoração já existe na lista.');
+        return;
+      }
+      setCustomCelebrations([...customCelebrations, newCelebrationName.trim()]);
+      setIaDates({...iaDates, [newCelebrationName.trim()]: { day: '', month: '' }});
+      setNewCelebrationName('');
+      setShowAddInput(false);
+    };
+
+    const removeCustom = (name: string) => {
+      if (window.confirm(`Deseja remover "${name}" da lista?`)) {
+        setCustomCelebrations(customCelebrations.filter(c => c !== name));
+        const newDates = {...iaDates};
+        delete newDates[name];
+        setIaDates(newDates);
+      }
+    };
+
+    const [showPreview, setShowPreview] = useState(false);
+
+    const printCelebrations = () => {
+      const allItems = [...IA_CELEBRATIONS_LIST, ...customCelebrations]
+        .map(name => ({ name, ...iaDates[name] }))
+        .filter(item => item.day && item.month)
+        .sort((a, b) => {
+          const mDiff = parseInt(a.month) - parseInt(b.month);
+          if (mDiff !== 0) return mDiff;
+          return parseInt(a.day) - parseInt(b.day);
+        });
+
+      if (allItems.length === 0) {
+        alert('Informe ao menos uma data para gerar o relatório.');
+        return;
+      }
+      setShowPreview(true);
+    };
+
+    if (showPreview) {
+      const allItems = [...IA_CELEBRATIONS_LIST, ...customCelebrations]
+        .map(name => ({ name, ...iaDates[name] }))
+        .filter(item => item.day && item.month)
+        .sort((a, b) => {
+          const mDiff = parseInt(a.month || '0') - parseInt(b.month || '0');
+          if (mDiff !== 0) return mDiff;
+          return parseInt(a.day || '0') - parseInt(b.day || '0');
+        });
+
+      return (
+        <div className="fixed inset-0 z-[1300] bg-white flex flex-col p-4">
+          <div className="flex justify-between items-center mb-6 bg-white border-b pb-4 px-4 sticky top-0 z-10">
+            <button onClick={() => setShowPreview(false)} className="flex items-center gap-2 text-blue-900 font-black uppercase text-xs">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              Voltar à Edição
+            </button>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => window.print()} 
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase text-xs flex items-center gap-2 shadow-lg"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Imprimir / PDF
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto max-w-2xl mx-auto w-full py-8">
+            <div className="text-center mb-8 border-b-4 border-double border-blue-900 pb-6">
+              <h1 className="text-3xl font-black text-blue-900 uppercase tracking-tight">Igreja Apostólica</h1>
+              <p className="text-sm font-bold text-gray-400 mt-2 uppercase tracking-[0.2em]">Comemorações de {currentYear}</p>
+            </div>
+
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="border border-gray-200 p-4 text-center text-xs font-black text-blue-900 uppercase tracking-widest w-24">Data</th>
+                  <th className="border border-gray-200 p-4 text-left text-xs font-black text-blue-900 uppercase tracking-widest">Comemoração</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allItems.map((item, i) => (
+                  <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}>
+                    <td className="border border-gray-200 p-5 text-center font-black text-blue-600 text-2xl">
+                      {String(item.day).padStart(2, '0')}/{String(item.month).padStart(2, '0')}
+                    </td>
+                    <td className="border border-gray-200 p-5 font-black uppercase text-black text-lg tracking-tight">
+                      {item.name}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="mt-12 text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+              Gerado em {new Date().toLocaleDateString('pt-BR')} via GCA - Gestor de Corais Apostólicos
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !savingIA && setShowIAModal(false)}></div>
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative p-8 animate-zoom-in max-h-[90vh] flex flex-col">
+          <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <div className="flex items-center gap-4">
+              <h3 className="text-2xl font-black text-black uppercase tracking-tight">Comemorações IA - {currentYear}</h3>
+              <button 
+                onClick={printCelebrations}
+                className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all shadow-sm flex items-center gap-2 px-4 py-2"
+                title="Imprimir / PDF"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                <span className="text-[10px] font-black uppercase tracking-widest">Relatório</span>
+              </button>
+            </div>
+            <button onClick={() => setShowIAModal(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[...IA_CELEBRATIONS_LIST, ...customCelebrations].map(name => (
+                <div key={name} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col gap-3 relative group">
+                  <div className="flex justify-between items-start pr-8">
+                    <span className="text-[15px] font-black uppercase text-blue-900 tracking-tight h-12 flex items-center overflow-hidden leading-tight">{name}</span>
+                    {customCelebrations.includes(name) && (
+                      <button 
+                        onClick={() => removeCustom(name)}
+                        className="absolute top-4 right-4 p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="text-[12px] font-black uppercase text-gray-400 ml-1">Dia</label>
+                      <input 
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={2}
+                        placeholder="DD"
+                        className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-[18px] font-black text-black focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                        value={iaDates[name]?.day || ''}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+                          setIaDates({...iaDates, [name]: { ...iaDates[name], day: val }});
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[12px] font-black uppercase text-gray-400 ml-1">Mês</label>
+                      <input 
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={2}
+                        placeholder="MM"
+                        className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-[18px] font-black text-black focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                        value={iaDates[name]?.month || ''}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+                          setIaDates({...iaDates, [name]: { ...iaDates[name], month: val }});
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {showAddInput ? (
+                <div className="p-4 bg-blue-50/50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col gap-3 animate-in fade-in duration-300">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-blue-400 ml-1">Nome da Comemoração</label>
+                    <input 
+                      type="text"
+                      placeholder="Ex: Aniversário Regional"
+                      className="w-full bg-white border border-blue-100 rounded-xl px-3 py-3 text-sm font-bold text-blue-900 outline-none focus:ring-2 focus:ring-blue-200"
+                      value={newCelebrationName}
+                      onChange={(e) => setNewCelebrationName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addCustom()}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowAddInput(false)} className="flex-1 py-2 text-[10px] font-black uppercase text-gray-400">Cancelar</button>
+                    <button onClick={addCustom} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase">Confirmar</button>
+                  </div>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setShowAddInput(true)}
+                  className="p-6 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-blue-300 hover:bg-blue-50 group transition-all"
+                >
+                  <div className="p-3 bg-gray-50 group-hover:bg-white rounded-full transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 group-hover:text-blue-500"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </div>
+                  <span className="text-[10px] font-black uppercase text-gray-400 group-hover:text-blue-500 tracking-widest">Nova Comemoração</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-8 flex gap-4 border-t pt-6">
+            <button 
+              onClick={() => setShowIAModal(false)}
+              className="flex-1 py-4 text-gray-400 font-black uppercase tracking-widest text-xs hover:text-gray-600 transition-colors"
+              disabled={savingIA}
+            >
+              Cancelar
+            </button>
+            <button 
+              onClick={handleSave}
+              className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+              disabled={savingIA}
+            >
+              {savingIA ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  Salvar Comemorações
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -1498,6 +1842,15 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
             </div>
           </div>
           <div className="flex gap-3">
+            {!isReadOnly && (
+              <button 
+                onClick={() => setShowIAModal(true)}
+                className="px-6 py-3 bg-white border-2 border-blue-100 text-blue-600 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm hover:border-blue-600 transition-all flex items-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                Comemorações IA
+              </button>
+            )}
             <button 
               onClick={() => setShowExportModal(true)}
               className="px-6 py-3 bg-gray-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-gray-700 transition-all flex items-center gap-2"
@@ -1529,6 +1882,9 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
       </div>
 
       {/* Month Picker Modal */}
+      {/* IA Celebrations Modal */}
+      {showIAModal && <IAModal />}
+      
       {/* Day Details Modal */}
       {selectedDayData && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
@@ -1586,99 +1942,7 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
                         e.event_type === 'Reunião' ? 'bg-emerald-600 text-white' :
                         e.event_type === 'Reunião de Oração' ? 'bg-purple-600 text-white' :
                         e.event_type === 'Reunião Festiva' ? 'bg-amber-600 text-white' :
-                        'bg-rose-600 text-white'
-                      }`}>
-                        {e.event_type}
-                      </span>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-
-            <div className="mt-8 pt-6 border-t flex flex-col gap-3">
-              {!isReadOnly && (
-                <button 
-                  onClick={() => {
-                    resetForm();
-                    setDate(selectedDayData.date);
-                    setShowEventModal(true);
-                    setSelectedDayData(null);
-                  }}
-                  className="w-full p-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Adicionar Evento
-                </button>
-              )}
-              <button 
-                onClick={() => setSelectedDayData(null)}
-                className="w-full p-4 bg-gray-100 text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Day Details Modal */}
-      {selectedDayData && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedDayData(null)}></div>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative p-8 animate-zoom-in max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-start mb-6 border-b pb-4">
-              <div>
-                <h3 className="text-3xl font-black text-black">
-                  {new Date(`${selectedDayData.date}T12:00:00`).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </h3>
-                {selectedDayData.holiday && (
-                  <p className="text-red-600 font-black uppercase text-xs tracking-widest mt-1 italic flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    Feriado: {selectedDayData.holiday}
-                  </p>
-                )}
-              </div>
-              <button onClick={() => setSelectedDayData(null)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-              {selectedDayData.events.length === 0 ? (
-                <div className="py-12 text-center text-gray-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 opacity-20"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                  <p className="font-bold uppercase text-[10px] tracking-widest">Nenhum evento para este dia</p>
-                </div>
-              ) : (
-                selectedDayData.events.map(e => (
-                  <button 
-                    key={e.id}
-                    onClick={() => {
-                      setSelectedEvent(e);
-                      setTitle(e.title);
-                      setDescription(e.description);
-                      setType(e.event_type);
-                      setDate(e.start_time.split('T')[0]);
-                      setTime(e.start_time.split('T')[1].substring(0, 5));
-                      setShowEventModal(true);
-                      setSelectedDayData(null);
-                    }}
-                    className="w-full text-left p-6 bg-gray-50 border border-gray-100 rounded-2xl hover:bg-white hover:shadow-xl hover:-translate-y-1 transition-all group"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className="text-[12px] font-black text-black">
-                          {new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <h4 className="text-xl font-black text-black mt-1 uppercase leading-none">{e.title}</h4>
-                        {e.description && <p className="text-[11px] text-gray-500 mt-3 font-medium line-clamp-2">{e.description}</p>}
-                      </div>
-                      <span className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                        e.event_type === 'Ensaio' ? 'bg-blue-600 text-white' :
-                        e.event_type === 'Reunião' ? 'bg-emerald-600 text-white' :
-                        e.event_type === 'Reunião de Oração' ? 'bg-purple-600 text-white' :
-                        e.event_type === 'Reunião Festiva' ? 'bg-amber-600 text-white' :
+                        e.event_type === 'Comemoração IA' ? 'bg-blue-900 text-white' :
                         'bg-rose-600 text-white'
                       }`}>
                         {e.event_type}
