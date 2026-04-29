@@ -6467,7 +6467,11 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
 };
 
 const AdminMenuScreen = ({ navigate, goBack, currentUser }: any) => {
-  const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
+  const isAdmin = currentUser.email === 'Admin' || !!currentUser.isAdminUser;
+  const isMaster = currentUser.email === 'Admin' || (isAdmin && !!currentUser.isMasterAdmin);
+  
+  if (!isAdmin) return null;
+
   return (
     <Layout title="Painel Administrativo" onBack={goBack}>
       <div className="max-w-md mx-auto mt-8 grid gap-6">
@@ -6521,6 +6525,11 @@ const AdminMenuScreen = ({ navigate, goBack, currentUser }: any) => {
 };
 
 const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onUpdateCurrentUser, onAwaitingConductorRegistration }: any) => {
+  const isAdmin = currentUser.email === 'Admin' || !!currentUser.isAdminUser;
+  const isMaster = currentUser.email === 'Admin' || (isAdmin && !!currentUser.isMasterAdmin);
+
+  if (!isAdmin) return null;
+
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [permissionModalUser, setPermissionModalUser] = useState<UserAccount | null>(null);
   const [initialAdminStatus, setInitialAdminStatus] = useState<boolean | null>(null);
@@ -6533,8 +6542,7 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onUpdateCurrentU
   const [newPasswordGenerated, setNewPasswordGenerated] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showScopeSelector, setShowScopeSelector] = useState(false);
-  const isMaster = currentUser.email === 'Admin' || currentUser.isMasterAdmin;
-  const hasGeneralAccess = isMaster || currentUser.canApprove || currentUser.canRegister || currentUser.canManageLocations;
+  const hasGeneralAccess = isMaster || !!currentUser.canApprove || !!currentUser.canRegister || !!currentUser.canManageLocations;
   
   const filteredUsersForAdmin = users
     .filter(u => {
@@ -6644,23 +6652,24 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onUpdateCurrentU
       }
     }
 
+    const isActuallyAdmin = !!permissionModalUser.isAdminUser;
     const { error } = await supabase.from('users').update({
-      isAdminUser: permissionModalUser.isAdminUser,
-      isMasterAdmin: permissionModalUser.isMasterAdmin,
-      canViewOthers: permissionModalUser.canViewOthers,
-      canRegister: permissionModalUser.canRegister,
-      canApprove: permissionModalUser.canApprove,
-      canDeleteUser: permissionModalUser.canDeleteUser,
-      canEditProfiles: permissionModalUser.canEditProfiles || permissionModalUser.canApprove,
-      canResetPasswords: permissionModalUser.canResetPasswords,
-      canManageLocations: permissionModalUser.canManageLocations,
-      canEditCRR: permissionModalUser.canEditCRR,
-      canReadOnlyMode: permissionModalUser.canReadOnlyMode,
-      canEnableDisableUsers: permissionModalUser.canEnableDisableUsers,
-      canManageMessages: permissionModalUser.canManageMessages,
-      canSendBulletins: permissionModalUser.canSendBulletins,
-      canChat: permissionModalUser.canChat,
-      managedUserEmails: permissionModalUser.managedUserEmails || [],
+      isAdminUser: isActuallyAdmin,
+      isMasterAdmin: isActuallyAdmin ? !!permissionModalUser.isMasterAdmin : false,
+      canViewOthers: isActuallyAdmin ? !!permissionModalUser.canViewOthers : false,
+      canRegister: isActuallyAdmin ? !!permissionModalUser.canRegister : false,
+      canApprove: isActuallyAdmin ? !!permissionModalUser.canApprove : false,
+      canDeleteUser: isActuallyAdmin ? !!permissionModalUser.canDeleteUser : false,
+      canEditProfiles: isActuallyAdmin ? (!!permissionModalUser.canEditProfiles || !!permissionModalUser.canApprove) : false,
+      canResetPasswords: isActuallyAdmin ? !!permissionModalUser.canResetPasswords : false,
+      canManageLocations: isActuallyAdmin ? !!permissionModalUser.canManageLocations : false,
+      canEditCRR: isActuallyAdmin ? !!permissionModalUser.canEditCRR : false,
+      canReadOnlyMode: isActuallyAdmin ? !!permissionModalUser.canReadOnlyMode : false,
+      canEnableDisableUsers: isActuallyAdmin ? !!permissionModalUser.canEnableDisableUsers : false,
+      canManageMessages: isActuallyAdmin ? !!permissionModalUser.canManageMessages : false,
+      canSendBulletins: isActuallyAdmin ? !!permissionModalUser.canSendBulletins : false,
+      canChat: isActuallyAdmin ? !!permissionModalUser.canChat : false,
+      managedUserEmails: isActuallyAdmin ? (permissionModalUser.managedUserEmails || []) : [],
     }).eq('id', permissionModalUser.id);
 
     if (!error) {
@@ -6733,7 +6742,11 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onUpdateCurrentU
                 <p className="font-bold text-blue-900 truncate">{u.name}</p>
                 <p className="text-[10px] text-gray-400 font-bold uppercase truncate">{u.email}</p>
                 <div className="flex gap-1 mt-1 flex-wrap">
-                  {u.isAdminUser && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black tracking-widest uppercase italic">Administrador</span>}
+                  {u.isAdminUser && (
+                    u.isMasterAdmin || u.email === 'Admin' 
+                      ? <span className="text-[8px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-black tracking-widest uppercase italic border border-purple-200">Adm Master</span>
+                      : <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black tracking-widest uppercase italic border border-amber-200">Adm Comum</span>
+                  )}
                   {u.status === 'disabled' && <span className="text-[8px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-black tracking-widest uppercase">Desabilitado</span>}
                 </div>
               </div>
@@ -6785,6 +6798,9 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onUpdateCurrentU
   };
 
   const admins = filteredUsersForAdmin.filter(u => u.isAdminUser);
+  const masterAdmins = admins.filter(u => u.isMasterAdmin || u.email === 'Admin');
+  const commonAdmins = admins.filter(u => !u.isMasterAdmin && u.email !== 'Admin');
+  
   const others = filteredUsersForAdmin.filter(u => !u.isAdminUser);
   const pending = others.filter(u => u.status === 'pending');
   const authorized = others.filter(u => u.status === 'authorized');
@@ -6793,7 +6809,8 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onUpdateCurrentU
   return (
     <Layout title="Acessos" onBack={goBack}>
       <div className="max-w-3xl mx-auto py-6">
-        <Section title="Administradores" list={admins} />
+        <Section title="Administradores Master" list={masterAdmins} />
+        <Section title="Administradores Comuns" list={commonAdmins} />
         <Section title="Pendentes de Aprovação" list={pending} />
         <Section title="Usuários Autorizados" list={authorized} />
         <Section title="Usuários Desabilitados" list={disabled} />
@@ -6895,7 +6912,29 @@ const AdminUsersScreen = ({ goBack, onImpersonate, currentUser, onUpdateCurrentU
                   <button 
                     onClick={() => {
                       setPermissionError(null);
-                      setPermissionModalUser({...permissionModalUser, isAdminUser: !permissionModalUser.isAdminUser});
+                      const newVal = !permissionModalUser.isAdminUser;
+                      if (!newVal) {
+                        // Se desativar admin, desativa master e todas as sub-permissões
+                        setPermissionModalUser({
+                          ...permissionModalUser, 
+                          isAdminUser: false,
+                          isMasterAdmin: false,
+                          canApprove: false,
+                          canRegister: false,
+                          canManageLocations: false,
+                          canDeleteUser: false,
+                          canResetPasswords: false,
+                          canEnableDisableUsers: false,
+                          canEditCRR: false,
+                          canReadOnlyMode: false,
+                          canManageMessages: false,
+                          canSendBulletins: false,
+                          canChat: false,
+                          canViewOthers: false
+                        });
+                      } else {
+                        setPermissionModalUser({...permissionModalUser, isAdminUser: true});
+                      }
                     }}
                     className={`w-12 h-6 rounded-full transition-colors relative ${permissionModalUser.isAdminUser ? 'bg-blue-600' : 'bg-gray-300'}`}
                   >
@@ -9162,12 +9201,62 @@ const App = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const isMaster = currentUser?.email === 'Admin' || currentUser?.isMasterAdmin;
-  const isAdmin = isMaster || currentUser?.isAdminUser;
+  useEffect(() => {
+    if (!currentUser || currentUser.email === 'Admin') return;
+    
+    // Listener em tempo real para atualizações de permissão/status do próprio usuário
+    const channel = supabase
+      .channel('user-updates')
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'users',
+          filter: `id=eq.${currentUser.id}`
+        },
+        (payload) => {
+          if (payload.new) {
+            setCurrentUser(payload.new as UserAccount);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      if (currentUser?.id && currentUser.email !== 'Admin') {
+        supabase.from('users').select('*').eq('id', currentUser.id).single().then(({ data }) => {
+          if (data) {
+            // Sincroniza localmente se houver mudança externa (ex: revogação de admin)
+            setCurrentUser(data as UserAccount);
+          }
+        });
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [currentUser?.id]);
+
+  const isAdmin = currentUser?.email === 'Admin' || !!currentUser?.isAdminUser;
+  const isMaster = currentUser?.email === 'Admin' || (isAdmin && !!currentUser?.isMasterAdmin);
 
   const activeEmail = viewingUser ? viewingUser.email : currentUser?.email;
   const isReadOnly = (isMaster || currentUser?.canReadOnlyMode || currentUser?.canViewOthers) && viewingUser !== null;
   const onExitImpersonation = viewingUser ? () => { setViewingUser(null); navigate('admin_users'); } : undefined;
+
+  useEffect(() => {
+    // Redireciona para home se perder privilégios admin enquanto estiver em telas admin
+    if (!isAdmin && screen.startsWith('admin_')) {
+      setScreen('home');
+      setHistory([]);
+    }
+  }, [isAdmin, screen]);
 
   useEffect(() => {
     if (activeEmail) {
