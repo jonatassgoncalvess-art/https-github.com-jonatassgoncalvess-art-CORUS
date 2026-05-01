@@ -193,7 +193,7 @@ type BulletinUserStatus = {
   viewed_at?: string;
 };
 
-type HymnListType = 'Normal130' | 'Normal200' | 'Oracao' | 'Especial200' | 'Festiva200' | 'Comunhao200' | 'NatalAnoNovo' | 'Outra';
+type HymnListType = 'Normal130' | 'Normal200' | 'Oracao' | 'Especial200' | 'Festiva200' | 'SantaComunhao' | 'NatalAnoNovo' | 'Outra';
 
 export const FESTIVIDADES = [
   "(em branco)",
@@ -357,7 +357,6 @@ const MEETING_TYPES: Record<string, string> = {
   Festiva200: 'Reunião Festiva (Até 2h)',
   SantaComunhao: 'Reunião de Santa Comunhão',
   NatalAnoNovo: 'Natal / Ano Novo',
-  Comunhao200: 'Comunhão até 200 Instrumentos',
   Outra: 'Outra',
 };
 
@@ -1476,7 +1475,7 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
           .eq('event_type', 'Comemoração IA');
         
         if (data) {
-          const uniqueNames = Array.from(new Set(data.map(d => d.title)));
+          const uniqueNames = Array.from(new Set(data.map(d => d.title as string))) as string[];
           const customs = uniqueNames.filter(name => !IA_CELEBRATIONS_LIST.includes(name));
           setCustomCelebrations(customs);
         }
@@ -5296,7 +5295,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
     if (!isFirstRun.current) return;
     isFirstRun.current = false;
     let counts = { h: 5, c: 2, co: 1, m: 1 };
-    if (data.type === 'Normal200') counts = { h: 5, c: 2, co: 2, m: 1 }; else if (data.type === 'Especial200') counts = { h: 1, c: 3, co: 2, m: 1 }; else if (data.type === 'Festiva200') counts = { h: 1, c: 7, co: 2, m: 1 }; else if (data.type === 'Comunhao200') counts = { h: 1, c: 10, co: 2, m: 1 }; else if (data.type === 'NatalAnoNovo') counts = { h: 1, c: 1, co: 1, m: 1 }; else if (data.type === 'Outra') counts = { h: 5, c: 2, co: 1, m: 1 };
+    if (data.type === 'Normal200') counts = { h: 5, c: 2, co: 2, m: 1 }; else if (data.type === 'Especial200') counts = { h: 1, c: 3, co: 2, m: 1 }; else if (data.type === 'Festiva200') counts = { h: 1, c: 7, co: 2, m: 1 }; else if (data.type === 'NatalAnoNovo') counts = { h: 1, c: 1, co: 1, m: 1 }; else if (data.type === 'Outra') counts = { h: 5, c: 2, co: 1, m: 1 };
     const empty = (n: number, defNb: string = 'Caderno') => Array(n).fill(null).map(() => ({ id: generateId(), notebook: defNb, number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }));
     const buildSections = async () => {
       const all = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail);
@@ -5306,7 +5305,6 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
         sections = { hymnal: [{ id: generateId(), notebook: 'H', number: '1', title: findTitle('1', 'H') || 'Igreja Forte', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }], afterInitialPrayer: [{ id: generateId(), notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }], choir: empty(2), choirAfterContributions: empty(2), message: [{ id: generateId(), notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }], afterIndividualPrayer: [{ id: generateId(), notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }] };
       } else {
         if (sections.hymnal.length > 0) sections.hymnal[0] = { id: generateId(), notebook: 'H', number: '1', title: findTitle('1', 'H') || 'Igreja Forte', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' };
-        if (data.type === 'Comunhao200') { sections.message = [{ id: generateId(), notebook: 'H', number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }]; sections.finalization = [{ id: generateId(), notebook: 'H', number: '57', title: findTitle('57', 'H') || 'Vitória', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }]; }
       }
       for (let sec in sections) { sections[sec] = await Promise.all(sections[sec].map(async (e: any) => { const found = all.find((h: any) => h.notebook === e.notebook && h.number === e.number); return found ? { ...e, title: found.title, id: e.id || generateId() } : { ...e, id: e.id || generateId() }; })); }
       setData(prev => ({ ...prev, sections }));
@@ -5436,7 +5434,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
     });
 
     setValidationErrors(newErrors);
-    if (hasError) { setShowErrorMsg(true); return; }
+    if (hasError) { setShowErrorMsg(true); } // Removed return to allow saving even with errors
     const newList: HymnList = { id: initialData?.id || generateId(), owner_email: ownerEmail, ...data } as HymnList;
     const all = await fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail);
     await saveData('hymn_lists', 'gca_hymn_lists', [...all.filter((l: any) => l.id !== initialData?.id), newList], ownerEmail);
@@ -5492,7 +5490,6 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
   const sectionOrder = (() => {
     if (data.type === 'Oracao') return ['hymnal', 'afterInitialPrayer', 'choir', 'choirAfterContributions', 'message', 'afterIndividualPrayer'];
     if (['Normal130', 'Normal200', 'Especial200', 'Festiva200', 'NatalAnoNovo', 'Outra'].includes(data.type)) return ['hymnal', 'choir', 'contributions', 'message'];
-    if (data.type === 'Comunhao200') return ['hymnal', 'choir', 'contributions', 'message', 'finalization'];
     return ['hymnal', 'choir', 'contributions', 'communion', 'message', 'finalization'];
   })();
 
@@ -5535,10 +5532,10 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
             </div>
           )}
         <div className={`grid grid-cols-1 ${data.type === 'NatalAnoNovo' ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4 border-b pb-6`}>
-          <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Data</label><input required type="date" disabled={isReadOnly} className="w-full border rounded p-2" value={data.date} onChange={e => setData({...data, date: e.target.value})} /></div>
-          <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Congregação</label><input required disabled={isReadOnly} placeholder="Ex.: São Paulo/SP" className="w-full border rounded p-2" value={data.congregation} onChange={e => setData({...data, congregation: e.target.value})} /></div>
+          <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Data</label><input type="date" disabled={isReadOnly} className="w-full border rounded p-2" value={data.date} onChange={e => setData({...data, date: e.target.value})} /></div>
+          <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Congregação</label><input disabled={isReadOnly} placeholder="Ex.: São Paulo/SP" className="w-full border rounded p-2" value={data.congregation} onChange={e => setData({...data, congregation: e.target.value})} /></div>
           <div><label className="block text-xs font-bold uppercase text-gray-400 mb-1">Tipo</label><select disabled={isReadOnly} className="w-full border rounded p-2" value={data.type} onChange={e => { isFirstRun.current = true; setData({...data, type: e.target.value as any}); }}>{Object.entries(MEETING_TYPES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-          {['Normal130', 'Normal200', 'Especial200', 'Festiva200', 'SantaComunhao', 'NatalAnoNovo'].includes(data.type || '') && (
+          {['Normal130', 'Normal200', 'Especial200', 'Festiva200', 'SantaComunhao', 'NatalAnoNovo', 'Outra'].includes(data.type || '') && (
             <div>
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Festividade</label>
               <select 
