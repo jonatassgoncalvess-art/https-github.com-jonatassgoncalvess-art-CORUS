@@ -275,7 +275,11 @@ const saveData = async (table: string, localKey: string, data: any, ownerEmail?:
   
   let dataToUpsert = dataToStore;
   if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
-    dataToUpsert = dataToStore.map(item => ({ ...item, owner_email: ownerEmail }));
+    dataToUpsert = dataToStore.map(item => ({ 
+      ...item, 
+      owner_email: ownerEmail,
+      user_email: ownerEmail 
+    }));
   }
     
   localStorage.setItem(cacheKey, JSON.stringify(dataToStore));
@@ -5885,7 +5889,9 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
   const header = useMemo(() => (
     <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 w-full pt-1">
       <h1 className="text-3xl font-black uppercase tracking-tight leading-normal mb-2 text-blue-900">Igreja Apostólica</h1>
-      <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase mb-6 leading-tight rounded-sm">{MEETING_TYPES[list.type]}</h2>
+      {list.festivity && list.festivity !== '(em branco)' && (
+        <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase mb-6 leading-tight rounded-sm">{list.festivity}</h2>
+      )}
       <div className="w-full flex justify-between px-4 font-black uppercase italic border-blue-900 border-t pt-4 text-[13px] text-black">
         <span>Data: {new Date(list.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
         {isNatal && <span>Início: {list.startTime || '19:00:00'}</span>}
@@ -6507,7 +6513,9 @@ const HymnSharePDFScreen = ({ selectedLists, currentUser, goBack }: any) => {
                   <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">
                     {new Date(l.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long' })}
                   </h2>
-                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{MEETING_TYPES[l.type]}</span>
+                  {l.festivity && l.festivity !== '(em branco)' && (
+                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{l.festivity}</span>
+                  )}
                 </div>
 
                 <div className="border border-gray-200 border-t-0 rounded-b-lg overflow-hidden">
