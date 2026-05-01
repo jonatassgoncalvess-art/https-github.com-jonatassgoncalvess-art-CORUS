@@ -6471,118 +6471,85 @@ const HymnShareSelectionScreen = ({ navigate, goBack, ownerEmail, onExitImperson
 // --- Compartilhamento de Listas (Relatório PDF) ---
 
 const HymnSharePDFScreen = ({ selectedLists, currentUser, goBack }: any) => {
-  if (!selectedLists) return (
-    <div className="p-20 text-center flex flex-col items-center gap-4">
-      <p className="font-bold text-gray-400 uppercase tracking-widest">Nenhuma lista selecionada</p>
-      <button onClick={goBack} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold uppercase text-xs">Voltar</button>
-    </div>
-  );
-  return (
-    <div className="min-h-screen bg-gray-100 p-0 sm:p-8 flex flex-col items-center">
-      <div className="bg-white w-full max-w-[210mm] min-h-[297mm] shadow-2xl p-[15mm] border border-gray-200 relative overflow-hidden print:shadow-none print:border-none print:p-[10mm] print:m-0" id="print-area">
-        {/* Header com a congregação do usuário logado */}
-        <div className="text-center border-b-4 border-blue-600 pb-6 mb-8">
-          <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tighter mb-1">PROGRAMAÇÃO DE HINOS</h1>
-          <p className="text-lg font-bold text-blue-600 uppercase tracking-[0.2em]">{currentUser?.congregation || 'CORE CONGREGACIONAL'}</p>
-        </div>
-
-        <div className="space-y-10">
-          {selectedLists.map((l: any, idx: number) => {
-            // Extrair todos os hinos das seções da lista e achatar em um único array
-            const allHymnsFromSections: any[] = [];
-            if (l.sections) {
-              Object.values(l.sections).forEach((sectionEntries: any) => {
-                if (Array.isArray(sectionEntries)) {
-                  sectionEntries.forEach(entry => {
-                    if (entry.notebook && entry.number && entry.title) {
-                      allHymnsFromSections.push(entry);
-                    }
-                  });
-                }
-              });
-            }
-
-            // Filtrar hinos que não sejam do caderno 'H' e que tenham título
-            const filteredHymns = allHymnsFromSections.filter((h: any) => h.notebook !== 'H' && h.title);
-            
-            if (filteredHymns.length === 0) return null;
-
-            return (
-              <div key={l.id} className="break-inside-avoid PageBreak mb-8">
-                <div className="bg-gray-50 px-4 py-2 rounded-t-lg border-l-4 border-blue-600 flex justify-between items-center">
-                  <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">
-                    {new Date(l.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long' })}
-                  </h2>
-                  {l.festivity && l.festivity !== '(em branco)' && (
-                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{l.festivity}</span>
-                  )}
-                </div>
-
-                <div className="border border-gray-200 border-t-0 rounded-b-lg overflow-hidden">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-gray-100 border-b border-gray-200">
-                        <th className="p-2 text-[10px] font-black uppercase text-gray-400 text-center w-16">Caderno</th>
-                        <th className="p-2 text-[10px] font-black uppercase text-gray-400 text-center w-12">Nº</th>
-                        <th className="p-2 text-[10px] font-black uppercase text-gray-400">Hino</th>
-                        <th className="p-2 text-[10px] font-black uppercase text-gray-400">Regente</th>
-                        <th className="p-2 text-[10px] font-black uppercase text-gray-400">Solista</th>
-                        <th className="p-2 text-[10px] font-black uppercase text-gray-400 w-32">Execução</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredHymns.map((h: any, hIdx: number) => (
-                        <tr key={hIdx} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                          <td className="p-2 text-center text-[10px] font-black text-gray-500 uppercase">{h.notebook}</td>
-                          <td className="p-2 text-center text-[11px] font-black text-blue-600 font-mono italic">{h.number}</td>
-                          <td className="p-2 text-xs font-bold text-gray-900 uppercase leading-tight">{h.title}</td>
-                          <td className="p-2 text-[9px] font-black uppercase text-gray-400">{h.conductor || '-'}</td>
-                          <td className="p-2 text-[9px] font-black uppercase text-gray-400">{h.soloist || '-'}</td>
-                          <td className="p-2 text-[9px] font-black uppercase text-blue-500/70 tracking-tighter leading-none">{h.execution || '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Footer print only */}
-        <div className="absolute bottom-[10mm] left-[15mm] right-[15mm] text-[8px] font-bold text-gray-300 uppercase tracking-[0.3em] flex justify-between border-t border-gray-100 pt-2 print:flex hidden">
-          <span>CORUS - GESTOR DE CORAIS APOSTÓLICOS</span>
-          <span>{new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-        </div>
-      </div>
-
-      <div className="fixed bottom-8 flex gap-4 no-print scale-110">
-        <button onClick={goBack} className="bg-white text-gray-600 px-8 py-3 rounded-xl font-bold uppercase shadow-xl hover:bg-gray-50 border border-gray-200">Voltar</button>
-        <button 
-          onClick={() => window.print()} 
-          className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold uppercase shadow-xl hover:bg-blue-700 flex items-center gap-2"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-          Imprimir / PDF
-        </button>
-      </div>
-
-      <style>{`
-        @media print {
-          body { background: white !important; }
-          .no-print { display: none !important; }
-          #print-area { 
-            box-shadow: none !important; 
-            border: none !important; 
-            margin: 0 !important;
-            padding: 10mm !important;
-            min-height: auto !important;
+  const items = useMemo(() => {
+    const result: any[] = [];
+    selectedLists.forEach((l: any) => {
+      const allHymns: any[] = [];
+      if (l.sections) {
+        Object.values(l.sections).forEach((sectionEntries: any) => {
+          if (Array.isArray(sectionEntries)) {
+            sectionEntries.forEach(entry => {
+              if (entry.notebook && entry.number && entry.title) {
+                allHymns.push(entry);
+              }
+            });
           }
-          .PageBreak { page-break-inside: avoid; }
-          @page { size: auto; margin: 15mm; }
-        }
-      `}</style>
+        });
+      }
+      const filtered = allHymns.filter((h: any) => h.notebook !== 'H' && h.title);
+      if (filtered.length > 0) {
+        result.push({ type: 'header', list: l });
+        filtered.forEach(h => result.push({ type: 'hymn', data: h }));
+      }
+    });
+    return result;
+  }, [selectedLists]);
+
+  const header = useMemo(() => (
+    <div className="text-center border-b-4 border-blue-600 pb-6 mb-8 w-full">
+      <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tighter mb-1">PROGRAMAÇÃO DE HINOS</h1>
+      <p className="text-lg font-bold text-blue-600 uppercase tracking-[0.2em]">{currentUser?.congregation || 'CORE CONGREGACIONAL'}</p>
     </div>
+  ), [currentUser?.congregation]);
+
+  const tableHeader = useMemo(() => (
+    <div className="flex bg-gray-100 border-b border-gray-200 uppercase font-black text-[10px] text-gray-400 w-full">
+      <div className="p-2 text-center w-16 shrink-0 border-r border-gray-200 flex items-center justify-center">Caderno</div>
+      <div className="p-2 text-center w-12 shrink-0 border-r border-gray-200 flex items-center justify-center">Nº</div>
+      <div className="p-2 flex-1 border-r border-gray-200 flex items-center px-4">Hino</div>
+      <div className="p-2 w-24 shrink-0 border-r border-gray-200 flex items-center justify-center">Regente</div>
+      <div className="p-2 w-24 shrink-0 border-r border-gray-200 flex items-center justify-center">Solista</div>
+      <div className="p-2 w-32 shrink-0 flex items-center justify-center">Execução</div>
+    </div>
+  ), []);
+
+  return (
+    <PagedReport
+      id="hymn-share-report"
+      filename={`programacao-hinos-${new Date().toISOString().split('T')[0]}`}
+      goBack={goBack}
+      items={items}
+      header={header}
+      tableHeader={tableHeader}
+      title="Programação de Hinos"
+      renderItem={(item) => {
+        if (item.type === 'header') {
+          const l = item.list;
+          return (
+            <div className="bg-gray-50 px-4 py-2 mt-4 rounded-t-lg border-l-4 border-blue-600 flex justify-between items-center w-full shadow-sm">
+              <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">
+                {new Date(l.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long' })}
+              </h2>
+              {l.festivity && l.festivity !== '(em branco)' && (
+                <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{l.festivity}</span>
+              )}
+            </div>
+          );
+        }
+        
+        const h = item.data;
+        return (
+          <div className="flex border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors w-full bg-white min-h-[40px]">
+            <div className="p-2 text-center text-[10px] font-black text-gray-500 uppercase w-16 shrink-0 border-r border-gray-50 flex items-center justify-center">{h.notebook}</div>
+            <div className="p-2 text-center text-[11px] font-black text-blue-600 font-mono italic w-12 shrink-0 border-r border-gray-50 flex items-center justify-center">{h.number}</div>
+            <div className="p-2 text-xs font-bold text-gray-900 uppercase leading-tight flex-1 flex items-center border-r border-gray-50 px-4">{h.title}</div>
+            <div className="p-2 text-[9px] font-black uppercase text-gray-400 w-24 shrink-0 border-r border-gray-50 flex items-center justify-center text-center">{h.conductor || '-'}</div>
+            <div className="p-2 text-[9px] font-black uppercase text-gray-400 w-24 shrink-0 border-r border-gray-50 flex items-center justify-center text-center">{h.soloist || '-'}</div>
+            <div className="p-2 text-[9px] font-black uppercase text-blue-500/70 tracking-tighter leading-none w-32 shrink-0 flex items-center justify-center text-center">{h.execution || '-'}</div>
+          </div>
+        );
+      }}
+    />
   );
 };
 
