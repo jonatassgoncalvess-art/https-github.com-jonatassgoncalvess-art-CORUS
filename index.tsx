@@ -202,7 +202,7 @@ export const FESTIVIDADES = [
   "Dia das Mães",
   "Aniversário da Santa Vó",
   "Corphus Christ",
-  "Dia dos País",
+  "Dia dos Pais",
   "Assunção a Maria Santíssima",
   "Aniversário do Irmão Aldo",
   "Dia do Consolador",
@@ -274,34 +274,33 @@ const saveData = async (table: string, localKey: string, data: any, ownerEmail?:
   const dataToStore = Array.isArray(data) ? data : [data];
   
   let dataToUpsert = dataToStore;
-  if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
-    dataToUpsert = dataToStore.map(item => ({ 
-      ...item, 
-      owner_email: ownerEmail,
-      user_email: ownerEmail 
-    }));
+
+  if (ownerEmail) {
+    if (table === 'gca_calendar_events') {
+      // calendário usa user_email
+      dataToUpsert = dataToStore.map(item => ({
+        ...item,
+        user_email: ownerEmail
+      }));
+    } else if (!['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
+      // demais tabelas usam owner_email
+      dataToUpsert = dataToStore.map(item => ({
+        ...item,
+        owner_email: ownerEmail
+      }));
+    }
   }
-    
+
   localStorage.setItem(cacheKey, JSON.stringify(dataToStore));
   
   try {
     const { error } = await supabase.from(table).upsert(dataToUpsert);
     if (error) {
-       console.error(`Erro Supabase em ${table}:`, error.message);
-       alert(`Atenção: Os dados de ${table} foram salvos apenas localmente. Erro no Banco: ${error.message}`);
+      console.error(`Erro Supabase em ${table}:`, error.message);
+      alert(`Atenção: Os dados de ${table} foram salvos apenas localmente. Erro no Banco: ${error.message}`);
     }
   } catch (err) {
     console.error(`Erro crítico ao sincronizar ${table}:`, err);
-  }
-};
-
-const deleteRow = async (table: string, localKey: string, id: string, updatedLocalData: any, ownerEmail?: string) => {
-  const cacheKey = `${localKey}_${ownerEmail || 'all'}`;
-  localStorage.setItem(cacheKey, JSON.stringify(updatedLocalData));
-  try {
-    await supabase.from(table).delete().eq('id', id);
-  } catch (err) {
-    console.error(`Erro ao deletar no Supabase em ${table}:`, err);
   }
 };
 
@@ -5183,7 +5182,7 @@ const GuidelinesScreen = ({ goBack, onExitImpersonation }: any) => (
 
       <section>
         <h3 className="font-bold text-lg text-blue-700">Reuniões de Oração:</h3>
-        <p className="text-gray-600">O pastor deverá iniciar a reunião e antes da oração será cantado o numero 1 do hinário. Após a oração inicial deverá be cantado o hino nº 82 ou 180 do hinário. Na sequencia o coral apresentará 1 ou 2 hinos, o pastor farmá o levantamento das contribuições e o coral cantará mais 1 ou 2 hinos. O pastor fará a leitura e explicação da mensagem, após devera ser cantado um dos hinos nº 83 ou 84, 85, 107, 122, 172, 174, 176, 178, do hinário. Em seguida será a oração individual e após será cantando um dos hinos nº 81 ou 86, 116, 117, 118, 119, 120, 121, 173, 175, 177, 179, 186, 230, do hinário. Então a reunião deverá ser encerrada (não pode passar das 21hrs)</p>
+        <p className="text-gray-600">O pastor deverá iniciar a reunião e antes da oração será cantado o numero 1 do hinário. Após a oração inicial deverá ser cantado o hino nº 82 ou 180 do hinário. Na sequência o coral apresentará 1 ou 2 hinos, o pastor fará o levantamento das contribuições e o coral cantará mais 1 ou 2 hinos. O pastor fará a leitura e explicação da mensagem e após deverá ser cantado um dos hinos nº 83 ou 84, 85, 107, 122, 172, 174, 176, 178, do hinário. Em seguida será a oração individual e após será cantando um dos hinos nº 81 ou 86, 116, 117, 118, 119, 120, 121, 173, 175, 177, 179, 186, 230, do hinário. Então a reunião deverá ser encerrada (não pode passar das 21hrs)</p>
       </section>
 
       <section>
