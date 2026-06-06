@@ -1026,7 +1026,8 @@ const PagedReport = ({
   title,
   filename,
   orientation = 'portrait',
-  lastPageFooter
+  lastPageFooter,
+  footerNoteLeft
 }: { 
   id: string, 
   header: React.ReactNode, 
@@ -1037,9 +1038,11 @@ const PagedReport = ({
   title: string,
   filename: string,
   orientation?: 'portrait' | 'landscape',
-  lastPageFooter?: React.ReactNode
+  lastPageFooter?: React.ReactNode,
+  footerNoteLeft?: React.ReactNode
 }) => {
   const [pages, setPages] = useState<any[][]>([]);
+  const [printScale, setPrintScale] = useState(100);
   const measurementRef = useRef<HTMLDivElement>(null);
   const isLandscape = orientation === 'landscape';
 
@@ -1051,7 +1054,10 @@ const PagedReport = ({
       const PADDING_MM = 30; // Margem total (15mm top + 15mm bottom)
       
       const MM_TO_PX = 3.77952755906; // 96 DPI / 25.4mm
-      const MAX_HEIGHT_PX = (PAGE_HEIGHT_MM - PADDING_MM - 6) * MM_TO_PX; // Buffer reduzido para 6mm para aproveitar melhor a página
+      
+      // Aplicar fator de escala à capacidade de altura da página
+      const scaleFactor = printScale / 100;
+      const MAX_HEIGHT_PX = ((PAGE_HEIGHT_MM - PADDING_MM - 6) * MM_TO_PX) / scaleFactor;
 
       const container = measurementRef.current;
       if (!container) return;
@@ -1106,7 +1112,7 @@ const PagedReport = ({
 
     const timer = setTimeout(measureAndSplit, 300);
     return () => clearTimeout(timer);
-  }, [items, header, tableHeader, orientation, lastPageFooter, isLandscape]);
+  }, [items, header, tableHeader, orientation, lastPageFooter, isLandscape, printScale]);
 
   const handlePrint = () => {
     window.scrollTo(0, 0);
@@ -1126,11 +1132,45 @@ const PagedReport = ({
 
   return (
     <div className="bg-gray-100 min-h-screen">
-      <div className="max-w-[800px] mx-auto py-4 px-4 flex justify-between items-center no-print sticky top-0 z-[100] bg-gray-100/90 backdrop-blur-md border-b border-gray-200">
+      <div className="max-w-[800px] mx-auto py-4 px-4 flex flex-col md:flex-row gap-4 justify-between items-center no-print sticky top-0 z-[100] bg-gray-100/90 backdrop-blur-md border-b border-gray-200">
         <button onClick={goBack} className="bg-gray-700 text-white px-5 py-2 rounded-xl font-bold uppercase text-xs shadow-md hover:bg-gray-800 transition-all flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           Sair
         </button>
+
+        {/* Controle de Escala de Impressão Profissional */}
+        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-1.5 shadow-sm">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-black uppercase text-blue-900/60 tracking-wider">Escala do Layout</span>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setPrintScale(prev => Math.max(50, prev - 5))}
+                className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-all font-extrabold text-sm active:scale-95 border border-gray-200/50"
+                title="Diminuir escala (cabe mais conteúdo)"
+              >
+                -
+              </button>
+              <span className="text-xs font-black text-gray-800 w-12 text-center select-none" title="Fator de zoom da impressão">{printScale}%</span>
+              <button 
+                onClick={() => setPrintScale(prev => Math.min(150, prev + 5))}
+                className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-all font-extrabold text-sm active:scale-95 border border-gray-200/50"
+                title="Aumentar escala"
+              >
+                +
+              </button>
+              {printScale !== 100 && (
+                <button 
+                  onClick={() => setPrintScale(100)}
+                  className="p-1 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all active:scale-95"
+                  title="Restaurar padrão (100%)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/></svg>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="flex gap-2">
           <button 
             onClick={() => downloadHTML(id, filename.replace('.pdf', '.html'))} 
@@ -1184,23 +1224,42 @@ const PagedReport = ({
       <div id={id} className="page-container">
         {pages.length > 0 ? (
           pages.map((pageItems, pageIdx) => (
-            <div key={pageIdx} className={`page ${isLandscape ? 'landscape' : 'portrait'}`}>
-              <div className="page-content">
-                {pageIdx === 0 && <div className="report-header">{header}</div>}
-                {tableHeader && <div className="table-header">{tableHeader}</div>}
-                {pageItems.map((item, itemIdx) => (
-                  <div key={itemIdx} className="avoid-break w-full">
-                    {renderItem(item, itemIdx)}
-                  </div>
-                ))}
-                {pageIdx === pages.length - 1 && lastPageFooter && (
-                  <div className="mt-auto pt-8">
-                    {lastPageFooter}
-                  </div>
-                )}
+            <div key={pageIdx} className={`page ${isLandscape ? 'landscape' : 'portrait'} relative flex flex-col justify-between`}>
+              <div className="flex-1 w-full relative">
+                <div 
+                  className="page-content flex flex-col"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    transform: `scale(${printScale / 100})`,
+                    transformOrigin: 'top left',
+                    width: `${100 * (100 / printScale)}%`,
+                    height: `${100 * (100 / printScale)}%`,
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  {pageIdx === 0 && <div className="report-header">{header}</div>}
+                  {tableHeader && <div className="table-header">{tableHeader}</div>}
+                  {pageItems.map((item, itemIdx) => (
+                    <div key={itemIdx} className="avoid-break w-full">
+                      {renderItem(item, itemIdx)}
+                    </div>
+                  ))}
+                  {pageIdx === pages.length - 1 && lastPageFooter && (
+                    <div className="mt-auto pt-8">
+                      {lastPageFooter}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="mt-auto pt-4 text-right text-[9px] text-gray-400 font-mono italic">
-                {title} - Página {pageIdx + 1} de {pages.length}
+              <div className="mt-auto pt-4 flex justify-between items-center text-[9px] text-gray-400 font-mono italic">
+                <span>
+                  {footerNoteLeft || ""}
+                </span>
+                <span>
+                  {title} - Página {pageIdx + 1} de {pages.length}
+                </span>
               </div>
             </div>
           ))
@@ -6244,19 +6303,48 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
   const isNatal = list.type === 'NatalAnoNovo';
   const orientation = (list.isDetailed || isNatal) ? 'landscape' : 'portrait';
 
-  const header = useMemo(() => (
-    <div className="text-center border-b-2 border-double border-blue-900 pb-4 flex flex-col items-center mb-4 w-full pt-1">
-      <h1 className="text-3xl font-black uppercase tracking-tight leading-normal mb-2 text-blue-900">Igreja Apostólica</h1>
-      {list.festivity && list.festivity !== '(em branco)' && (
-        <h2 className="text-xl font-bold border-2 border-blue-900 text-blue-900 inline-block px-10 py-2.5 uppercase mb-6 leading-tight rounded-sm">{list.festivity}</h2>
-      )}
-      <div className="w-full flex justify-between px-4 font-black uppercase italic border-blue-900 border-t pt-4 text-[13px] text-black">
-        <span>Data: {new Date(list.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-        {isNatal && <span>Início: {list.startTime || '19:00:00'}</span>}
-        <span>Congregação: {list.congregation}</span>
+  const header = useMemo(() => {
+    const hasFestivity = list.festivity && list.festivity !== '(em branco)';
+    
+    return (
+      <div className="border-b-2 border-double border-blue-900 pb-4 flex flex-col mb-4 w-full pt-1">
+        {/* Top Header Row: Left, Center, Right */}
+        <div className="w-full flex justify-between items-baseline mb-2 px-1">
+          {/* Canto superior esquerdo */}
+          <div className="w-1/3 text-left">
+            <h1 className="text-xl font-black uppercase tracking-tight text-blue-900 leading-none">
+              Igreja Apostólica
+            </h1>
+          </div>
+          
+          {/* Centralizado */}
+          <div className="w-1/3 text-center">
+            <h2 className="text-xs font-black uppercase tracking-wider text-gray-800 leading-none">
+              Programação de Hinos
+            </h2>
+          </div>
+          
+          {/* Canto superior direito */}
+          <div className="w-1/3 text-right">
+            {hasFestivity ? (
+              <span className="text-[11px] font-black uppercase tracking-widest text-blue-900 leading-none">
+                {list.festivity}
+              </span>
+            ) : (
+              <span className="text-[11px] leading-none">&nbsp;</span>
+            )}
+          </div>
+        </div>
+
+        {/* Info Row: Date and Congregation */}
+        <div className="w-full flex justify-between px-4 font-black uppercase italic border-blue-900 border-t pt-4 text-[13px] text-black">
+          <span>Data: {new Date(list.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+          {isNatal && <span>Início: {list.startTime || '19:00:00'}</span>}
+          <span>Congregação: {list.congregation}</span>
+        </div>
       </div>
-    </div>
-  ), [list.type, list.date, list.startTime, list.congregation, isNatal]);
+    );
+  }, [list.date, list.startTime, list.congregation, list.festivity, isNatal]);
 
   const tableHeader = useMemo(() => (
     <div className="flex items-center border-b-2 border-blue-900 bg-blue-900 text-white uppercase font-black text-[11px] w-full min-h-[44px]">
@@ -6302,6 +6390,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
       orientation={orientation}
       lastPageFooter={lastPageFooter}
       title="Programa de Culto"
+      footerNoteLeft={`Tipo: ${MEETING_TYPES[list.type] || list.type}`}
       renderItem={(item) => {
         if (item.type === 'special') {
           return (
