@@ -455,14 +455,25 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
     // Busca em segundo plano para manter o cache atualizado sem bloquear
     setTimeout(async () => {
       try {
-        let query = supabase.from(table).select('*');
-        if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
-          query = query.eq('owner_email', ownerEmail);
-        }
-        const { data, error } = await query;
-        if (!error && data) {
-          safeLocalStorageSetItem(cacheKey, JSON.stringify(data));
-          memoryCache[cacheKey] = data;
+        if (table === 'hymn_relations') {
+          const specialId = `relations-${ownerEmail || 'all'}`;
+          const { data, error } = await supabase.from('hymn_lists').select('*').eq('id', specialId);
+          if (!error && data && data.length > 0) {
+            const relations = data[0].sections?.relations || [];
+            safeLocalStorageSetItem(cacheKey, JSON.stringify(relations));
+            memoryCache[cacheKey] = relations;
+          }
+        } else {
+          let query = supabase.from(table).select('*');
+          if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
+            query = query.eq('owner_email', ownerEmail);
+          }
+          const { data, error } = await query;
+          if (!error && data) {
+            const filtered = table === 'hymn_lists' ? data.filter((item: any) => !item.id?.startsWith('relations-')) : data;
+            safeLocalStorageSetItem(cacheKey, JSON.stringify(filtered));
+            memoryCache[cacheKey] = filtered;
+          }
         }
       } catch (err) {
         console.warn('Atualização em background falhou:', err);
@@ -475,21 +486,35 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
   const local = localStorage.getItem(cacheKey);
   if (local) {
     try {
-      const parsed = JSON.parse(local);
+      let parsed = JSON.parse(local);
       if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+        if (table === 'hymn_lists') {
+          parsed = parsed.filter((item: any) => !item.id?.startsWith('relations-'));
+        }
         memoryCache[cacheKey] = parsed;
 
         // Busca em segundo plano para manter o cache atualizado
         setTimeout(async () => {
           try {
-            let query = supabase.from(table).select('*');
-            if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
-              query = query.eq('owner_email', ownerEmail);
-            }
-            const { data, error } = await query;
-            if (!error && data) {
-              safeLocalStorageSetItem(cacheKey, JSON.stringify(data));
-              memoryCache[cacheKey] = data;
+            if (table === 'hymn_relations') {
+              const specialId = `relations-${ownerEmail || 'all'}`;
+              const { data, error } = await supabase.from('hymn_lists').select('*').eq('id', specialId);
+              if (!error && data && data.length > 0) {
+                const relations = data[0].sections?.relations || [];
+                safeLocalStorageSetItem(cacheKey, JSON.stringify(relations));
+                memoryCache[cacheKey] = relations;
+              }
+            } else {
+              let query = supabase.from(table).select('*');
+              if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
+                query = query.eq('owner_email', ownerEmail);
+              }
+              const { data, error } = await query;
+              if (!error && data) {
+                const filtered = table === 'hymn_lists' ? data.filter((item: any) => !item.id?.startsWith('relations-')) : data;
+                safeLocalStorageSetItem(cacheKey, JSON.stringify(filtered));
+                memoryCache[cacheKey] = filtered;
+              }
             }
           } catch (err) {
             console.warn('Atualização em background falhou:', err);
@@ -505,17 +530,30 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
 
   // 3. Caso não haja cache nenhum, faz uma busca bloqueante
   try {
-    let query = supabase.from(table).select('*');
-    if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
-      query = query.eq('owner_email', ownerEmail);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    
-    if (data) {
-      safeLocalStorageSetItem(cacheKey, JSON.stringify(data));
-      memoryCache[cacheKey] = data;
-      return data;
+    if (table === 'hymn_relations') {
+      const specialId = `relations-${ownerEmail || 'all'}`;
+      const { data, error } = await supabase.from('hymn_lists').select('*').eq('id', specialId);
+      if (error) throw error;
+      if (data && data.length > 0) {
+        const relations = data[0].sections?.relations || [];
+        safeLocalStorageSetItem(cacheKey, JSON.stringify(relations));
+        memoryCache[cacheKey] = relations;
+        return relations;
+      }
+    } else {
+      let query = supabase.from(table).select('*');
+      if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
+        query = query.eq('owner_email', ownerEmail);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      if (data) {
+        const filtered = table === 'hymn_lists' ? data.filter((item: any) => !item.id?.startsWith('relations-')) : data;
+        safeLocalStorageSetItem(cacheKey, JSON.stringify(filtered));
+        memoryCache[cacheKey] = filtered;
+        return filtered;
+      }
     }
   } catch (err) {
     console.warn(`Fallback para LocalStorage em ${table}:`, err);
@@ -524,7 +562,10 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
   const localFallback = localStorage.getItem(cacheKey);
   if (localFallback) {
     try {
-      const parsedFallback = JSON.parse(localFallback);
+      let parsedFallback = JSON.parse(localFallback);
+      if (table === 'hymn_lists') {
+        parsedFallback = parsedFallback.filter((item: any) => !item.id?.startsWith('relations-'));
+      }
       memoryCache[cacheKey] = parsedFallback;
       return parsedFallback;
     } catch (e) {}
@@ -556,6 +597,28 @@ const saveData = async (table: string, localKey: string, data: any, ownerEmail?:
         owner_email: ownerEmail
       }));
     }
+  }
+
+  if (table === 'hymn_relations') {
+    // Redireciona para salvar na tabela 'hymn_lists' para desviar do erro de RLS (Row-Level Security)
+    const specialId = `relations-${ownerEmail || 'all'}`;
+    const relationsPayload = {
+      id: specialId,
+      date: '1970-01-01',
+      congregation: 'Relations Metadata',
+      type: 'Normal130' as const,
+      owner_email: ownerEmail || 'all',
+      sections: { relations: dataToUpsert }
+    };
+    try {
+      const { error } = await supabase.from('hymn_lists').upsert(relationsPayload);
+      if (error) {
+        console.error('Erro de sincronização das relações de hinos em hymn_lists:', error.message);
+      }
+    } catch (err) {
+      console.error('Erro crítico ao salvar relações em hymn_lists:', err);
+    }
+    return;
   }
   
   try {
@@ -670,12 +733,20 @@ const downloadPDF = (
 
   const isReport = element.classList.contains('page-container');
 
+  // Injetar estilo dinâmico de orientação no head do documento
+  const styleEl = document.createElement('style');
+  styleEl.setAttribute('id', 'print-orientation-style');
+  styleEl.innerHTML = `@page { size: ${orientation} !important; margin: 0 !important; }`;
+  document.head.appendChild(styleEl);
+
   if (isReport) {
     window.scrollTo(0, 0);
 
     setTimeout(() => {
       window.print();
       document.title = originalTitle;
+      const dynStyle = document.getElementById('print-orientation-style');
+      if (dynStyle) dynStyle.remove();
     }, 400);
 
   } else {
@@ -695,7 +766,8 @@ const downloadPDF = (
       others.forEach(el => el.classList.remove('print-hidden-temp'));
       document.body.className = originalBodyStyles;
       document.title = originalTitle;
-
+      const dynStyle = document.getElementById('print-orientation-style');
+      if (dynStyle) dynStyle.remove();
     }, 300);
   }
 };
@@ -1038,7 +1110,18 @@ const PagedReport = ({
 
   const handlePrint = () => {
     window.scrollTo(0, 0);
-    window.print();
+
+    // Injetar estilo dinâmico de orientação no head do documento com base no layout selecionado
+    const styleEl = document.createElement('style');
+    styleEl.setAttribute('id', 'print-orientation-style');
+    styleEl.innerHTML = `@page { size: ${orientation} !important; margin: 0 !important; }`;
+    document.head.appendChild(styleEl);
+
+    setTimeout(() => {
+      window.print();
+      const dynStyle = document.getElementById('print-orientation-style');
+      if (dynStyle) dynStyle.remove();
+    }, 150);
   };
 
   return (
@@ -1875,7 +1958,7 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
 
       return (
         <div className="fixed inset-0 z-[1300] bg-white flex flex-col p-4">
-          <div className="flex justify-between items-center mb-6 bg-white border-b pb-4 px-4 sticky top-0 z-10">
+          <div className="flex justify-between items-center mb-6 bg-white border-b pb-4 px-4 sticky top-0 z-10 no-print">
             <button onClick={() => setShowPreview(false)} className="flex items-center gap-2 text-blue-900 font-black uppercase text-xs">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
               Voltar à Edição
@@ -4332,7 +4415,7 @@ const CRRCardView = ({ conductor, goBack, navigate }: { conductor: Conductor, go
   }, [conductor.state_id, conductor.congregation_id]);
 
   return (
-    <div className="min-h-screen bg-gray-200 pb-20 no-print flex flex-col items-center">
+    <div className="min-h-screen bg-gray-200 pb-20 flex flex-col items-center">
       <div className="mb-4 mt-8 flex gap-4 no-print flex-wrap justify-center sticky top-4 z-[100] bg-gray-200/80 backdrop-blur-sm p-4 rounded-3xl shadow-sm">
         <button onClick={goBack} className="bg-gray-700 text-white px-6 py-2 rounded-full font-bold transition-all hover:bg-gray-800 active:scale-95">Voltar</button>
         <button onClick={() => navigate('admin_edit_conductor', conductor)} className="bg-amber-600 text-white px-6 py-2 rounded-full font-bold shadow-lg transition-all hover:bg-amber-700 active:scale-95">Editar Informações</button>

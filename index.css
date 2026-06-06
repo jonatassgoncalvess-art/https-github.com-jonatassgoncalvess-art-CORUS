@@ -205,6 +205,28 @@
     print-color-adjust: exact !important;
   }
 
+  @page {
+    margin: 0;
+  }
+
+  @page portrait-page {
+    size: portrait;
+    margin: 0;
+  }
+
+  @page landscape-page {
+    size: landscape;
+    margin: 0;
+  }
+
+  .page.portrait, .portrait {
+    page: portrait-page !important;
+  }
+
+  .page.landscape, .landscape {
+    page: landscape-page !important;
+  }
+
   .page-container {
     background: none !important;
     padding: 0 !important;
@@ -219,6 +241,10 @@
   }
 
   .no-print {
+    display: none !important;
+  }
+
+  .print-hidden-temp {
     display: none !important;
   }
 }
