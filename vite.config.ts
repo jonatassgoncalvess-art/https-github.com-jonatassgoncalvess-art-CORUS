@@ -9,6 +9,12 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        allowedHosts: true,
+        hmr: {
+          protocol: 'wss',
+          host: 'ais-dev-e6b7flqvzaskzeqcfmeqsi-172197622467.us-east1.run.app',
+          clientPort: 443,
+        },
       },
       plugins: [react(), tailwindcss()],
       define: {

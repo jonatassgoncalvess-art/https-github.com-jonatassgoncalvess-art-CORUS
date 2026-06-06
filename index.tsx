@@ -239,8 +239,271 @@ type HymnList = {
 
 // --- Helpers de Persistência ---
 
+const memoryCache: Record<string, any> = {};
+
+const safeSetLocalStorage = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error: any) {
+    console.warn(`LocalStorage quota exceeded or error occurred while setting key "${key}". Trying to clear space...`, error);
+    try {
+      // 5. Se exceder a quota, limpar a chave antiga local_bulletin_messages_admin e recriar somente com dados reduzidos.
+      localStorage.removeItem('local_bulletin_messages_admin');
+      
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k !== key) {
+          if (
+            k.startsWith('hymns_library_') || 
+            k.startsWith('local_hymns_library_') || 
+            k.startsWith('local_bulletin_') || 
+            k.includes('attendance') || 
+            k.includes('hymn_lists') ||
+            k.startsWith('local_unread_bulletins_')
+          ) {
+            keysToRemove.push(k);
+          }
+        }
+      }
+      
+      keysToRemove.forEach(k => {
+        try {
+          localStorage.removeItem(k);
+        } catch (e) {}
+      });
+      
+      // Tentar salvar novamente após a limpeza
+      localStorage.setItem(key, value);
+      console.log(`Espaço liberado e dados salvos com sucesso para a chave "${key}".`);
+    } catch (retryError) {
+      console.warn(`Não foi possível salvar no LocalStorage para a chave "${key}" (o cache em memória ainda manterá os dados para esta sessão):`, retryError);
+    }
+  }
+};
+
+const safeLocalStorageSetItem = safeSetLocalStorage;
+
+const uploadBase64ToSupabase = async (base64Data: string, prefix: string = 'bulletin_media') => {
+  try {
+    if (!base64Data || !base64Data.startsWith('data:')) {
+      return base64Data;
+    }
+    
+    const arr = base64Data.split(',');
+    if (arr.length < 2) return base64Data;
+    
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const ext = mime.split('/')[1] || 'png';
+    
+    // Convert base64 to binary
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    const blob = new Blob([u8arr], { type: mime });
+    
+    const fileName = `${prefix}_${Math.random().toString(36).substring(2, 11)}_${Date.now()}.${ext}`;
+    const filePath = `uploads/${fileName}`;
+
+    console.log(`Uploading ${fileName} (${blob.size} bytes, ${mime}) to Supabase Storage...`);
+    const { data, error } = await supabase.storage
+      .from('bulletins')
+      .upload(filePath, blob, {
+        contentType: mime,
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (error) {
+      console.warn('Erro ao carregar mídia para o Supabase Storage:', error);
+      // Se falhar o upload por qualquer motivo, retorna a base64 original para não quebrar a exibição
+      return base64Data;
+    }
+
+    // Obter URL pública
+    const { data: urlData } = supabase.storage
+      .from('bulletins')
+      .getPublicUrl(filePath);
+
+    const publicUrl = urlData?.publicUrl || `${SUPABASE_URL}/storage/v1/object/public/bulletins/${filePath}`;
+
+    const meta = {
+      id: fileName.replace(`.${ext}`, ''),
+      fileName,
+      fileSize: blob.size,
+      mimeType: mime,
+      storagePath: filePath,
+      publicUrl
+    };
+
+    // Armazenar apenas os metadados no localStorage
+    safeSetLocalStorage(`bulletin_media_${meta.id}`, JSON.stringify(meta));
+
+    return publicUrl;
+  } catch (err) {
+    console.error('Falha geral ao converter e enviar mídia base64 para o Supabase:', err);
+    return base64Data;
+  }
+};
+
+const preprocessBulletinsForStorage = (messages: any[]) => {
+  if (!Array.isArray(messages)) return [];
+  
+  // Sort by created_at desc to make sure we keep the newest ones (3. Limitar a no máximo os 50 mais recentes)
+  const sorted = [...messages].sort((a: any, b: any) => {
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return dateB - dateA;
+  });
+
+  const sliced = sorted.slice(0, 50);
+
+  return sliced.map(msg => {
+    if (!msg) return msg;
+
+    // 2. Salvar no localStorage apenas dados leves: id, título, mensagem (content), data (created_at), status e metadados essenciais.
+    const lightweightMsg: any = {
+      id: msg.id || '',
+      title: msg.title || '',
+      created_at: msg.created_at || '',
+      created_by: msg.created_by || '',
+    };
+
+    if (msg.status !== undefined) lightweightMsg.status = msg.status;
+    if (msg.status_id !== undefined) lightweightMsg.status_id = msg.status_id;
+    if (msg.viewed_at !== undefined) lightweightMsg.viewed_at = msg.viewed_at;
+
+    if (msg.content) {
+      let imageIndex = 0;
+      // 1. Não salvar imagens gigantes no localStorage. Salvar apenas metadados leves.
+      lightweightMsg.content = msg.content.replace(/src="(data:image\/[^"]+)"/g, (match: string, base64Data: string) => {
+        const imageId = `${lightweightMsg.id}_img_${imageIndex++}`;
+        
+        const mime = base64Data.split(';')[0].split(':')[1] || 'image/png';
+        const ext = mime.split('/')[1] || 'png';
+        const approxSize = Math.round(base64Data.length * 0.75);
+        const fileName = `${imageId}.${ext}`;
+        const storagePath = `uploads/${fileName}`;
+        const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/bulletins/${storagePath}`;
+        
+        const meta = {
+          id: imageId,
+          fileName,
+          fileSize: approxSize,
+          mimeType: mime,
+          storagePath,
+          publicUrl
+        };
+        
+        // Salvar apenas os metadados no localStorage para evitar quota de 5MB do navegador
+        safeSetLocalStorage(`bulletin_media_${imageId}`, JSON.stringify(meta));
+        
+        // Guardar no cache de memória para exibição em tempo real na aba atual
+        memoryCache[`bulletin_base64_${imageId}`] = base64Data;
+        
+        return `src="local-media-placeholder:${imageId}"`;
+      });
+    } else {
+      lightweightMsg.content = '';
+    }
+
+    return lightweightMsg;
+  });
+};
+
+const restoreBulletinsFromStorage = (messages: any[]) => {
+  if (!Array.isArray(messages)) return [];
+  return messages.map(msg => {
+    if (!msg || !msg.content) return msg;
+    let restoredContent = msg.content;
+    restoredContent = restoredContent.replace(/src="local-media-placeholder:([^"]+)"/g, (match: string, imageId: string) => {
+      try {
+        const memBase64 = memoryCache[`bulletin_base64_${imageId}`];
+        if (memBase64) return `src="${memBase64}"`;
+
+        const stored = localStorage.getItem(`bulletin_media_${imageId}`);
+        if (stored) {
+          if (stored.startsWith('{')) {
+            const parsed = JSON.parse(stored);
+            return `src="${parsed.publicUrl || ''}"`;
+          } else if (stored.startsWith('data:')) {
+            // Compatibilidade com mídias antigas em formato base64 que ainda restarem
+            return `src="${stored}"`;
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao restaurar mídia de cache:', e);
+      }
+      return match;
+    });
+    return {
+      ...msg,
+      content: restoredContent
+    };
+  });
+};
+
 const fetchData = async (table: string, localKey: string, ownerEmail?: string) => {
   const cacheKey = `${localKey}_${ownerEmail || 'all'}`;
+
+  // 1. Tentar carregar do cache de memória (resposta em 0ms)
+  if (memoryCache[cacheKey]) {
+    // Busca em segundo plano para manter o cache atualizado sem bloquear
+    setTimeout(async () => {
+      try {
+        let query = supabase.from(table).select('*');
+        if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
+          query = query.eq('owner_email', ownerEmail);
+        }
+        const { data, error } = await query;
+        if (!error && data) {
+          safeLocalStorageSetItem(cacheKey, JSON.stringify(data));
+          memoryCache[cacheKey] = data;
+        }
+      } catch (err) {
+        console.warn('Atualização em background falhou:', err);
+      }
+    }, 150);
+    return memoryCache[cacheKey];
+  }
+
+  // 2. Tentar carregar do LocalStorage (resposta rápida)
+  const local = localStorage.getItem(cacheKey);
+  if (local) {
+    try {
+      const parsed = JSON.parse(local);
+      if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+        memoryCache[cacheKey] = parsed;
+
+        // Busca em segundo plano para manter o cache atualizado
+        setTimeout(async () => {
+          try {
+            let query = supabase.from(table).select('*');
+            if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
+              query = query.eq('owner_email', ownerEmail);
+            }
+            const { data, error } = await query;
+            if (!error && data) {
+              safeLocalStorageSetItem(cacheKey, JSON.stringify(data));
+              memoryCache[cacheKey] = data;
+            }
+          } catch (err) {
+            console.warn('Atualização em background falhou:', err);
+          }
+        }, 150);
+
+        return parsed;
+      }
+    } catch (e) {
+      console.warn('Falha ao interpretar dados locais:', e);
+    }
+  }
+
+  // 3. Caso não haja cache nenhum, faz uma busca bloqueante
   try {
     let query = supabase.from(table).select('*');
     if (ownerEmail && !['countries', 'states', 'congregations_admin', 'conductors'].includes(table)) {
@@ -249,30 +512,34 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
     const { data, error } = await query;
     if (error) throw error;
     
-    if (data && data.length > 0) {
-      localStorage.setItem(cacheKey, JSON.stringify(data));
+    if (data) {
+      safeLocalStorageSetItem(cacheKey, JSON.stringify(data));
+      memoryCache[cacheKey] = data;
       return data;
-    }
-    
-    const local = localStorage.getItem(cacheKey);
-    if (local) {
-      const parsedLocal = JSON.parse(local);
-      if (parsedLocal && parsedLocal.length > 0) {
-        return parsedLocal;
-      }
     }
   } catch (err) {
     console.warn(`Fallback para LocalStorage em ${table}:`, err);
   }
   
   const localFallback = localStorage.getItem(cacheKey);
-  return localFallback ? JSON.parse(localFallback) : [];
+  if (localFallback) {
+    try {
+      const parsedFallback = JSON.parse(localFallback);
+      memoryCache[cacheKey] = parsedFallback;
+      return parsedFallback;
+    } catch (e) {}
+  }
+  return [];
 };
 
 const saveData = async (table: string, localKey: string, data: any, ownerEmail?: string) => {
   const cacheKey = `${localKey}_${ownerEmail || 'all'}`;
   const dataToStore = Array.isArray(data) ? data : [data];
   
+  // Atualiza cache de memória e LocalStorage imediatamente para reações instantâneas na tela
+  memoryCache[cacheKey] = dataToStore;
+  safeLocalStorageSetItem(cacheKey, JSON.stringify(dataToStore));
+
   let dataToUpsert = dataToStore;
 
   if (ownerEmail) {
@@ -290,8 +557,6 @@ const saveData = async (table: string, localKey: string, data: any, ownerEmail?:
       }));
     }
   }
-
-  localStorage.setItem(cacheKey, JSON.stringify(dataToStore));
   
   try {
     const { error } = await supabase.from(table).upsert(dataToUpsert);
@@ -301,6 +566,17 @@ const saveData = async (table: string, localKey: string, data: any, ownerEmail?:
     }
   } catch (err) {
     console.error(`Erro crítico ao sincronizar ${table}:`, err);
+  }
+};
+
+const deleteRow = async (table: string, localKey: string, id: string, updatedLocalData: any, ownerEmail?: string) => {
+  const cacheKey = `${localKey}_${ownerEmail || 'all'}`;
+  memoryCache[cacheKey] = updatedLocalData;
+  safeLocalStorageSetItem(cacheKey, JSON.stringify(updatedLocalData));
+  try {
+    await supabase.from(table).delete().eq('id', id);
+  } catch (err) {
+    console.error(`Erro ao deletar no Supabase em ${table}:`, err);
   }
 };
 
@@ -7435,10 +7711,35 @@ const AdminBulletinsScreen = ({ goBack, navigate, currentUser }: any) => {
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
   const fetchBulletins = async () => {
-    setLoading(true);
-    const { data } = await supabase.from('bulletin_messages').select('*').order('created_at', { ascending: false });
-    setMessages(data || []);
-    setLoading(false);
+    const cacheKey = 'local_bulletin_messages_admin';
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(restoreBulletinsFromStorage(parsed));
+        } else {
+          setLoading(true);
+        }
+      } catch (e) {
+        setLoading(true);
+      }
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      const { data } = await supabase.from('bulletin_messages').select('*').order('created_at', { ascending: false });
+      if (data) {
+        setMessages(data);
+        const preprocessed = preprocessBulletinsForStorage(data);
+        safeSetLocalStorage(cacheKey, JSON.stringify(preprocessed));
+      }
+    } catch (err) {
+      console.error('Erro ao buscar avisos oficiais:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchBulletins(); }, []);
@@ -7690,10 +7991,28 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
     setLoading(true);
     try {
       const msgId = initialData?.id || (crypto.randomUUID ? crypto.randomUUID() : generateId());
+      
+      // Process and upload any embedded base64 images
+      let processedContent = content;
+      const base64Regex = /src="(data:image\/[^"]+)"/g;
+      const base64Matches: string[] = [];
+      let match;
+      while ((match = base64Regex.exec(content)) !== null) {
+        base64Matches.push(match[1]);
+      }
+
+      for (let i = 0; i < base64Matches.length; i++) {
+        const base64Str = base64Matches[i];
+        const uploadedUrl = await uploadBase64ToSupabase(base64Str, `${msgId}_img_${i}`);
+        if (uploadedUrl) {
+          processedContent = processedContent.replace(base64Str, uploadedUrl);
+        }
+      }
+
       const message: any = {
         id: msgId,
         title: title || 'Aviso',
-        content,
+        content: processedContent,
         created_at: initialData?.created_at || getBrasiliaISO(),
         created_by: currentUser?.email || 'Admin'
       };
@@ -7967,20 +8286,43 @@ const BulletinHistoryScreen = ({ goBack, ownerEmail }: any) => {
   useEffect(() => {
     const fetchHistory = async () => {
       if (!ownerEmail) return;
-      setLoading(true);
-      const { data: statuses } = await supabase.from('bulletin_user_status')
-        .select(`*, bulletin_messages(*)`)
-        .eq('user_id', ownerEmail)
-        .order('viewed_at', { ascending: false });
-      
-      const formatted = (statuses || []).map((s: any) => ({
-        ...s.bulletin_messages,
-        status: s.status,
-        viewed_at: s.viewed_at,
-        status_id: s.id
-      }));
-      setHistory(formatted);
-      setLoading(false);
+      const cacheKey = `local_bulletin_history_${ownerEmail}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setHistory(restoreBulletinsFromStorage(parsed));
+          } else {
+            setLoading(true);
+          }
+        } catch (e) {
+          setLoading(true);
+        }
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const { data: statuses } = await supabase.from('bulletin_user_status')
+          .select(`*, bulletin_messages(*)`)
+          .eq('user_id', ownerEmail)
+          .order('viewed_at', { ascending: false });
+        
+        const formatted = (statuses || []).map((s: any) => ({
+          ...s.bulletin_messages,
+          status: s.status,
+          viewed_at: s.viewed_at,
+          status_id: s.id
+        }));
+        setHistory(formatted);
+        const preprocessed = preprocessBulletinsForStorage(formatted);
+        safeSetLocalStorage(cacheKey, JSON.stringify(preprocessed));
+      } catch (err) {
+        console.error('Erro ao buscar histórico de avisos:', err);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchHistory();
   }, [ownerEmail]);
@@ -9380,22 +9722,61 @@ const App = () => {
   const [unreadBulletins, setUnreadBulletins] = useState<(BulletinMessage & { status_id: string })[]>([]);
 
   const checkUnreadBulletins = async (email: string) => {
-    const { data } = await supabase.from('bulletin_user_status')
-      .select(`*, bulletin_messages(*)`)
-      .eq('user_id', email)
-      .eq('status', 'pending')
-      .eq('show_again', true);
-    
-    if (data) {
-      const formatted = data.map((s: any) => ({
-        ...s.bulletin_messages,
-        status_id: s.id
-      }));
-      setUnreadBulletins(formatted);
+    const cacheKey = `local_unread_bulletins_${email}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setUnreadBulletins(restoreBulletinsFromStorage(parsed));
+        }
+      } catch (e) {}
+    }
+
+    try {
+      const { data } = await supabase.from('bulletin_user_status')
+        .select(`*, bulletin_messages(*)`)
+        .eq('user_id', email)
+        .eq('status', 'pending')
+        .eq('show_again', true);
+      
+      if (data) {
+        const formatted = data.map((s: any) => ({
+          ...s.bulletin_messages,
+          status_id: s.id
+        }));
+        setUnreadBulletins(formatted);
+        const preprocessed = preprocessBulletinsForStorage(formatted);
+        safeSetLocalStorage(cacheKey, JSON.stringify(preprocessed));
+      }
+    } catch (err) {
+      console.warn('Falha ao checar avisos não lidos:', err);
     }
   };
 
   useEffect(() => {
+    // Liberar espaço limpando mídias legadas em base64 do localStorage
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('bulletin_media_')) {
+          const val = localStorage.getItem(k);
+          if (val && (val.startsWith('data:') || val.length > 5000)) {
+            keysToRemove.push(k);
+          }
+        }
+      }
+      keysToRemove.forEach(k => {
+        try {
+          localStorage.removeItem(k);
+          console.log(`[Limpeza de Cache] Removida chave de mídia base64 legada para liberar cota: ${k}`);
+        } catch (e) {}
+      });
+    } catch (e) {
+      console.warn('Erro ao limpar mídias legadas do localStorage:', e);
+    }
+
     const params = new URLSearchParams(window.location.search);
     const programId = params.get('program');
     if (programId) {
