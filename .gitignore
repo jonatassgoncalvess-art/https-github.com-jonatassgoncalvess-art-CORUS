@@ -12,6 +12,9 @@ node_modules
 dist
 dist-ssr
 release
+release-portable
+installer
+outputs
 *.local
 
 # Editor directories and files
