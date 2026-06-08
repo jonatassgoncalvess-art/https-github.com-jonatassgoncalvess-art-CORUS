@@ -1,7 +1,7 @@
 {
   "name": "corus",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CORUS - Gestor de Corais Apostolicos",
   "author": "jonatassgoncalvess-art",
   "type": "module",
@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "preview": "vite preview",
     "desktop": "electron .",
-    "dist:win": "npm run build && electron-builder --win nsis --x64"
+    "dist:win": "npm run build && electron-builder --win portable --x64"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -47,15 +47,8 @@
     ],
     "win": {
       "target": [
-        "nsis"
+        "portable"
       ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "CORUS"
     }
   }
 }
