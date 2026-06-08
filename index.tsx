@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import ReactQuill from 'react-quill-new';
-import 'react-quill-new/dist/quill.snow.css';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
 // @ts-ignore
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // @ts-ignore
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 const DraggableAny = Draggable as any;
+const LazyReactQuill = React.lazy(async () => {
+  // @ts-ignore - Vite handles CSS dynamic imports at build time.
+  await import('react-quill-new/dist/quill.snow.css');
+  const mod = await import('react-quill-new');
+  return { default: mod.default };
+});
 
 // Contexto Global para Navegação (Perfil e Sair)
 const NavigationContext = React.createContext<{ onLogout: () => void, onProfileClick: () => void } | null>(null);
@@ -824,10 +824,14 @@ const downloadDirectPDF = (
     pagebreak: { mode: 'css' }
   };
 
-  // @ts-ignore
-  html2pdf().set(opt).from(element).save().then(() => {
-    element.classList.remove('pdf-capture', 'portrait', 'landscape');
-  });
+  import('html2pdf.js')
+    .then((mod: any) => {
+      const html2pdf = mod.default || mod;
+      return html2pdf().set(opt).from(element).save();
+    })
+    .finally(() => {
+      element.classList.remove('pdf-capture', 'portrait', 'landscape');
+    });
 };
 
 const downloadHTML = (elementId: string, filename: string) => {
@@ -1674,7 +1678,7 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
     setSelectedEvent(null);
   };
 
-  const generatePDF = (preview: boolean = true) => {
+  const generatePDF = async (preview: boolean = true) => {
     if (!exportStartDate || !exportEndDate) return alert('Selecione a data de Início e Fim para gerar o PDF.');
 
     console.log('Filtro solicitado:', { exportStartDate, exportEndDate, exportType });
@@ -1709,6 +1713,7 @@ const CalendarScreen = ({ goBack, ownerEmail, isReadOnly, onExitImpersonation }:
       setFilteredEventsForPreview(sorted);
       setShowExportModal(false); 
     } else {
+      const { default: jsPDF } = await import('jspdf');
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       
@@ -8239,19 +8244,19 @@ const AdminBulletinForm = ({ goBack, navigate, initialData, currentUser }: any) 
           <div className="space-y-2">
             <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest block ml-1">Conteúdo do Aviso</label>
             <div className="rounded-2xl overflow-hidden border-2 border-gray-100 min-h-[350px] bg-white">
-              {typeof window !== 'undefined' && ReactQuill ? (
-                <ReactQuill 
-                  theme="snow" 
-                  value={content} 
-                  onChange={v => setContent(v)} 
-                  modules={quillModules}
-                  className="min-h-[450px] sm:min-h-[600px]"
-                />
-              ) : (
+              <React.Suspense fallback={
                 <div className="p-8 text-center text-gray-400 font-bold italic animate-pulse">
                   Carregando editor...
                 </div>
-              )}
+              }>
+                <LazyReactQuill
+                  theme="snow"
+                  value={content}
+                  onChange={(v: string) => setContent(v)}
+                  modules={quillModules}
+                  className="min-h-[450px] sm:min-h-[600px]"
+                />
+              </React.Suspense>
             </div>
           </div>
 
@@ -9892,6 +9897,7 @@ const App = () => {
   const [publicProgram, setPublicProgram] = useState<HymnList | null>(null);
   const [loadingPublic, setLoadingPublic] = useState(false);
   const [unreadBulletins, setUnreadBulletins] = useState<(BulletinMessage & { status_id: string })[]>([]);
+  const [postLoginReady, setPostLoginReady] = useState(false);
 
   const checkUnreadBulletins = async (email: string) => {
     const cacheKey = `local_unread_bulletins_${email}`;
@@ -10023,6 +10029,17 @@ const App = () => {
   }, [currentUser?.id]);
 
   useEffect(() => {
+    setPostLoginReady(false);
+    if (!currentUser) return;
+
+    const timer = window.setTimeout(() => {
+      setPostLoginReady(true);
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [currentUser?.id]);
+
+  useEffect(() => {
     const handleFocus = () => {
       if (currentUser?.id && currentUser.email !== 'Admin') {
         supabase.from('users').select('*').eq('id', currentUser.id).single().then(({ data }) => {
@@ -10053,10 +10070,10 @@ const App = () => {
   }, [isAdmin, screen]);
 
   useEffect(() => {
-    if (activeEmail) {
+    if (activeEmail && postLoginReady) {
       checkUnreadBulletins(activeEmail);
     }
-  }, [activeEmail]);
+  }, [activeEmail, postLoginReady]);
 
   const navigate = useCallback((next: string, data?: any) => { 
     const newHistory = [...history, screen];
@@ -10399,13 +10416,17 @@ const App = () => {
             }
           })()}
         </div>
-        <FloatingChat currentUser={currentUser} viewingUser={viewingUser} isAdmin={isMaster || currentUser?.canChat} />
-        <BulletinDisplayModal 
-          unreadBulletins={unreadBulletins} 
-          onStatusUpdate={() => checkUnreadBulletins(activeEmail || currentUser.email)} 
-          onDismiss={() => setUnreadBulletins([])}
-          isReadOnly={isReadOnly}
-        />
+        {postLoginReady && (
+          <>
+            <FloatingChat currentUser={currentUser} viewingUser={viewingUser} isAdmin={isMaster || currentUser?.canChat} />
+            <BulletinDisplayModal
+              unreadBulletins={unreadBulletins}
+              onStatusUpdate={() => checkUnreadBulletins(activeEmail || currentUser.email)}
+              onDismiss={() => setUnreadBulletins([])}
+              isReadOnly={isReadOnly}
+            />
+          </>
+        )}
       </div>
     </NavigationContext.Provider>
   );
