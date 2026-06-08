@@ -13,6 +13,18 @@ const LazyReactQuill = React.lazy(async () => {
   return { default: mod.default };
 });
 
+const CORUS_LOGO_URL = 'https://i.postimg.cc/K8X69mDY/image-removebg-preview.png';
+
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+};
+
+type PWAUpdateState = {
+  registration?: ServiceWorkerRegistration;
+  waiting?: ServiceWorker;
+};
+
 // Contexto Global para Navegação (Perfil e Sair)
 const NavigationContext = React.createContext<{ onLogout: () => void, onProfileClick: () => void } | null>(null);
 
@@ -938,6 +950,41 @@ const formatSecondsToDurationString = (totalSeconds: number): string => {
 };
 
 // --- Componentes de Interface ---
+
+const PWAInstallControls = ({ installPrompt, updateState, onInstall, onUpdate }: {
+  installPrompt: BeforeInstallPromptEvent | null;
+  updateState: PWAUpdateState | null;
+  onInstall: () => void;
+  onUpdate: () => void;
+}) => {
+  if (!installPrompt && !updateState) return null;
+
+  return (
+    <div className="fixed right-4 bottom-4 z-[5000] no-print flex flex-col gap-3 items-end">
+      {updateState && (
+        <button
+          onClick={onUpdate}
+          className="flex items-center gap-3 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/20 font-black uppercase text-[10px] tracking-widest hover:bg-emerald-700 active:scale-95 transition-all"
+          title="Baixar a nova versao do CORUS"
+        >
+          <img src={CORUS_LOGO_URL} alt="" className="w-8 h-8 object-contain bg-white rounded-xl p-1" />
+          Nova versao disponivel
+        </button>
+      )}
+
+      {installPrompt && (
+        <button
+          onClick={onInstall}
+          className="flex items-center gap-3 bg-blue-700 text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/20 font-black uppercase text-[10px] tracking-widest hover:bg-blue-800 active:scale-95 transition-all"
+          title="Instalar CORUS no PC"
+        >
+          <img src={CORUS_LOGO_URL} alt="" className="w-8 h-8 object-contain bg-white rounded-xl p-1" />
+          Instalar CORUS
+        </button>
+      )}
+    </div>
+  );
+};
 
 const Layout = ({ children, title, onBack, onLogout: propLogout, isReadOnly, onProfileClick: propProfile, onExitImpersonation, widthClass = "max-w-5xl" }: { children?: React.ReactNode, title: string, onBack?: () => void, onLogout?: () => void, isReadOnly?: boolean, onProfileClick?: () => void, onExitImpersonation?: () => void, widthClass?: string }) => {
   const nav = React.useContext(NavigationContext);
@@ -9802,7 +9849,7 @@ const AuthScreen = ({ onLogin }: any) => {
       <div className={`bg-white rounded-2xl shadow-2xl p-8 w-full ${mode === 'request' ? 'max-w-md' : 'max-w-sm'} transition-all duration-300 relative z-10`}>
         <div className="text-center mb-6 flex flex-col items-center">
           <img 
-            src="https://i.postimg.cc/K8X69mDY/image-removebg-preview.png" 
+            src={CORUS_LOGO_URL} 
             alt="CORUS Logo" 
             className="w-40 sm:w-52 h-auto contrast-[1.15] saturate-[1.1] opacity-100" 
             style={{ imageRendering: 'high-quality', transform: 'translateZ(0)' }}
@@ -9898,6 +9945,8 @@ const App = () => {
   const [loadingPublic, setLoadingPublic] = useState(false);
   const [unreadBulletins, setUnreadBulletins] = useState<(BulletinMessage & { status_id: string })[]>([]);
   const [postLoginReady, setPostLoginReady] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [pwaUpdate, setPwaUpdate] = useState<PWAUpdateState | null>(null);
 
   const checkUnreadBulletins = async (email: string) => {
     const cacheKey = `local_unread_bulletins_${email}`;
@@ -9964,6 +10013,103 @@ const App = () => {
         setLoadingPublic(false);
       });
     }
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    let refreshing = false;
+    let updateInterval: number | null = null;
+
+    const handleControllerChange = () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+
+    navigator.serviceWorker.register('/sw.js').then((registration) => {
+      const markUpdate = (worker?: ServiceWorker | null) => {
+        if (worker) setPwaUpdate({ registration, waiting: worker });
+      };
+
+      markUpdate(registration.waiting);
+
+      registration.addEventListener('updatefound', () => {
+        const worker = registration.installing;
+        if (!worker) return;
+
+        worker.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+            markUpdate(worker);
+          }
+        });
+      });
+
+      updateInterval = window.setInterval(() => {
+        registration.update().catch(() => {});
+      }, 30 * 60 * 1000);
+    }).catch((err) => {
+      console.warn('Falha ao registrar instalador do CORUS:', err);
+    });
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      if (updateInterval) window.clearInterval(updateInterval);
+    };
+  }, []);
+
+  useEffect(() => {
+    const getMainScript = (doc: Document) => {
+      return doc.querySelector('script[type="module"][src]')?.getAttribute('src') || '';
+    };
+
+    const currentScript = getMainScript(document);
+    if (!currentScript) return;
+
+    const checkForPublishedUpdate = async () => {
+      try {
+        const response = await fetch('/index.html', { cache: 'no-store' });
+        const html = await response.text();
+        const nextDoc = new DOMParser().parseFromString(html, 'text/html');
+        const nextScript = getMainScript(nextDoc);
+
+        if (nextScript && nextScript !== currentScript) {
+          const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+          setPwaUpdate({ registration });
+        }
+      } catch (err) {
+        console.warn('Falha ao verificar nova versao do CORUS:', err);
+      }
+    };
+
+    const timer = window.setTimeout(checkForPublishedUpdate, 5000);
+    const interval = window.setInterval(checkForPublishedUpdate, 10 * 60 * 1000);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -10346,10 +10492,55 @@ const App = () => {
     reader.readAsText(file);
   };
 
-  if (loadingPublic) return <div className="min-h-screen bg-blue-900 flex items-center justify-center text-white font-bold animate-pulse uppercase tracking-widest">Carregando Programa...</div>;
-  if (publicProgram) return <PrintView list={publicProgram} onBack={() => { setPublicProgram(null); window.history.replaceState({}, '', window.location.pathname); }} />;
+  const handleInstallApp = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice.outcome === 'accepted') {
+      setInstallPrompt(null);
+    }
+  };
 
-  if (!currentUser) return <AuthScreen onLogin={setCurrentUser} />;
+  const handleUpdateApp = () => {
+    if (pwaUpdate?.waiting) {
+      pwaUpdate.waiting.postMessage({ type: 'SKIP_WAITING' });
+      setPwaUpdate(null);
+      return;
+    }
+
+    setPwaUpdate(null);
+    window.location.reload();
+  };
+
+  const pwaControls = (
+    <PWAInstallControls
+      installPrompt={installPrompt}
+      updateState={pwaUpdate}
+      onInstall={handleInstallApp}
+      onUpdate={handleUpdateApp}
+    />
+  );
+
+  if (loadingPublic) return (
+    <>
+      <div className="min-h-screen bg-blue-900 flex items-center justify-center text-white font-bold animate-pulse uppercase tracking-widest">Carregando Programa...</div>
+      {pwaControls}
+    </>
+  );
+
+  if (publicProgram) return (
+    <>
+      <PrintView list={publicProgram} onBack={() => { setPublicProgram(null); window.history.replaceState({}, '', window.location.pathname); }} />
+      {pwaControls}
+    </>
+  );
+
+  if (!currentUser) return (
+    <>
+      <AuthScreen onLogin={setCurrentUser} />
+      {pwaControls}
+    </>
+  );
 
   return (
     <NavigationContext.Provider value={{ onLogout, onProfileClick: () => navigate('profile') }}>
@@ -10427,6 +10618,7 @@ const App = () => {
             />
           </>
         )}
+        {pwaControls}
       </div>
     </NavigationContext.Provider>
   );
