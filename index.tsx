@@ -14,6 +14,7 @@ const LazyReactQuill = React.lazy(async () => {
 });
 
 const CORUS_LOGO_URL = 'https://i.postimg.cc/K8X69mDY/image-removebg-preview.png';
+const CORUS_EXE_DOWNLOAD_URL = 'https://github.com/jonatassgoncalvess-art/https-github.com-jonatassgoncalvess-art-CORUS/releases/latest';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -951,37 +952,33 @@ const formatSecondsToDurationString = (totalSeconds: number): string => {
 
 // --- Componentes de Interface ---
 
-const PWAInstallControls = ({ installPrompt, updateState, onInstall, onUpdate }: {
+const PWAInstallControls = ({ updateState, onDownload, onUpdate }: {
   installPrompt: BeforeInstallPromptEvent | null;
   updateState: PWAUpdateState | null;
-  onInstall: () => void;
+  onDownload: () => void;
   onUpdate: () => void;
 }) => {
-  if (!installPrompt && !updateState) return null;
-
   return (
     <div className="fixed right-4 bottom-4 z-[5000] no-print flex flex-col gap-3 items-end">
       {updateState && (
         <button
           onClick={onUpdate}
           className="flex items-center gap-3 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/20 font-black uppercase text-[10px] tracking-widest hover:bg-emerald-700 active:scale-95 transition-all"
-          title="Baixar a nova versao do CORUS"
+          title="Baixar a nova versao .exe do CORUS"
         >
           <img src={CORUS_LOGO_URL} alt="" className="w-8 h-8 object-contain bg-white rounded-xl p-1" />
-          Nova versao disponivel
+          Nova versao para baixar
         </button>
       )}
 
-      {installPrompt && (
-        <button
-          onClick={onInstall}
-          className="flex items-center gap-3 bg-blue-700 text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/20 font-black uppercase text-[10px] tracking-widest hover:bg-blue-800 active:scale-95 transition-all"
-          title="Instalar CORUS no PC"
-        >
-          <img src={CORUS_LOGO_URL} alt="" className="w-8 h-8 object-contain bg-white rounded-xl p-1" />
-          Instalar CORUS
-        </button>
-      )}
+      <button
+        onClick={onDownload}
+        className="flex items-center gap-3 bg-blue-700 text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/20 font-black uppercase text-[10px] tracking-widest hover:bg-blue-800 active:scale-95 transition-all"
+        title="Baixar instalador .exe do CORUS"
+      >
+        <img src={CORUS_LOGO_URL} alt="" className="w-8 h-8 object-contain bg-white rounded-xl p-1" />
+        Baixar CORUS.exe
+      </button>
     </div>
   );
 };
@@ -10492,31 +10489,20 @@ const App = () => {
     reader.readAsText(file);
   };
 
-  const handleInstallApp = async () => {
-    if (!installPrompt) return;
-    await installPrompt.prompt();
-    const choice = await installPrompt.userChoice;
-    if (choice.outcome === 'accepted') {
-      setInstallPrompt(null);
-    }
+  const handleDownloadExe = () => {
+    window.open(CORUS_EXE_DOWNLOAD_URL, '_blank', 'noopener,noreferrer');
   };
 
   const handleUpdateApp = () => {
-    if (pwaUpdate?.waiting) {
-      pwaUpdate.waiting.postMessage({ type: 'SKIP_WAITING' });
-      setPwaUpdate(null);
-      return;
-    }
-
     setPwaUpdate(null);
-    window.location.reload();
+    handleDownloadExe();
   };
 
   const pwaControls = (
     <PWAInstallControls
       installPrompt={installPrompt}
       updateState={pwaUpdate}
-      onInstall={handleInstallApp}
+      onDownload={handleDownloadExe}
       onUpdate={handleUpdateApp}
     />
   );
