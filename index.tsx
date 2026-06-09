@@ -14,7 +14,10 @@ const LazyReactQuill = React.lazy(async () => {
 });
 
 const CORUS_LOGO_URL = 'https://i.postimg.cc/K8X69mDY/image-removebg-preview.png';
+const CORUS_DOWNLOAD_ICON_URL = 'corus-icon.png';
+const CORUS_BACKGROUND_URL = 'corus-bg.jpg';
 const CORUS_EXE_DOWNLOAD_URL = 'https://github.com/jonatassgoncalvess-art/https-github.com-jonatassgoncalvess-art-CORUS/releases/latest/download/CORUS.exe';
+const IS_DESKTOP_APP = typeof navigator !== 'undefined' && /Electron|CORUSDesktop/i.test(navigator.userAgent);
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -966,7 +969,7 @@ const PWAInstallControls = ({ updateState, onDownload, onUpdate }: {
           className="flex items-center gap-3 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/20 font-black uppercase text-[10px] tracking-widest hover:bg-emerald-700 active:scale-95 transition-all"
           title="Baixar a nova versao .exe do CORUS"
         >
-          <img src={CORUS_LOGO_URL} alt="" className="w-8 h-8 object-contain bg-white rounded-xl p-1" />
+          <img src={CORUS_DOWNLOAD_ICON_URL} alt="" className="w-8 h-8 object-contain bg-white rounded-xl p-1" />
           Nova versao para baixar
         </button>
       )}
@@ -976,7 +979,7 @@ const PWAInstallControls = ({ updateState, onDownload, onUpdate }: {
         className="flex items-center gap-3 bg-blue-700 text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/20 font-black uppercase text-[10px] tracking-widest hover:bg-blue-800 active:scale-95 transition-all"
         title="Baixar instalador .exe do CORUS"
       >
-        <img src={CORUS_LOGO_URL} alt="" className="w-8 h-8 object-contain bg-white rounded-xl p-1" />
+        <img src={CORUS_DOWNLOAD_ICON_URL} alt="" className="w-8 h-8 object-contain bg-white rounded-xl p-1" />
         Baixar CORUS.exe
       </button>
     </div>
@@ -994,7 +997,7 @@ const Layout = ({ children, title, onBack, onLogout: propLogout, isReadOnly, onP
       <div
         className="fixed inset-0 bg-cover bg-center"
         style={{
-          backgroundImage: "url('https://i.postimg.cc/nLGHJXhX/Gemini-Generated-Image-e9746we9746we974.png')"
+          backgroundImage: `url('${CORUS_BACKGROUND_URL}')`
         }}
       />
 
@@ -10504,7 +10507,7 @@ const App = () => {
     handleDownloadExe();
   };
 
-  const pwaControls = (
+  const pwaControls = IS_DESKTOP_APP ? null : (
     <PWAInstallControls
       installPrompt={installPrompt}
       updateState={pwaUpdate}

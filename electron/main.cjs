@@ -2,6 +2,7 @@ const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
 
 const isDev = !app.isPackaged;
+app.userAgentFallback = `${app.userAgentFallback || ''} CORUSDesktop`.trim();
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -10,7 +11,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: 'CORUS - Gestor de Corais Apostolicos',
-    icon: path.join(__dirname, '..', 'public', 'corus-logo.png'),
+    icon: path.join(__dirname, '..', 'public', 'corus-icon.png'),
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,

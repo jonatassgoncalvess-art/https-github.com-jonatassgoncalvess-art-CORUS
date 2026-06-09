@@ -10,13 +10,13 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "https://i.postimg.cc/K8X69mDY/image-removebg-preview.png",
+      "src": "corus-icon.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://i.postimg.cc/K8X69mDY/image-removebg-preview.png",
+      "src": "corus-icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

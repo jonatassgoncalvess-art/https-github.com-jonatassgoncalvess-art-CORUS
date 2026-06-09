@@ -1,7 +1,7 @@
 {
   "name": "corus",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "CORUS - Gestor de Corais Apostolicos",
   "author": "jonatassgoncalvess-art",
   "type": "module",
@@ -44,6 +44,7 @@
       "dist/**/*",
       "electron/**/*",
       "public/corus-logo.png",
+      "public/corus-icon.png",
       "package.json"
     ],
     "win": {
