@@ -1,7 +1,7 @@
 {
   "name": "corus",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "CORUS - Gestor de Corais Apostolicos",
   "author": "jonatassgoncalvess-art",
   "type": "module",
@@ -36,6 +36,7 @@
   "build": {
     "appId": "br.com.corus.desktop",
     "productName": "CORUS",
+    "artifactName": "CORUS.exe",
     "directories": {
       "output": "release"
     },

@@ -14,7 +14,7 @@ const LazyReactQuill = React.lazy(async () => {
 });
 
 const CORUS_LOGO_URL = 'https://i.postimg.cc/K8X69mDY/image-removebg-preview.png';
-const CORUS_EXE_DOWNLOAD_URL = 'https://github.com/jonatassgoncalvess-art/https-github.com-jonatassgoncalvess-art-CORUS/releases/latest';
+const CORUS_EXE_DOWNLOAD_URL = 'https://github.com/jonatassgoncalvess-art/https-github.com-jonatassgoncalvess-art-CORUS/releases/latest/download/CORUS.exe';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -10490,7 +10490,13 @@ const App = () => {
   };
 
   const handleDownloadExe = () => {
-    window.open(CORUS_EXE_DOWNLOAD_URL, '_blank', 'noopener,noreferrer');
+    const link = document.createElement('a');
+    link.href = CORUS_EXE_DOWNLOAD_URL;
+    link.download = 'CORUS.exe';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   const handleUpdateApp = () => {
