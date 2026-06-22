@@ -10537,14 +10537,12 @@ const App = () => {
   if (loadingPublic) return (
     <>
       <div className="min-h-screen bg-blue-900 flex items-center justify-center text-white font-bold animate-pulse uppercase tracking-widest">Carregando Programa...</div>
-      {pwaControls}
     </>
   );
 
   if (publicProgram) return (
     <>
       <PrintView list={publicProgram} onBack={() => { setPublicProgram(null); window.history.replaceState({}, '', window.location.pathname); }} />
-      {pwaControls}
     </>
   );
 
