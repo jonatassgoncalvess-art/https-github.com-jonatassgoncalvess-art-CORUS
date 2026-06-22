@@ -10536,14 +10536,14 @@ const App = () => {
     handleDownloadExe();
   };
 
-  const pwaControls = IS_DESKTOP_APP ? null : (
+  const pwaControls = !currentUser && !IS_DESKTOP_APP ? (
     <PWAInstallControls
       installPrompt={installPrompt}
       updateState={pwaUpdate}
       onDownload={handleDownloadExe}
       onUpdate={handleUpdateApp}
     />
-  );
+  ) : null;
 
   if (loadingPublic) return (
     <>
@@ -10640,7 +10640,6 @@ const App = () => {
             />
           </>
         )}
-        {pwaControls}
       </div>
     </NavigationContext.Provider>
   );
