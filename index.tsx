@@ -463,11 +463,19 @@ const restoreBulletinsFromStorage = (messages: any[]) => {
   });
 };
 
-const fetchData = async (table: string, localKey: string, ownerEmail?: string) => {
+const DATA_CACHE_TTL_MS = 30 * 1000;
+const getCacheTimestampKey = (cacheKey: string) => `${cacheKey}__syncedAt`;
+const markCacheSynced = (cacheKey: string) => safeLocalStorageSetItem(getCacheTimestampKey(cacheKey), String(Date.now()));
+const isCacheFresh = (cacheKey: string) => {
+  const syncedAt = Number(localStorage.getItem(getCacheTimestampKey(cacheKey)) || 0);
+  return syncedAt > 0 && Date.now() - syncedAt < DATA_CACHE_TTL_MS;
+};
+
+const fetchData = async (table: string, localKey: string, ownerEmail?: string, options?: { forceFresh?: boolean }) => {
   const cacheKey = `${localKey}_${ownerEmail || 'all'}`;
 
   // 1. Tentar carregar do cache de memória (resposta em 0ms)
-  if (memoryCache[cacheKey]) {
+  if (!options?.forceFresh && memoryCache[cacheKey] && isCacheFresh(cacheKey)) {
     // Busca em segundo plano para manter o cache atualizado sem bloquear
     setTimeout(async () => {
       try {
@@ -477,6 +485,7 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
           if (!error && data && data.length > 0) {
             const relations = data[0].sections?.relations || [];
             safeLocalStorageSetItem(cacheKey, JSON.stringify(relations));
+            markCacheSynced(cacheKey);
             memoryCache[cacheKey] = relations;
           }
         } else {
@@ -488,6 +497,7 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
           if (!error && data) {
             const filtered = table === 'hymn_lists' ? data.filter((item: any) => !item.id?.startsWith('relations-')) : data;
             safeLocalStorageSetItem(cacheKey, JSON.stringify(filtered));
+            markCacheSynced(cacheKey);
             memoryCache[cacheKey] = filtered;
           }
         }
@@ -500,10 +510,10 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
 
   // 2. Tentar carregar do LocalStorage (resposta rápida)
   const local = localStorage.getItem(cacheKey);
-  if (local) {
+  if (!options?.forceFresh && local && isCacheFresh(cacheKey)) {
     try {
       let parsed = JSON.parse(local);
-      if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+      if (parsed && Array.isArray(parsed)) {
         if (table === 'hymn_lists') {
           parsed = parsed.filter((item: any) => !item.id?.startsWith('relations-'));
         }
@@ -518,6 +528,7 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
               if (!error && data && data.length > 0) {
                 const relations = data[0].sections?.relations || [];
                 safeLocalStorageSetItem(cacheKey, JSON.stringify(relations));
+                markCacheSynced(cacheKey);
                 memoryCache[cacheKey] = relations;
               }
             } else {
@@ -529,6 +540,7 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
               if (!error && data) {
                 const filtered = table === 'hymn_lists' ? data.filter((item: any) => !item.id?.startsWith('relations-')) : data;
                 safeLocalStorageSetItem(cacheKey, JSON.stringify(filtered));
+                markCacheSynced(cacheKey);
                 memoryCache[cacheKey] = filtered;
               }
             }
@@ -553,6 +565,7 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
       if (data && data.length > 0) {
         const relations = data[0].sections?.relations || [];
         safeLocalStorageSetItem(cacheKey, JSON.stringify(relations));
+        markCacheSynced(cacheKey);
         memoryCache[cacheKey] = relations;
         return relations;
       }
@@ -567,6 +580,7 @@ const fetchData = async (table: string, localKey: string, ownerEmail?: string) =
       if (data) {
         const filtered = table === 'hymn_lists' ? data.filter((item: any) => !item.id?.startsWith('relations-')) : data;
         safeLocalStorageSetItem(cacheKey, JSON.stringify(filtered));
+        markCacheSynced(cacheKey);
         memoryCache[cacheKey] = filtered;
         return filtered;
       }
@@ -596,6 +610,7 @@ const saveData = async (table: string, localKey: string, data: any, ownerEmail?:
   // Atualiza cache de memória e LocalStorage imediatamente para reações instantâneas na tela
   memoryCache[cacheKey] = dataToStore;
   safeLocalStorageSetItem(cacheKey, JSON.stringify(dataToStore));
+  markCacheSynced(cacheKey);
 
   let dataToUpsert = dataToStore;
 
@@ -652,6 +667,7 @@ const deleteRow = async (table: string, localKey: string, id: string, updatedLoc
   const cacheKey = `${localKey}_${ownerEmail || 'all'}`;
   memoryCache[cacheKey] = updatedLocalData;
   safeLocalStorageSetItem(cacheKey, JSON.stringify(updatedLocalData));
+  markCacheSynced(cacheKey);
   try {
     await supabase.from(table).delete().eq('id', id);
   } catch (err) {
@@ -3294,7 +3310,7 @@ const AttendancePercentageReportScreen = ({ goBack, ownerEmail, reportData }: an
 const HymnNotebookReportScreen = ({ notebook, goBack, ownerEmail }: any) => {
   const [hymns, setHymns] = useState<MasterHymn[]>([]);
   useEffect(() => {
-    fetchData('hymns_library', 'gca_hymns_library', ownerEmail).then(all => {
+    fetchData('hymns_library', 'gca_hymns_library', ownerEmail, { forceFresh: true }).then(all => {
       setHymns(all.filter((h: any) => h.notebook === notebook.code));
     });
   }, [notebook.code, ownerEmail]);
@@ -5526,7 +5542,7 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
   const [validationError, setValidationError] = useState(false);
   const [startZeroError, setStartZeroError] = useState(false);
 
-  useEffect(() => { fetchData('hymns_library', 'gca_hymns_library', ownerEmail).then(all => { setHymns(all.filter((h: any) => h.notebook === notebook.code)); }); }, [notebook.code, ownerEmail]);
+  useEffect(() => { fetchData('hymns_library', 'gca_hymns_library', ownerEmail, { forceFresh: true }).then(all => { setHymns(all.filter((h: any) => h.notebook === notebook.code)); }); }, [notebook.code, ownerEmail]);
 
   const saveHymn = async (e: React.FormEvent) => {
     e.preventDefault(); if (isReadOnly) return;
@@ -5534,14 +5550,14 @@ const NotebookDetailScreen = ({ notebook, goBack, navigate, ownerEmail, isReadOn
     const isDuplicate = hymns.some(h => (h.number === formData.number || h.title.toLowerCase() === formData.title.toLowerCase()) && h.id !== editingId);
     if (isDuplicate) { setValidationError(true); return; }
     const hymnToSave: MasterHymn = { id: editingId || generateId(), notebook: notebook.code, owner_email: ownerEmail, ...formData };
-    const all = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail);
+    const all = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail, { forceFresh: true });
     const updatedAll = editingId ? all.map((h: any) => h.id === editingId ? hymnToSave : h) : [...all, hymnToSave];
     await saveData('hymns_library', 'gca_hymns_library', updatedAll, ownerEmail);
     if (editingId) setHymns(hymns.map(h => h.id === editingId ? hymnToSave : h)); else setHymns([...hymns, hymnToSave]);
     setShowForm(false); setEditingId(null); setValidationError(false); setFormData({ number: '', title: '' });
   };
 
-  const confirmDelete = async () => { if (isReadOnly || !hymnToDelete) return; const id = hymnToDelete.id; const all = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail); const updated = all.filter((h: any) => h.id !== id); await deleteRow('hymns_library', 'gca_hymns_library', id, updated, ownerEmail); setHymns(hymns.filter(h => h.id !== id)); setHymnToDelete(null); };
+  const confirmDelete = async () => { if (isReadOnly || !hymnToDelete) return; const id = hymnToDelete.id; const all = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail, { forceFresh: true }); const updated = all.filter((h: any) => h.id !== id); await deleteRow('hymns_library', 'gca_hymns_library', id, updated, ownerEmail); setHymns(hymns.filter(h => h.id !== id)); setHymnToDelete(null); };
   const filtered = hymns.filter(h => h.number.includes(search) || h.title.toLowerCase().includes(search.toLowerCase())).sort((a,b) => parseInt(a.number) - parseInt(b.number));
 
   return (
@@ -5678,7 +5694,7 @@ const HymnListScreen = ({ navigate, goBack, onCreate, onEdit, ownerEmail, isRead
   const [viewing, setViewing] = useState<HymnList | null>(null);
   const [listToDelete, setListToDelete] = useState<HymnList | null>(null);
 
-  useEffect(() => { fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail).then(setLists); }, [ownerEmail]);
+  useEffect(() => { fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail, { forceFresh: true }).then(setLists); }, [ownerEmail]);
 
   const confirmDelete = async () => { if (isReadOnly || !listToDelete) return; const id = listToDelete.id; const updated = lists.filter(l => l.id !== id); setLists(updated); await deleteRow('hymn_lists', 'gca_hymn_lists', id, updated, ownerEmail); setListToDelete(null); };
 
@@ -5753,7 +5769,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
   const isFirstRun = useRef(!initialData);
 
   useEffect(() => {
-    fetchData('hymns_library', 'gca_hymns_library', ownerEmail).then(setLibraryHymns);
+    fetchData('hymns_library', 'gca_hymns_library', ownerEmail, { forceFresh: true }).then(setLibraryHymns);
   }, [ownerEmail]);
 
   useEscapeKey(() => {
@@ -5771,7 +5787,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
     if (data.type === 'Normal200') counts = { h: 5, c: 2, co: 2, m: 1 }; else if (data.type === 'Especial200') counts = { h: 1, c: 3, co: 2, m: 1 }; else if (data.type === 'Festiva200') counts = { h: 1, c: 7, co: 2, m: 1 }; else if (data.type === 'NatalAnoNovo') counts = { h: 1, c: 1, co: 1, m: 1 }; else if (data.type === 'Outra') counts = { h: 5, c: 2, co: 1, m: 1 };
     const empty = (n: number, defNb: string = 'Caderno') => Array(n).fill(null).map(() => ({ id: generateId(), notebook: defNb, number: '', title: '', execution: '', duration: '', conductor: '', soloist: '', keyboardist: '', guitarist: '' }));
     const buildSections = async () => {
-      const all = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail);
+      const all = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail, { forceFresh: true });
       const findTitle = (num: string, nb: string) => all.find((h: any) => h.notebook === nb && h.number === num)?.title || '';
       let sections: any = { hymnal: empty(counts.h, 'H'), choir: empty(counts.c), contributions: empty(counts.co), message: empty(counts.m) };
       if (data.type === 'Oracao') {
@@ -5827,7 +5843,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
     setData({ ...data, sections: { ...data.sections!, [sec]: s } });
   };
 
-  const openHymnSearch = (sec: string, idx: number, notebook: string) => {
+  const openHymnSearch = async (sec: string, idx: number, notebook: string) => {
     if (isReadOnly) return;
     if (!notebook || notebook === 'Caderno') {
       setNotebookError({ sec, idx });
@@ -5835,6 +5851,8 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
       return;
     }
     setNotebookError(null);
+    const freshLibrary = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail, { forceFresh: true });
+    setLibraryHymns(freshLibrary);
     setSearchModalHymns({ sec, idx, notebook });
     setHymnSearchTerm('');
   };
@@ -5875,7 +5893,7 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); if (isReadOnly) return;
-    const allLibraryHymns = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail);
+    const allLibraryHymns = await fetchData('hymns_library', 'gca_hymns_library', ownerEmail, { forceFresh: true });
     let hasError = false;
     const newErrors: string[] = [];
 
@@ -5909,11 +5927,11 @@ const CreateHymnListScreen = ({ onSave, onCancel, initialData, ownerEmail, isRea
     setValidationErrors(newErrors);
     if (hasError) { setShowErrorMsg(true); } // Removed return to allow saving even with errors
     const newList: HymnList = { id: initialData?.id || generateId(), owner_email: ownerEmail, ...data } as HymnList;
-    const all = await fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail);
+    const all = await fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail, { forceFresh: true });
     await saveData('hymn_lists', 'gca_hymn_lists', [...all.filter((l: any) => l.id !== initialData?.id), newList], ownerEmail);
 
     if (newList.festivity && newList.festivity !== '(em branco)') {
-      const relations = await fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail);
+      const relations = await fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail, { forceFresh: true });
       let relation = relations.find((r: any) => r.title === newList.festivity);
       
       const hymnsInList: {notebook: string, number: string, title: string}[] = [];
@@ -6495,7 +6513,7 @@ const HymnRelationsDashboardScreen = ({ navigate, goBack, ownerEmail, isReadOnly
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail).then(all => {
+    fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail, { forceFresh: true }).then(all => {
       setRelations(all);
       setLoading(false);
     });
@@ -6606,9 +6624,9 @@ const HymnRelationDetailScreen = ({ relation: initialRelation, goBack, navigate,
 
   useEffect(() => {
     if (!initialRelation) return;
-    fetchData('hymns_library', 'gca_hymns_library', ownerEmail).then(setLibraryHymns);
+    fetchData('hymns_library', 'gca_hymns_library', ownerEmail, { forceFresh: true }).then(setLibraryHymns);
     // Refresh relation from DB just in case
-    fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail).then(all => {
+    fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail, { forceFresh: true }).then(all => {
       const found = all.find((r: any) => r.id === initialRelation.id || (r.title === initialRelation.title && r.type === initialRelation.type));
       if (found) setRelation(found);
     });
@@ -6617,7 +6635,7 @@ const HymnRelationDetailScreen = ({ relation: initialRelation, goBack, navigate,
   if (!initialRelation || !relation) return <Layout title="Detalhes" onBack={goBack}>Carregando...</Layout>;
 
   const saveToDb = async (updatedHymns: any[]) => {
-    const all = await fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail);
+    const all = await fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail, { forceFresh: true });
     const updatedRelation = { ...relation, hymns: updatedHymns };
     const filtered = all.filter((r: any) => r.id !== relation.id);
     await saveData('hymn_relations', 'gca_hymn_relations', [...filtered, updatedRelation], ownerEmail);
@@ -6662,7 +6680,7 @@ const HymnRelationDetailScreen = ({ relation: initialRelation, goBack, navigate,
 
   const deleteRelation = async () => {
     if (!confirm('Deseja excluir esta relação?')) return;
-    const all = await fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail);
+    const all = await fetchData('hymn_relations', 'gca_hymn_relations', ownerEmail, { forceFresh: true });
     const filtered = all.filter((r: any) => r.id !== relation.id);
     await saveData('hymn_relations', 'gca_hymn_relations', filtered, ownerEmail);
     goBack();
@@ -6877,7 +6895,7 @@ const HymnShareSelectionScreen = ({ navigate, goBack, ownerEmail, onExitImperson
 
   const fetchActiveLists = async () => {
     setLoading(true);
-    const all = await fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail);
+    const all = await fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail, { forceFresh: true });
     const filtered = all.filter((l: any) => l.date >= startDate && l.date <= endDate);
     setLists(filtered.sort((a,b) => a.date.localeCompare(b.date)));
     setSelectedIds([]);
@@ -7089,8 +7107,8 @@ const HymnReportScreen = ({ goBack, ownerEmail, reportData }: any) => {
       setLoading(true);
       try {
         const [allHymns, allLists] = await Promise.all([
-          fetchData('hymns_library', 'gca_hymns_library', ownerEmail),
-          fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail)
+          fetchData('hymns_library', 'gca_hymns_library', ownerEmail, { forceFresh: true }),
+          fetchData('hymn_lists', 'gca_hymn_lists', ownerEmail, { forceFresh: true })
         ]);
 
         const filteredLists = allLists.filter((l: HymnList) => l.date >= start && l.date <= end);
