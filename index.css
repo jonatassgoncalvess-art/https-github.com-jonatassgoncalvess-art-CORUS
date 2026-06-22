@@ -150,6 +150,43 @@
   page-break-inside: avoid;
 }
 
+.hymn-print-table {
+  border-bottom-color: #d1d5db !important;
+}
+
+.hymn-print-table > div {
+  border-color: #d1d5db !important;
+}
+
+.hymn-print-table.bg-blue-900 > div {
+  border-color: #1d4ed8 !important;
+}
+
+.hymn-print-table > div:nth-child(1) {
+  flex: 0 0 calc(4rem * var(--report-column-scale, 1)) !important;
+}
+
+.hymn-print-table > div:nth-child(2) {
+  flex: 0 0 calc(3.5rem * var(--report-column-scale, 1)) !important;
+}
+
+.hymn-print-table > div:nth-child(3) {
+  flex: 1 1 auto !important;
+}
+
+.hymn-print-table > div:nth-child(n+4) {
+  flex: 0 0 calc(6rem * var(--report-column-scale, 1)) !important;
+}
+
+.hymn-print-table > div:last-child:nth-child(9) {
+  flex-basis: calc(5rem * var(--report-column-scale, 1)) !important;
+}
+
+.hymn-print-section {
+  border-top: 1px solid #d1d5db !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
 /* Limpeza para Captura Direta em PDF */
 .pdf-capture {
   background: white !important;

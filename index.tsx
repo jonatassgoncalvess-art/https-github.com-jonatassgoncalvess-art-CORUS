@@ -1094,7 +1094,8 @@ const PagedReport = ({
   filename,
   orientation = 'portrait',
   lastPageFooter,
-  footerNoteLeft
+  footerNoteLeft,
+  footerCenter
 }: { 
   id: string, 
   header: React.ReactNode, 
@@ -1106,7 +1107,8 @@ const PagedReport = ({
   filename: string,
   orientation?: 'portrait' | 'landscape',
   lastPageFooter?: React.ReactNode,
-  footerNoteLeft?: React.ReactNode
+  footerNoteLeft?: React.ReactNode,
+  footerCenter?: React.ReactNode
 }) => {
   const [pages, setPages] = useState<any[][]>([]);
   const [printScale, setPrintScale] = useState(100);
@@ -1274,7 +1276,8 @@ const PagedReport = ({
           visibility: 'hidden',
           opacity: 0,
           pointerEvents: 'none',
-          zIndex: -9999
+          zIndex: -9999,
+          ['--report-column-scale' as any]: 100 / printScale
         }}
       >
         <div className="report-header">{header}</div>
@@ -1303,7 +1306,8 @@ const PagedReport = ({
                     transformOrigin: 'top left',
                     width: `${100 * (100 / printScale)}%`,
                     height: `${100 * (100 / printScale)}%`,
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    ['--report-column-scale' as any]: 100 / printScale
                   }}
                 >
                   {pageIdx === 0 && <div className="report-header">{header}</div>}
@@ -1320,11 +1324,14 @@ const PagedReport = ({
                   )}
                 </div>
               </div>
-              <div className="mt-auto pt-4 flex justify-between items-center text-[9px] text-gray-400 font-mono italic">
-                <span>
+              <div className="mt-auto pt-4 grid grid-cols-3 items-center text-[11px] text-gray-800 font-bold italic">
+                <span className="text-left">
                   {footerNoteLeft || ""}
                 </span>
-                <span>
+                <span className="text-center text-xl font-black uppercase tracking-tight text-blue-900 not-italic">
+                  {footerCenter || ""}
+                </span>
+                <span className="text-right">
                   {title} - Página {pageIdx + 1} de {pages.length}
                 </span>
               </div>
@@ -6372,6 +6379,9 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
 
   const isNatal = list.type === 'NatalAnoNovo';
   const orientation = (list.isDetailed || isNatal) ? 'landscape' : 'portrait';
+  const reportColumnWidth = (rem: number): React.CSSProperties => ({
+    width: `calc(${rem}rem * var(--report-column-scale, 1))`
+  });
 
   const header = useMemo(() => {
     const hasFestivity = list.festivity && list.festivity !== '(em branco)';
@@ -6382,14 +6392,14 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
         <div className="w-full flex justify-between items-baseline mb-2 px-1">
           {/* Canto superior esquerdo */}
           <div className="w-1/3 text-left">
-            <h1 className="text-xl font-black uppercase tracking-tight text-blue-900 leading-none">
+            <h1 className="hidden">
               Igreja Apostólica
             </h1>
           </div>
           
           {/* Centralizado */}
           <div className="w-1/3 text-center">
-            <h2 className="text-xs font-black uppercase tracking-wider text-gray-800 leading-none">
+            <h2 className="text-xl font-black uppercase tracking-tight text-blue-900 leading-none">
               Programação de Hinos
             </h2>
           </div>
@@ -6417,8 +6427,8 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
   }, [list.date, list.startTime, list.congregation, list.festivity, isNatal]);
 
   const tableHeader = useMemo(() => (
-    <div className="flex items-center border-b-2 border-blue-900 bg-blue-900 text-white uppercase font-black text-[11px] w-full min-h-[44px]">
-      <div className="px-2 py-2 w-16 shrink-0 text-center flex items-center justify-center">Cad.</div>
+    <div className="hymn-print-table flex items-center border-b-2 border-blue-950 bg-blue-900 text-white uppercase font-black text-[11px] w-full min-h-[44px]">
+      <div className="px-2 py-2 w-16 shrink-0 text-center flex items-center justify-center" style={reportColumnWidth(4)}>Cad.</div>
       <div className="px-2 py-2 w-14 shrink-0 text-center border-l border-blue-800/30 flex items-center justify-center">Nº</div>
       <div className="px-2 py-2 flex-1 border-l border-blue-800/30 text-center flex items-center justify-center">Hino</div>
       {list.isDetailed && (
@@ -6461,6 +6471,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
       lastPageFooter={lastPageFooter}
       title="Programa de Culto"
       footerNoteLeft={`Tipo: ${MEETING_TYPES[list.type] || list.type}`}
+      footerCenter="Igreja Apostólica"
       renderItem={(item) => {
         if (item.type === 'special') {
           return (
@@ -6471,7 +6482,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
         }
         if (item.type === 'section') {
           return (
-            <div className="px-2 py-1 font-black uppercase text-black border-b border-gray-300 text-center bg-gray-50/50" style={{ fontSize: '13px' }}>
+            <div className="hymn-print-section px-2 py-1 font-black uppercase text-black border-b border-gray-300 text-center bg-gray-50/50" style={{ fontSize: '13px' }}>
               {item.label}
             </div>
           );
@@ -6482,7 +6493,7 @@ const PrintView = ({ list, onBack, onExitImpersonation }: any) => {
         const fontSize = isNatal ? '10.5px' : '12.5px';
 
         return (
-          <div className="flex border-b border-gray-100 items-stretch w-full bg-white transition-colors hover:bg-gray-50/30" style={{ fontSize, minHeight: '42px' }}>
+          <div className="hymn-print-table flex border-b border-gray-100 items-stretch w-full bg-white transition-colors hover:bg-gray-50/30" style={{ fontSize, minHeight: '42px' }}>
             <div className={`${cellPadding} w-16 shrink-0 font-bold text-gray-500 border-r border-gray-100 italic flex items-center justify-center text-center`}>{e.notebook}</div>
             <div className={`${cellPadding} w-14 shrink-0 font-black text-black border-r border-gray-100 text-center flex items-center justify-center`}>{e.number}</div>
             <div className={`${cellPadding} flex-1 font-bold text-black uppercase truncate flex items-center px-4`}>{e.title}</div>
